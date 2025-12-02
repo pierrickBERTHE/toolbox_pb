@@ -1,0 +1,17 @@
+[project]
+name = "toolbox-pb"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Pierrick BERTHE",email = "109241887+pierrickBERTHE@users.noreply.github.com"}
+]
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "moviepy (>=2.2.1,<3.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
