@@ -6,32 +6,97 @@ Pierrick BERTHE
 mail : pierrick.berthe@gmx.fr
 Décembre 2025
 """
+# Imports standard
+import sys
+import datetime
+
 # Import custom librairies
 from video.main_video import video_encodor
-from func_global import exit_toolbox
+from config_global import APP_CONFIG, AppConfig
+import func_global as func
 
-# Main code
-if __name__ == "__main__":
+def main(cfg : AppConfig):
+    """ 
+    Point d'entrée principal de la toolbox_pb
+    """
+    
+    # Redirect all prints to a log file
+    if cfg.LOG_TO_FILE:
+        log_path = cfg.LOG_DIR / "process_log.txt"
+        sys.stdout = func.Logger(str(log_path))
+
+
+    # Print startup message
+    print("""
+        *****************************************
+        *                                       *
+        *          PPPPP    BBBBB               *
+        *          P   P    B   B               *
+        *          PPPPP    BBBBB               *
+        *          P        B   B               *
+        *          P        BBBBB               *
+        *                                       *
+        *****************************************
+        """
+    )
+    # print the git version
+    git_version = func.get_git_version()
+    print(func.format_git_version(git_version))
+    
+    # Print python and library versions
+    func.print_system_info()
+
+    # Print all flags
+    func.print_config_flags(cfg, flag_names=[
+        "LOG_TO_FILE",
+        "ADD_CODEC_NAME_IN_OUTPUT",
+        "PRINT_ALL_KEYS_IN_METADATA_SUMMARY"
+    ])
+
+    # Print time
+    now = datetime.datetime.now().isoformat()
+    print("\nCode lancé le : " + now)
+
+    # Print the menu
     print("\nMenu principal : ")
-    print("1. Vidéo assemblor")
-    print("2. Vidéo splitter")
-    print("3. Quitter")
-    # choix = input("Sélectionnez une option (1-3) : ")
-    choix = "1"
+    print("1. Vidéo_encodor")
+    print("2. Vidéo_assemblor")
+    print("3. Image_reductor")
+    print("4. PDF_filigranor")
+    print("5. Flatten_directory_tree")
+    print("6. Sport_garmin_recoltor")
+    print("7. Quitter")
+    
+    # Get user choice
+    choix = input("Sélectionnez une option (1-7) : ")
+    # choix = "1"
 
     # Match the case by the input
     match choix:
         case "1":
-            print("\nLancement du video_encodor...")
-            video_encodor()
+            print("\nLancement du Vidéo_encodor...")
+            video_encodor(cfg)
         case "2":
-            print("\nLancement du video_splitter...")
+            print("\nLancement du Vidéo_assemblor...")
             # A FAIRE
         case "3":
-            exit_toolbox()
+            print("\nLancement du Image_reductor...")
+            # A FAIRE
+        case "4":
+            print("\nLancement du PDF_filigranor...")
+            # A FAIRE
+        case "5":
+            print("\nLancement du Flatten_directory_tree...")
+            # A FAIRE
+        case "6":
+            print("\nLancement du Sport_garmin_recoltor...")
+            # A FAIRE
+        case "7":
+            print("Quitter l'application. Au revoir !")
+            sys.exit(0)
         case _:
             print("Choix invalide, recommencez.")
 
-    
-    
-    # pouvoir choisir le fichier avec input ou on veut sur le PC
+# Main entry point
+if __name__ == "__main__":
+    main(APP_CONFIG)
