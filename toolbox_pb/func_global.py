@@ -25,11 +25,14 @@ class Logger(object):
     def __init__(self, log_path):
         self.terminal = sys.stdout
         self.log = open(log_path, "a", encoding="utf-8")
+
     def write(self, message):
         self.terminal.write(message)
         self.log.write(message)
+        self.log.flush()
+
     def flush(self):
-        pass
+        self.log.flush()
 
 
 def get_git_version():
@@ -57,7 +60,11 @@ def format_git_version(version_str):
     # Check the number of parts
     if len(parts) == 1:
         return f"Version : {parts[0]}"
-    elif len(parts) == 3:
+    if (
+        len(parts) == 3
+        and parts[1].isdigit()
+        and parts[2].startswith('g')
+    ):
         tag, commits, commit_hash = parts
         return (
             f"Version : {tag} ({commits} commits après le tag,"

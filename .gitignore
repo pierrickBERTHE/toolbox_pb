@@ -1,5 +1,15 @@
+# Data files
 /data/*
-/log/*
 image/
+
+# Log files
+/log/*
+
+# ENV files
 poetry_toolbox - Raccourci.lnk
+
+# Python cache files
 __pycache__/
+
+# Pytest cache
+.pytest_cache/
