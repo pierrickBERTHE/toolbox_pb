@@ -99,7 +99,9 @@ def get_all_metadata(video_path: Path) -> dict:
         ) from exc
     except subprocess.CalledProcessError as exc:
         raise RuntimeError(
-            f"Error lors de l'exécution de ffprobe sur le fichier {video_path}"
+            f"Erreur ffprobe sur {video_path}\n"
+            f"stout: {exc.stdout}\n"
+            f"stderr: {exc.stderr}"
         ) from exc
 
     # Check output

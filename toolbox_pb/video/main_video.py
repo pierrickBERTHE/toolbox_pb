@@ -9,7 +9,7 @@ Décembre 2025
 """
 # import custom librairies
 from config_global import AppConfig
-import video.funcs_video as func_vid
+import toolbox_pb.video.func_video as func_vid
 import func_global as func_glob
 
 

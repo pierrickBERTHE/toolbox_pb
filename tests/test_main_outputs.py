@@ -7,12 +7,17 @@ Ce module teste exclusivement les outputs de la fonction `main()` :
 
 Ces tests sont des tests unitaires d’interface CLI,
 et ne couvrent pas les implémentations internes des modules appelés.
+
+Liste des fonctions testées :
+- print git version au démarrage OK
+- print system info au démarrage OK
+- print config flags au démarrage OK
 """
 # general imports
-from pathlib import Path
-import pytest
-from unittest import mock
 import sys
+from pathlib import Path
+from unittest import mock
+import pytest
 
 # Add the toolbox_pb directory to sys.path for imports
 sys.path.append(str(Path(__file__).resolve().parents[1] / 'toolbox_pb'))

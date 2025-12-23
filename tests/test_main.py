@@ -1,7 +1,7 @@
 """
 Tests unitaires du point d’entrée principal `main.py` du projet toolbox_pb.
 
-Ce module teste exclusivement le comportement de la fonction `main()` :
+Liste des fonctions testées :
 - Le fonctionnement du menu utilisateur pour le choix 1,
 - la logique de routage du menu utilisateur (choix 2 à 6),
 - la gestion des choix invalides.
@@ -12,9 +12,6 @@ etc.) sont systématiquement mockés afin de :
 - garantir des tests rapides et déterministes,
 - éviter tout effet de bord (I/O, calculs, dépendances externes),
 - isoler la logique de contrôle et d’orchestration de `main()`.
-
-Ces tests sont des tests unitaires d’orchestration et d’interface CLI,
-et ne couvrent pas les implémentations internes des modules appelés.
 """
 # general imports
 from pathlib import Path

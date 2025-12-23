@@ -1,6 +1,7 @@
 # Data files
 /data/*
-image/
+!/data/input/source/.gitkeep
+!/data/output/.gitkeep
 
 # Log files
 /log/*

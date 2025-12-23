@@ -5,6 +5,25 @@ Objectifs :
 - Vérifier les comportements unitaires
 - Éviter tout effet de bord (git, ffmpeg, fichiers, stdout réel)
 - Ne tester que la logique locale
+
+Liste des fonctions testées :
+- Logger.write
+- get_git_version : 
+    - version ok
+    exception
+- format_git_version :
+    - format simple
+    - format étendu
+    - format inattendu
+- print_system_info :
+    - ffmpeg ok
+    - ffmpeg absent
+- print_config_flags avec flags existants et non existants
+- transform_sec_duration_in_min_sec OK
+- measure_time décorateur OK
+- print_step OK
+- print_json OK
+- exit_toolbox OK
 """
 # Imports standard
 import sys
