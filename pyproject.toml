@@ -1,6 +1,6 @@
 [project]
 name = "toolbox-pb"
-version = "0.1.0"
+version = "1.0.0"
 description = ""
 authors = [
     {name = "Pierrick BERTHE",email = "109241887+pierrickBERTHE@users.noreply.github.com"}
