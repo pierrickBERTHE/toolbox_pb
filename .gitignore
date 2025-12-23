@@ -1,5 +1,16 @@
+# Data files
 /data/*
+!/data/input/source/.gitkeep
+!/data/output/.gitkeep
+
+# Log files
 /log/*
-image/
+
+# ENV files
 poetry_toolbox - Raccourci.lnk
+
+# Python cache files
 __pycache__/
+
+# Pytest cache
+.pytest_cache/
