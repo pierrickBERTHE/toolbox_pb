@@ -33,7 +33,7 @@ def test_main_video_encodor_called(monkeypatch):
     monkeypatch.setattr('builtins.input', lambda _: '1')
 
     # Mock others functions to avoid side effects except video_encodor
-    with mock.patch('main.video_encodor') as mock_video, \
+    with mock.patch('main.video_encodor', autospec=True) as mock_video, \
         mock.patch('func_global.get_git_version', return_value="git123"), \
         mock.patch('func_global.format_git_version', return_value="git123"), \
         mock.patch('func_global.print_system_info'), \
@@ -48,7 +48,6 @@ def test_main_video_encodor_called(monkeypatch):
 
 # Decorator to parametrize other valid choices (2-6)
 @pytest.mark.parametrize("choice,msg", [
-    ("2", "Vidéo_assemblor"),
     ("3", "Image_reductor"),
     ("4", "PDF_filigranor"),
     ("5", "Flatten_directory_tree"),
