@@ -1,5 +1,7 @@
 # Data files
 /data/*
+/data/input/*
+/data/output/*
 !data/input
 !data/output
 !/data/input/source/.gitkeep
@@ -17,3 +19,7 @@ __pycache__/
 
 # Pytest cache
 .pytest_cache/
+
+# coverage
+.coverage
+htmlcov/

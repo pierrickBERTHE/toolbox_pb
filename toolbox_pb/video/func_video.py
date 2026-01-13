@@ -7,11 +7,13 @@ mail : pierrick.berthe@gmx.fr
 Décembre 2025
 """
 # Imports standard
-from moviepy import VideoFileClip
+from moviepy import VideoFileClip, concatenate_videoclips
 from pathlib import Path
 import json
 import subprocess
 import os
+import csv
+from typing import Iterable
 
 # Import custom librairies
 from func_global import measure_time
@@ -156,51 +158,53 @@ def print_metadata_summary_all_keys(meta: dict):
         print_recursive(stream, indent=1)
 
 
+def safe_get(d, keys, default=None):
+        for key in keys:
+            d = d.get(key, {})
+        return d if d else default
+
+
+def format_value(key, val):
+    """
+    Format numbers with separators and units when applicable.
+    """
+    try:
+        val_num = float(val)
+    except (TypeError, ValueError):
+        return val
+    if key == "bit_rate":
+        return f"{int(val_num):,} bps"
+    elif key == "sample_rate":
+        return f"{int(val_num):,} Hz"
+    elif key in ["width", "height", "nb_frames"]:
+        return f"{int(val_num):,}"
+    elif key == "duration":
+        return f"{val_num:.1f} s"
+    elif key == "size":
+        return f"{int(val_num):,} octets"
+    else:
+        return val
+
+
+def split_streams_by_type(streams: list[dict]) -> dict:
+    """
+    Separate streams into video and audio lists.
+    """
+    out = {"video": [], "audio": [], "other": []}
+    for s in streams:
+        t = s.get("codec_type")
+        if t in out:
+            out[t].append(s)
+        else:
+            out["other"].append(s)
+    return out
+
+
 def print_metadata_diff_summary(meta_before: dict, meta_after: dict):
     """
     Print a concise summary of key differences between two video metadata dicts.
     Adds units and thousand separators for better readability.
     """
-    # Helper functions
-    def safe_get(d, keys, default=None):
-        for key in keys:
-            d = d.get(key, {})
-        return d if d else default
-
-    # Format values with units and separators
-    def format_value(key, val):
-        """Format numbers with separators and units when applicable."""
-        try:
-            val_num = float(val)
-        except (TypeError, ValueError):
-            return val
-        if key == "bit_rate":
-            return f"{int(val_num):,} bps"
-        elif key == "sample_rate":
-            return f"{int(val_num):,} Hz"
-        elif key in ["width", "height", "nb_frames"]:
-            return f"{int(val_num):,}"
-        elif key == "duration":
-            return f"{val_num:.1f} s"
-        elif key == "size":
-            return f"{int(val_num):,} octets"
-        else:
-            return val
-    
-    # Helper to split streams by type
-    def split_streams_by_type(streams: list[dict]) -> dict:
-        """
-        Separate streams into video and audio lists.
-        """
-        out = {"video": [], "audio": [], "other": []}
-        for s in streams:
-            t = s.get("codec_type")
-            if t in out:
-                out[t].append(s)
-            else:
-                out["other"].append(s)
-        return out
-
     # header
     print("======= DIFFÉRENCES MÉTADONNÉES =======")
 
@@ -313,6 +317,18 @@ def compute_size_reduction(meta_before: dict, meta_after: dict) -> dict:
         "compression_factor": compression_factor
     }
 
+def format_bytes(size_bytes: int) -> str:
+    """ 
+    Format bytes into human-readable string with units.
+    """
+    if size_bytes >= 1_000_000_000:
+        return f"{size_bytes / 1_000_000_000:.2f} Go"
+    if size_bytes >= 1_000_000:
+        return f"{size_bytes / 1_000_000:.2f} Mo"
+    if size_bytes >= 1_000:
+        return f"{size_bytes / 1_000:.2f} Ko"
+    return f"{size_bytes} octets"
+
 
 def print_size_reduction(stats: dict):
     """
@@ -333,17 +349,6 @@ def print_size_reduction(stats: dict):
         print("Impossible de calculer : tailles non disponibles.")
         return
 
-    # Function to format bytes into human-readable form
-    def format_bytes(size_bytes):
-        if size_bytes >= 1_000_000_000:
-            return f"{size_bytes / 1_000_000_000:.2f} Go"
-        elif size_bytes >= 1_000_000:
-            return f"{size_bytes / 1_000_000:.2f} Mo"
-        elif size_bytes >= 1_000:
-            return f"{size_bytes / 1_000:.2f} Ko"
-        else:
-            return f"{size_bytes} octets"
-
     # Print sizes
     print(f"Avant  : {format_bytes(before)}")
     print(f"Après  : {format_bytes(after)}")
@@ -359,3 +364,284 @@ def print_size_reduction(stats: dict):
     print("=" * 100 + "\n")
     print("=" * 100)
     print("\n"* 3)
+
+
+# def parse_time(value, field, line_num) -> float | None:
+#     if value is None or value.strip() == "":
+#         return None
+#     try:
+#         t = float(value)
+#     except ValueError:
+#         raise ValueError(
+#             f"Invalid {field} value at line {line_num}: {value}"
+#         )
+#     if t < 0:
+#         raise ValueError(
+#             f"{field} must be >= 0 at line {line_num}"
+#         )
+#     return t
+
+
+def to_seconds(time_str: str) -> float:
+    """Convertit HH:MM:SS en secondes."""
+    h, m, s = map(float, time_str.split(":"))
+    return h * 3600 + m * 60 + s
+
+
+def load_segments_csv(csv_path: Path) -> list[dict[str, float | str | None]]:
+    """
+    Load and validate a segments.csv file.
+    Preserves row order and allows duplicate filenames.
+    """
+
+    # Check if file exists
+    if not csv_path.exists():
+        raise FileNotFoundError(f"segments.csv not found: {csv_path}")
+
+    segments: list[dict] = []
+
+    # Read CSV file
+    with csv_path.open(newline="", encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f)
+
+        # Validate required columns
+        required_fields = {"filename", "start", "end"}
+        if not required_fields.issubset(reader.fieldnames):
+            raise ValueError(
+                f"segments.csv must contain columns: {required_fields}"
+            )
+
+        # Process each row
+        for line_num, row in enumerate(reader, start=2):
+            filename = row["filename"].strip()
+
+            # Validate filename
+            if not filename:
+                raise ValueError(f"Empty filename at line {line_num}")
+
+            # Parse start and end times
+            start = to_seconds(row["start"]) if row["start"].strip() else None
+            end = to_seconds(row["end"]) if row["end"].strip() else None
+
+            # Validate start/end logic
+            if start is not None and end is not None and end <= start:
+                raise ValueError(
+                    f"end must be > start at line {line_num}"
+                )
+
+            # Append segment
+            segments.append({
+                "filename": filename,
+                "start": start,
+                "end": end,
+            })
+
+    return segments
+
+
+def resolve_video_sequence(
+    input_dir: Path,
+    accepted_ext: list[str],
+    segments: list[dict] | None
+) -> list[dict]:
+    """
+    Returns an ordered list of videos to process.
+    Each item contains: path, start, end.
+    """
+
+    # Case 1: segments.csv exists
+    if segments:
+        sequence = []
+
+        for row in segments:
+            video_path = input_dir / row["filename"]
+
+            if not video_path.exists():
+                raise FileNotFoundError(
+                    f"{row['filename']} not found in input_dir"
+                    )
+
+            sequence.append({
+                "path": video_path,
+                "start": row.get("start", 0),
+                "end": row.get("end")
+            })
+
+        return sequence
+
+    # Case 2: no segments.csv → all videos
+    sequence = []
+    for video_path in sorted(input_dir.iterdir()):
+        if video_path.suffix.lower() in accepted_ext:
+            sequence.append({
+                "path": video_path,
+                "start": None,
+                "end": None
+            })
+
+    if not sequence:
+        raise RuntimeError("No video files found to assemble.")
+
+    return sequence
+
+
+def load_and_trim_clip(video_path: Path, start: float | None, end: float | None) -> VideoFileClip:
+    """
+    Load a clip and optionally trim it.
+    """
+    clip = VideoFileClip(str(video_path))
+
+    # No trimming needed
+    if start is None and end is None:
+        return clip
+
+    # Validate and apply trimming
+    start = float(start or 0)
+    duration = clip.duration
+    end = float(end) if end is not None else duration
+
+    # Validate boundaries
+    if start < 0 or end <= start or end > duration:
+        clip.close()
+        raise ValueError(
+            f"Invalid segment [{start}, {end}] for {video_path.name}"
+            f"(duration={duration})"
+        )
+
+    return clip.subclipped(start, end)
+
+
+def normalize_audio(clips: list[VideoFileClip]) -> list[VideoFileClip]:
+    """
+    Ensure all clips have a valid audio track or none.
+    """
+    clean_clips = []
+
+    # Remove audio from clips if not present
+    for clip in clips:
+        if clip.audio is None or clip.audio.reader is None:
+            clip = clip.without_audio()
+        clean_clips.append(clip)
+
+    return clean_clips
+
+
+@measure_time
+def write_video_file(
+    final_clip: VideoFileClip,
+    output_path: Path,
+    codec_video: str,
+    codec_audio: str
+):
+    """
+    Write the final video file with specified codecs.
+    """
+    # Find max threads available
+    max_threads = count_cpu_threads()
+
+    # Write the final video file
+    final_clip.write_videofile(
+        str(output_path),
+        codec=codec_video,
+        audio_codec=codec_audio,
+        threads=max_threads,
+        logger="bar"
+    )
+
+
+def get_inputs_metadata(
+    sequence: Iterable[dict],
+    get_metadata_fn
+) -> list[dict]:
+    """
+    Retrieve FFprobe metadata for each input video in a sequence.
+    """
+    metas = []
+
+    # Loop over sequence items
+    for idx, item in enumerate(sequence):
+        path = item.get("path")
+
+        # Validate path
+        if path is None:
+            raise ValueError(
+                f"Sequence item at index {idx} has no 'path'."
+            )
+
+        # Validate path type
+        if not isinstance(path, Path):
+            raise TypeError(
+                f"'path' must be a pathlib.Path, got {type(path)}."
+            )
+
+        # Get metadata
+        metas.append(get_metadata_fn(path))
+
+    return metas
+
+
+def sum_input_sizes(metas_before: list[dict]) -> int | None:
+    """
+    Sum file sizes from a list of FFprobe metadata dicts.
+    Prints detailed size per input.
+    Returns total size in bytes or None if invalid.
+    """
+    print("\n======= INPUT FILE SIZES =======\n")
+
+    total = 0
+
+    # Loop over metadata dicts
+    for idx, meta in enumerate(metas_before, start=1):
+        size = meta.get("format", {}).get("size")
+        filepath = meta.get("format", {}).get("filename", f"input_{idx}")
+        filename = filepath.split("\\")[-1].split("/")[-1]
+
+
+    # Convert size to int safely and print
+        try:
+            size = int(size)
+        except (TypeError, ValueError):
+            print(f"- {filename}: size unavailable")
+            return None
+        print(f"- {filename}: {format_bytes(size)}")
+        total += size
+
+    print(f"\nTOTAL INPUT SIZE: {format_bytes(total)}")
+    return total
+
+
+def compute_size_reduction_from_inputs(
+    metas_before: list[dict],
+    meta_after: dict
+) -> dict:
+    """
+    Compute size reduction between multiple input videos and one output video.
+    """
+    # Sum input sizes (with detailed print)
+    size_before = sum_input_sizes(metas_before)
+
+    size_after = meta_after.get("format", {}).get("size")
+    try:
+        size_after = int(size_after)
+    except (TypeError, ValueError):
+        size_after = None
+
+    # Avoid division by zero
+    if size_before is None or size_after is None or size_before == 0:
+        return {
+            "size_before": size_before,
+            "size_after": size_after,
+            "reduction_percent": None,
+            "compression_factor": None
+        }
+
+    # Calculate reduction and compression factor
+    reduction_percent = 100 * (1 - size_after / size_before)
+    compression_factor = size_before / size_after if size_after > 0 else None
+
+    return {
+        "size_before": size_before,
+        "size_after": size_after,
+        "reduction_percent": reduction_percent,
+        "compression_factor": compression_factor
+    }

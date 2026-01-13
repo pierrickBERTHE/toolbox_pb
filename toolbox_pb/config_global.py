@@ -29,6 +29,7 @@ class AppConfig:
     LOG_DIR: Path
     INPUT_DIR: Path
     OUTPUT_DIR: Path
+    SEGMENT_DIR: Path
 
     # Flags
     LOG_TO_FILE: bool
@@ -45,10 +46,11 @@ ROOT = Path(__file__).resolve().parents[1]
 LOG_DIR = ROOT / "log"
 INPUT_DIR = ROOT / "data" / "input"
 OUTPUT_DIR = ROOT / "data" / "output"
+SEGMENT_DIR = ROOT / "data" / "segment"
 
 # Codecs
 INPUT_ACCEPTED_FILES = [
-    ".avi", ".mkv", ".mov", ".m4v", ".mp4", ".mts", ".webm"
+    ".avi", ".mkv", ".mov", ".m4v", ".mp4", ".mts", ".vob", ".webm"
 ]
 
 CODEC_VIDEO_LIST = ["libx264", "libx265"]
@@ -73,6 +75,7 @@ APP_CONFIG = AppConfig(
     LOG_DIR=LOG_DIR,
     INPUT_DIR=INPUT_DIR,
     OUTPUT_DIR=OUTPUT_DIR,
+    SEGMENT_DIR=SEGMENT_DIR,
 
     # Flags
     LOG_TO_FILE=True,

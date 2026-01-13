@@ -1,17 +1,18 @@
 """
-Tests unitaires du point d’entrée principal `main.py` du projet toolbox_pb.
+Unit tests for the main module menu system and command routing.
 
-Liste des fonctions testées :
-- Le fonctionnement du menu utilisateur pour le choix 1,
-- la logique de routage du menu utilisateur (choix 2 à 6),
-- la gestion des choix invalides.
-- La sortie propre du programme.
+This module contains tests that verify the main application menu correctly
+routes user choices to the appropriate handler functions and validates input,
+including video encoding, video assembly, image reduction, PDF operations,
+directory flattening, and sports data collection.
 
-Les traitements lourds (encodage vidéo, accès système, appels FFmpeg,
-etc.) sont systématiquement mockés afin de :
-- garantir des tests rapides et déterministes,
-- éviter tout effet de bord (I/O, calculs, dépendances externes),
-- isoler la logique de contrôle et d’orchestration de `main()`.
+Test Coverage:
+    - Video Encoder: Tests that menu choice '1' correctly invokes the video encoder
+    - Video Assembler: Tests that menu choice '2' correctly invokes the video assembler
+    - Other Tools: Tests that menu choices '3-7' display correct launch messages
+    - Invalid Input: Tests that invalid menu choices trigger an error message
+    - Exit Handler: Tests that menu choice '8' properly exits the application
+    - Main Flow: Tests that the application runs without errors through the menu system
 """
 # general imports
 from pathlib import Path
@@ -33,7 +34,26 @@ def test_main_video_encodor_called(monkeypatch):
     monkeypatch.setattr('builtins.input', lambda _: '1')
 
     # Mock others functions to avoid side effects except video_encodor
-    with mock.patch('main.video_encodor') as mock_video, \
+    with mock.patch('main.video_encodor', autospec=True) as mock_video, \
+        mock.patch('func_global.get_git_version', return_value="git123"), \
+        mock.patch('func_global.format_git_version', return_value="git123"), \
+        mock.patch('func_global.print_system_info'), \
+        mock.patch('func_global.print_config_flags'):
+
+        # Call main
+        main.main(APP_CONFIG)
+        
+        # Check that video_encodor was called once with APP_CONFIG
+        mock_video.assert_called_once_with(APP_CONFIG)
+
+
+def test_main_video_assemblor_called(monkeypatch):
+    """Test that choosing option '2' calls video_assemblor."""
+    # Mock input for choice '2'
+    monkeypatch.setattr('builtins.input', lambda _: '2')
+
+    # Mock others functions to avoid side effects except video_assemblor
+    with mock.patch('main.video_assemblor', autospec=True) as mock_video, \
         mock.patch('func_global.get_git_version', return_value="git123"), \
         mock.patch('func_global.format_git_version', return_value="git123"), \
         mock.patch('func_global.print_system_info'), \
@@ -48,21 +68,14 @@ def test_main_video_encodor_called(monkeypatch):
 
 # Decorator to parametrize other valid choices (2-6)
 @pytest.mark.parametrize("choice,msg", [
-    ("2", "Vidéo_assemblor"),
     ("3", "Image_reductor"),
     ("4", "PDF_filigranor"),
-    ("5", "Flatten_directory_tree"),
-    ("6", "Sport_garmin_recoltor"),
+    ("5", "PDF_assemblor"),
+    ("6", "Flatten_directory_tree"),
+    ("7", "Sport_garmin_recoltor"),
 ])
 def test_other_menu_choices(monkeypatch, capsys, choice, msg):
-    """Test that other menu choices print the correct launch message.
-    
-    Args:
-        monkeypatch: fixture to mock input
-        capsys: fixture to capture stdout/stderr
-        choice: the menu choice to test
-        msg: the expected message in output
-    """
+    """Test that other menu choices print the correct launch message."""
     # Mock input for the given choice
     monkeypatch.setattr('builtins.input', lambda _: choice)
 
@@ -82,7 +95,7 @@ def test_other_menu_choices(monkeypatch, capsys, choice, msg):
 
 
 # Decorator to parametrize invalid choices (not in 1-7)
-@pytest.mark.parametrize("choice", ["invalid", "", "0", "8"])
+@pytest.mark.parametrize("choice", ["invalid", "", "0", "9", "-1", "abc"])
 def test_main_invalid_choice(monkeypatch, capsys, choice):
     """Test that invalid choices are handled properly.
     Args:
@@ -111,10 +124,32 @@ def test_main_invalid_choice(monkeypatch, capsys, choice):
 
 
 def test_main_quit(monkeypatch):
-    """Test that choosing option '7' exits the program."""
-    # Mock input for choice '7'
-    monkeypatch.setattr('builtins.input', lambda _: '7')
+    """Test that choosing option '8' exits the program."""
+    # Mock input for choice '8'
+    monkeypatch.setattr('builtins.input', lambda _: '8')
 
     # Mock python sys.exit to raise SystemExit
     with pytest.raises(SystemExit):
         main.main(APP_CONFIG)
+
+
+def test_main_called(monkeypatch):
+    """Test that main runs without errors for choice '8' (quit). """
+    # Mock input for choice '8'
+    monkeypatch.setattr("builtins.input", lambda _: "8")
+
+    # Mock others functions to avoid side effects
+    with (
+        mock.patch("main.video_encodor"), \
+        mock.patch("func_global.get_git_version", return_value="git123"), \
+        mock.patch("func_global.format_git_version", return_value="git123"), \
+        mock.patch("func_global.print_system_info"), \
+        mock.patch("func_global.print_config_flags"),
+        pytest.raises(SystemExit)
+    ):
+
+        # Call main
+        main.main(APP_CONFIG)
+
+    # If no exception is raised, the test passes    
+    assert True

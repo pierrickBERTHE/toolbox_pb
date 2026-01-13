@@ -1,17 +1,14 @@
-""" Tests unitaires du point d’entrée principal `main.py` du projet toolbox_pb.
+"""
+Unit tests for the main module startup behavior.
 
-Ce module teste exclusivement les outputs de la fonction `main()` :
-- Le message de version git affiché au démarrage,
-- les informations système affichées au démarrage,
-- les flags de configuration affichés au démarrage.
+This module contains tests that verify the main application displays
+correct system information and configuration on startup, including
+git version, system dependencies, and active configuration flags.
 
-Ces tests sont des tests unitaires d’interface CLI,
-et ne couvrent pas les implémentations internes des modules appelés.
-
-Liste des fonctions testées :
-- print git version au démarrage OK
-- print system info au démarrage OK
-- print config flags au démarrage OK
+Test Coverage:
+    - Git Version: Tests that git version is retrieved and formatted correctly on startup
+    - System Info: Tests that system dependency information is displayed during initialization
+    - Config Flags: Tests that active configuration flags are displayed with their values
 """
 # general imports
 import sys
@@ -29,9 +26,9 @@ from config_global import APP_CONFIG
 
 def test_main_prints_git_version(monkeypatch, capsys):
     """ Test that the git version is printed on startup."""
-    
-    # Mock input for choice '7'
-    monkeypatch.setattr('builtins.input', lambda _: '7')
+
+    # Mock input for choice '8'
+    monkeypatch.setattr('builtins.input', lambda _: '8')
 
     # Mock get_git_version and format_git_version
     with mock.patch('func_global.get_git_version', return_value="abc123"), \
@@ -49,8 +46,8 @@ def test_main_prints_git_version(monkeypatch, capsys):
 def test_main_prints_system_info(monkeypatch, capsys):
     """Test that system info is printed on startup."""
     
-    # Mock input for choice '7'
-    monkeypatch.setattr('builtins.input', lambda _: '7')
+    # Mock input for choice '8'
+    monkeypatch.setattr('builtins.input', lambda _: '8')
 
     # Mock print_system_info
     with mock.patch('func_global.print_system_info') as m_sys:
@@ -66,8 +63,8 @@ def test_main_prints_system_info(monkeypatch, capsys):
 def test_main_prints_config_flags(monkeypatch):
     """Test that config flags are printed on startup."""
 
-    # Mock input for choice '7'
-    monkeypatch.setattr('builtins.input', lambda _: '7')
+    # Mock input for choice '8'
+    monkeypatch.setattr('builtins.input', lambda _: '8')
 
     # Mock print_config_flags
     with mock.patch('func_global.print_config_flags') as m_flags:

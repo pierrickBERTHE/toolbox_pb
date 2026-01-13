@@ -11,7 +11,7 @@ import sys
 import datetime
 
 # Import custom librairies
-from video.main_video import video_encodor
+from video.main_video import video_encodor, video_assemblor
 from config_global import APP_CONFIG, AppConfig
 import func_global as func
 
@@ -63,13 +63,14 @@ def main(cfg : AppConfig):
     print("2. Vidéo_assemblor")
     print("3. Image_reductor")
     print("4. PDF_filigranor")
-    print("5. Flatten_directory_tree")
-    print("6. Sport_garmin_recoltor")
-    print("7. Quitter")
-    
+    print("5. PDF_assemblor")
+    print("6. Flatten_directory_tree")
+    print("7. Sport_garmin_recoltor")
+    print("8. Quitter")
+
     # Get user choice
-    choix = input("Sélectionnez une option (1-7) : ")
-    # choix = "1"
+    choix = input("Sélectionnez une option (1-8) : ")
+    # choix = "2"
 
     # Match the case by the input
     match choix:
@@ -78,7 +79,7 @@ def main(cfg : AppConfig):
             video_encodor(cfg)
         case "2":
             print("\nLancement du Vidéo_assemblor...")
-            # A FAIRE
+            video_assemblor(cfg)
         case "3":
             print("\nLancement du Image_reductor...")
             # A FAIRE
@@ -86,12 +87,15 @@ def main(cfg : AppConfig):
             print("\nLancement du PDF_filigranor...")
             # A FAIRE
         case "5":
-            print("\nLancement du Flatten_directory_tree...")
+            print("\nLancement du PDF_assemblor...")
             # A FAIRE
         case "6":
-            print("\nLancement du Sport_garmin_recoltor...")
+            print("\nLancement du Flatten_directory_tree...")
             # A FAIRE
         case "7":
+            print("\nLancement du Sport_garmin_recoltor...")
+            # A FAIRE
+        case "8":
             print("Quitter l'application. Au revoir !")
             sys.exit(0)
         case _:
