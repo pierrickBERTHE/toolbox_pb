@@ -158,51 +158,53 @@ def print_metadata_summary_all_keys(meta: dict):
         print_recursive(stream, indent=1)
 
 
+def safe_get(d, keys, default=None):
+        for key in keys:
+            d = d.get(key, {})
+        return d if d else default
+
+
+def format_value(key, val):
+    """
+    Format numbers with separators and units when applicable.
+    """
+    try:
+        val_num = float(val)
+    except (TypeError, ValueError):
+        return val
+    if key == "bit_rate":
+        return f"{int(val_num):,} bps"
+    elif key == "sample_rate":
+        return f"{int(val_num):,} Hz"
+    elif key in ["width", "height", "nb_frames"]:
+        return f"{int(val_num):,}"
+    elif key == "duration":
+        return f"{val_num:.1f} s"
+    elif key == "size":
+        return f"{int(val_num):,} octets"
+    else:
+        return val
+
+
+def split_streams_by_type(streams: list[dict]) -> dict:
+    """
+    Separate streams into video and audio lists.
+    """
+    out = {"video": [], "audio": [], "other": []}
+    for s in streams:
+        t = s.get("codec_type")
+        if t in out:
+            out[t].append(s)
+        else:
+            out["other"].append(s)
+    return out
+
+
 def print_metadata_diff_summary(meta_before: dict, meta_after: dict):
     """
     Print a concise summary of key differences between two video metadata dicts.
     Adds units and thousand separators for better readability.
     """
-    # Helper functions
-    def safe_get(d, keys, default=None):
-        for key in keys:
-            d = d.get(key, {})
-        return d if d else default
-
-    # Format values with units and separators
-    def format_value(key, val):
-        """Format numbers with separators and units when applicable."""
-        try:
-            val_num = float(val)
-        except (TypeError, ValueError):
-            return val
-        if key == "bit_rate":
-            return f"{int(val_num):,} bps"
-        elif key == "sample_rate":
-            return f"{int(val_num):,} Hz"
-        elif key in ["width", "height", "nb_frames"]:
-            return f"{int(val_num):,}"
-        elif key == "duration":
-            return f"{val_num:.1f} s"
-        elif key == "size":
-            return f"{int(val_num):,} octets"
-        else:
-            return val
-    
-    # Helper to split streams by type
-    def split_streams_by_type(streams: list[dict]) -> dict:
-        """
-        Separate streams into video and audio lists.
-        """
-        out = {"video": [], "audio": [], "other": []}
-        for s in streams:
-            t = s.get("codec_type")
-            if t in out:
-                out[t].append(s)
-            else:
-                out["other"].append(s)
-        return out
-
     # header
     print("======= DIFFÉRENCES MÉTADONNÉES =======")
 
@@ -522,6 +524,29 @@ def normalize_audio(clips: list[VideoFileClip]) -> list[VideoFileClip]:
         clean_clips.append(clip)
 
     return clean_clips
+
+
+@measure_time
+def write_video_file(
+    final_clip: VideoFileClip,
+    output_path: Path,
+    codec_video: str,
+    codec_audio: str
+):
+    """
+    Write the final video file with specified codecs.
+    """
+    # Find max threads available
+    max_threads = count_cpu_threads()
+
+    # Write the final video file
+    final_clip.write_videofile(
+        str(output_path),
+        codec=codec_video,
+        audio_codec=codec_audio,
+        threads=max_threads,
+        logger="bar"
+    )
 
 
 def get_inputs_metadata(

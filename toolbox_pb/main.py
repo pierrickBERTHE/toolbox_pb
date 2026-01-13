@@ -69,7 +69,7 @@ def main(cfg : AppConfig):
     print("8. Quitter")
 
     # Get user choice
-    choix = input("Sélectionnez une option (1-7) : ")
+    choix = input("Sélectionnez une option (1-8) : ")
     # choix = "2"
 
     # Match the case by the input

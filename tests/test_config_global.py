@@ -1,21 +1,21 @@
 """
-Tests unitaires pour le module config_global de toolbox_pb.
+Unit tests for the config_global module of toolbox_pb.
 
-Ces tests vérifient :
-- la création correcte de l'instance APP_CONFIG
-- les types et valeurs des champs de configuration (codec, path et flags)
-- l'immuabilité de AppConfig (dataclass frozen)
+These tests verify:
+- correct creation of the APP_CONFIG instance
+- types and values of configuration fields (codec, path, and flags)
+- immutability of AppConfig (frozen dataclass)
 
-Liste des fonctions testées :
-- APP_CONFIG :
+List of tested functions:
+- APP_CONFIG:
     - is instance of AppConfig
     - is frozen (immutable)
 - Codec configurations OK
-- Path :
+- Path:
     - are path objects
     - structure is logical
-- Flags is boolean
-- codec video is in video codec list
+- Flags are boolean
+- video codec is in video codec list
 - no empty critical configuration fields
 """
 # general imports

@@ -156,12 +156,11 @@ def video_assemblor(cfg: AppConfig) -> None:
         final_clip = func_vid.concatenate_videoclips(clips, method="compose")
 
         # Write the final video file
-        final_clip.write_videofile(
-            str(output_path),
-            codec=cfg.CODEC_VIDEO,
-            audio_codec=cfg.CODEC_AUDIO,
-            fps=final_clip.fps,
-            logger="bar"
+        func_vid.write_video_file(
+            final_clip=final_clip,
+            output_path=output_path,
+            codec_video=codec_v,
+            codec_audio=codec_a
         )
 
         # Cleanup

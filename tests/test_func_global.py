@@ -1,29 +1,16 @@
 """
-Tests unitaires pour les fonctions utilitaires de func_global.py.
+Unit tests for the func_global module.
 
-Objectifs :
-- Vérifier les comportements unitaires
-- Éviter tout effet de bord (git, ffmpeg, fichiers, stdout réel)
-- Ne tester que la logique locale
+This module contains comprehensive tests for utility functions used throughout the toolbox,
+including logging, version management, system information display, and output formatting.
 
-Liste des fonctions testées :
-- Logger.write
-- get_git_version : 
-    - version ok
-    exception
-- format_git_version :
-    - format simple
-    - format étendu
-    - format inattendu
-- print_system_info :
-    - ffmpeg ok
-    - ffmpeg absent
-- print_config_flags avec flags existants et non existants
-- transform_sec_duration_in_min_sec OK
-- measure_time décorateur OK
-- print_step OK
-- print_json OK
-- exit_toolbox OK
+Test Coverage:
+    - Logger: Tests for dual output to stdout and file logging
+    - Git Version: Tests for retrieving and formatting git version information
+    - System Info: Tests for displaying system dependencies (Python, libraries, ffmpeg)
+    - Config Flags: Tests for displaying configuration flag values
+    - Timing Utilities: Tests for duration conversion and execution time measurement
+    - Output Formatting: Tests for step display, JSON output, and toolbox exit handling
 """
 # Imports standard
 import sys

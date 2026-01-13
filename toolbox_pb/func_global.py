@@ -20,7 +20,8 @@ import moviepy
 
 
 class Logger(object):
-    """Logger class to redirect print statements to a file.
+    """
+    Logger class to redirect print statements to a file.
     """
     def __init__(self, log_path):
         self.terminal = sys.stdout
@@ -32,6 +33,7 @@ class Logger(object):
         self.log.flush()
 
     def flush(self):
+        self.terminal.flush()
         self.log.flush()
 
 
@@ -115,7 +117,7 @@ def transform_sec_duration_in_min_sec(start, end):
 
 def measure_time(func):
     """
-    Décorateur pour mesurer le temps d'exécution d'une fonction.
+    decorator to measure the execution time of a function.
     """
     @wraps((func))
     def wrapper(*args, **kwargs):
@@ -140,11 +142,17 @@ def print_step(step_num, message):
 
 
 def exit_toolbox():
+    """
+    Print a goodbye message and exit the toolbox.
+    """
     print("\nAu revoir !")
     exit()
 
 
 def print_json(obj, title=None):
+    """
+    Print a JSON object in a readable format.
+    """
     if title:
         print(f"\n===== {title} =====")
     print(json.dumps(obj, indent=4, ensure_ascii=False))
