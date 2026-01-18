@@ -101,6 +101,10 @@ def main(cfg : AppConfig):
         case _:
             print("Choix invalide, recommencez.")
 
+    # Print the summarize of files before and after
+    func.summarize_files(cfg.INPUT_DIR, label="INPUT")
+    func.summarize_files(cfg.OUTPUT_DIR, label="OUTPUT")
+
 # Main entry point
 if __name__ == "__main__":
     main(APP_CONFIG)

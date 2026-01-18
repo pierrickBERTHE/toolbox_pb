@@ -17,10 +17,11 @@ def video_encodor(cfg: AppConfig) -> None:
     """
     Encode video files in the input directory according to the specified
     configuration and compares metadata before and after encoding.
-    1. Loops through all accepted video files in the input directory.
+    1. Loops through all accepted video files and subdirectories.
     2. Encodes each video file using the specified video and audio codecs.
-    3. Compares and prints metadata differences before and after encoding.
-    4. Prints size reduction statistics.
+    3. Preserves the input directory structure in the output directory.
+    4. Compares and prints metadata differences before and after encoding.
+    5. Prints size reduction statistics.
     """
 
     # ------------- CONFIGURATION -------------
@@ -33,21 +34,34 @@ def video_encodor(cfg: AppConfig) -> None:
     add_codec_in_output = cfg.ADD_CODEC_NAME_IN_OUTPUT
     print_all_keys = cfg.PRINT_ALL_KEYS_IN_METADATA_SUMMARY
 
-    # ------------- BOUCLE SUR LES FICHIERS D'ENTRÉE -------------
-    for input_file in input_dir.iterdir():
+    # ------------- BOUCLE SUR LES FICHIERS D'ENTRÉE (RÉCURSIF) -------------
+    for input_file in input_dir.rglob('*'):
 
-        # ------------- IGNORER LES FICHIERS NON VIDÉO -------------
-        if input_file.suffix.lower() not in accepted_file:
+        # ------------- IGNORER LES DOSSIERS ET LES FICHIERS NON VIDÉO -------------
+        if not input_file.is_file() or input_file.suffix.lower() not in accepted_file:
             continue
 
+        # ------------- CRÉER LA STRUCTURE DE DOSSIERS DANS OUTPUT CORRESPONDANT À INPUT -------------
+        # Calculer le chemin relatif par rapport à input_dir
+        relative_path = input_file.relative_to(input_dir)
+
+        # Obtenir le dossier parent relatif
+        relative_parent = relative_path.parent
+
+        # Créer le chemin de sortie avec la même structure
+        output_subdir = output_dir / relative_parent
+        output_subdir.mkdir(parents=True, exist_ok=True)
+
         # ------------- NOM DU FICHIER ENCODE -------------
-        if add_codec_in_output:
-            output_name = (
-                f"{input_file.stem}_v-{codec_v}_a-{codec_a}{suffix}"
-            )
-        else:
-            output_name = (f"{input_file.stem}{suffix}")
-        output_path = output_dir / output_name
+        output_path = func_glob.build_output_path(
+            input_file,
+            output_subdir,
+            suffix,
+            codec_v,
+            codec_a,
+            add_codec_in_output
+        )
+
 
         # ------------- ENCODAGE SI PAS DÉJÀ FAIT -------------
         func_glob.print_step(1, f"Encodage de la vidéo : {input_file.name}")
