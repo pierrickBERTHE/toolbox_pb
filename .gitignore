@@ -23,3 +23,6 @@ __pycache__/
 # coverage
 .coverage
 htmlcov/
+
+# help CLI
+git-cleanup.ps1
