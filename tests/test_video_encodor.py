@@ -140,12 +140,9 @@ def test_skip_encoding_if_output_exists(fake_config, capsys):
     """
     Encoding must be skipped if the output file already exists.
     """
-
-    # Create fake input and output video files
+    # Create fake files
     input_video = fake_config.INPUT_DIR / "video.mp4"
     output_video = fake_config.OUTPUT_DIR / "video.mp4"
-
-    # Physically create the directories on disk
     input_video.touch()
     output_video.touch()
 
@@ -155,18 +152,17 @@ def test_skip_encoding_if_output_exists(fake_config, capsys):
         mock.patch("video.main_video.func_vid.print_metadata_diff_summary"), \
         mock.patch("video.main_video.func_vid.compute_size_reduction", return_value={}), \
         mock.patch("video.main_video.func_vid.print_size_reduction"), \
-        mock.patch("func_global.print_step"):
+        mock.patch("func_global.print_step"), \
+        mock.patch("video.main_video.func_glob.build_output_path", return_value=output_video):
 
         # Run the function under test
         video_encodor(fake_config)
-
-        # Ensure encoding was not triggered
+        
+        # Ensure function not called
         m_encode.assert_not_called()
-
-        # Capture printed output
+        
+        # Verify message : "déjà réalisé" exists
         captured = capsys.readouterr()
-
-        # Ensure the expected message is printed
         assert "Encodage déjà réalisé" in captured.out
 
 

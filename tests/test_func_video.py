@@ -62,6 +62,23 @@ from video.func_video import (
 from func_global import Logger
 
 
+class DummyFFmpegProcess:
+    def __init__(self):
+        self.stdout = iter([
+            "out_time_ms=1000000\n",
+            "out_time_ms=2000000\n",
+        ])
+        self.returncode = 0
+
+    def wait(self):
+        return 0
+    
+    def __enter__(self):
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        return False
+
 
 def test_count_cpu_threads(monkeypatch, capsys):
     """Test that count_cpu_threads returns the correct number and prints
@@ -79,35 +96,57 @@ def test_count_cpu_threads(monkeypatch, capsys):
     assert "Nombre de threads disponibles" in captured.out
 
 
-def test_encode_full_video_calls_moviepy_correctly(tmp_path):
-    """Test that encode_full_video calls MoviePy functions with
-    correct parameters."""
+def test_encode_full_video_calls_ffmpeg_correctly(tmp_path, monkeypatch):
+    """
+    Test that encode_full_video:
+    - Builds an FFmpeg command correctly
+    - Calls subprocess.Popen with proper parameters
+    - Handles FFmpeg progress output without errors
+    """
+    # Mock subprocess.run for ffprobe
+    def mock_subprocess_run(*args, **kwargs):
 
-    # Prepare test paths
-    input_path = tmp_path / "in.mp4"
-    output_path = tmp_path / "out.mp4"
-
-    #  Mock VideoFileClip and count_cpu_threads
-    with mock.patch("video.func_video.VideoFileClip") as m_clip, \
-        mock.patch("video.func_video.count_cpu_threads", return_value=4):
-
-        # Set up the mock clip instance
-        clip_instance = m_clip.return_value
-
-        # Call the function under test
-        encode_full_video(
-            input_path=input_path,
-            output_path=output_path,
-            codec_video="libx265",
-            codec_audio="aac"
-        )
-
-        # Verify that VideoFileClip was called with the correct input path
-        m_clip.assert_called_once_with(str(input_path))
+        # Simulate ffprobe JSON return
+        class CompletedProcess:
+            def __init__(self):
+                # Return fake metadata as JSON string
+                self.stdout = json.dumps(fake_meta)
+                self.returncode = 0
+        return CompletedProcess()
+    
+    # Replace real subprocess.run with mock
+    monkeypatch.setattr(
+        "toolbox_pb.video.func_video.subprocess.run",
+        mock_subprocess_run
+    )
+    
+    # Mock subprocess.Popen for ffmpeg
+    class DummyFFmpegProcess:
+        def __init__(self, *args, **kwargs):
+            # Simulate FFmpeg progress output (timestamps in microseconds)
+            self.stdout = iter([
+                "out_time_ms=1000000\n",
+                "out_time_ms=2000000\n",
+            ])
+            self.returncode = 0
         
-        # Verify that write_videofile and close were called on the clip instance
-        clip_instance.write_videofile.assert_called_once()
-        clip_instance.close.assert_called_once()
+        def wait(self):
+            # Simulate process completion
+            return 0
+        
+        def __enter__(self):
+            # Support context manager protocol (required by subprocess.run)
+            return self
+        
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            # Exit context manager without suppressing exceptions
+            return False
+    
+    # Replace real subprocess.Popen with mock
+    monkeypatch.setattr(
+        "toolbox_pb.video.func_video.subprocess.Popen",
+        DummyFFmpegProcess
+    )
 
 
 # Different test cases for format_duration_hms

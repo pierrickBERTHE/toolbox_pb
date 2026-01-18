@@ -13,6 +13,8 @@ import time
 import json
 import subprocess
 import numpy as np
+from pathlib import Path
+from collections import defaultdict
 
 # Import specialized libraries
 import PIL
@@ -157,3 +159,115 @@ def print_json(obj, title=None):
         print(f"\n===== {title} =====")
     print(json.dumps(obj, indent=4, ensure_ascii=False))
 
+
+def format_bytes(size_bytes: int) -> str:
+    """ 
+    Format bytes into human-readable string with units.
+    """
+    if size_bytes >= 1_000_000_000:
+        return f"{size_bytes / 1_000_000_000:.2f} Go"
+    if size_bytes >= 1_000_000:
+        return f"{size_bytes / 1_000_000:.2f} Mo"
+    if size_bytes >= 1_000:
+        return f"{size_bytes / 1_000:.2f} Ko"
+    return f"{size_bytes} octets"
+
+
+def make_unique_path(path: Path) -> Path:
+    """
+    Return a unique file path by appending an incremental suffix (__1, __2, ...)
+    if a file with the same name already exists anywhere in the target directory
+    or its subdirectories.
+    """
+    parent = path.parent
+    stem = path.stem
+    suffix = path.suffix
+
+    # Collect all existing filenames (without directory) recursively
+    existing_names = {
+        p.name
+        for p in parent.rglob("*")
+        if p.is_file()
+    }
+
+    # If the filename is not used anywhere, return it directly
+    if path.name not in existing_names:
+        return path
+
+    # Otherwise, append an incremental suffix until a free name is found
+    index = 1
+    while True:
+        candidate_name = f"{stem}__{index}{suffix}"
+        if candidate_name not in existing_names:
+            return parent / candidate_name
+        index += 1
+
+
+def build_output_path(
+    input_file: Path,
+    output_subdir: Path,
+    suffix: str,
+    codec_v: str,
+    codec_a: str,
+    add_codec: bool
+) -> Path:
+    """
+    Build the output video file path in a safe and deterministic way.
+    """
+
+    # Build the output filename
+    if add_codec:
+        name = f"{input_file.stem}_v-{codec_v}_a-{codec_a}{suffix}"
+    else:
+        name = f"{input_file.stem}{suffix}"
+
+    # Build the full output path
+    path = output_subdir / name
+
+    # Ensure the path is unique (adds __1, __2, ... if needed)
+    return make_unique_path(path)
+
+
+def summarize_files(dir_path: Path, label: str) -> None:
+    """
+    Print a summary of files in a directory.
+
+    The summary includes:
+    - total number of files
+    - number of files per extension
+    - total size of all files
+    """
+
+    # Check that the directory exists
+    if not dir_path.exists():
+        print(f"\n[{label}] Directory not found: {dir_path}")
+        return
+
+    # Recursively collect all files in the directory
+    files = [p for p in dir_path.rglob("*") if p.is_file()]
+
+    # Initialize accumulators
+    total_size = 0
+    by_ext = defaultdict(int)
+
+    # Iterate over files to compute size and extension stats
+    for f in files:
+
+        # Add file size in bytes
+        total_size += f.stat().st_size
+
+        # Count files by extension (use 'no_ext' if empty)
+        by_ext[f.suffix.lower() or "no_ext"] += 1
+
+    # Print summary header
+    print(f"\n======= FILE SUMMARY : {label} =======")
+    print(f"Directory : {dir_path}")
+    print(f"Total files : {len(files)}")
+
+    # Print breakdown by file extension
+    print("\nBy extension:")
+    for ext, count in sorted(by_ext.items()):
+        print(f" - {ext}: {count}")
+
+    # Print total size in human-readable format
+    print(f"\nTotal size : {format_bytes(total_size)}")

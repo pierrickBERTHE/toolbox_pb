@@ -14,9 +14,11 @@ import subprocess
 import os
 import csv
 from typing import Iterable
+import re
+from tqdm import tqdm
 
 # Import custom librairies
-from func_global import measure_time
+from func_global import measure_time, format_bytes
 
 
 def count_cpu_threads() -> int:
@@ -32,20 +34,112 @@ def count_cpu_threads() -> int:
 def encode_full_video(input_path, output_path, codec_video, codec_audio):
     """
     Full video encoding with specified video and audio codecs.
+    Preserves the image aspect ratio and video properties.
     """
-    #  Find max threads available
+    # Find max threads available
     max_threads = count_cpu_threads()
     
-    # Load video and write with new codecs
-    clip = VideoFileClip(str(input_path))
-    clip.write_videofile(
-        str(output_path),
-        codec= codec_video,
-        audio_codec = codec_audio,
-        threads=max_threads,
-        logger="bar"
+    # Get metadata to preserve SAR and other properties
+    meta = get_all_metadata(input_path)
+    video_stream = next(
+        (s for s in meta.get("streams", []) if s.get("codec_type") == "video"),
+        None
     )
-    clip.close()
+    
+    # Get video duration for progress bar
+    duration = float(meta.get("format", {}).get("duration", 0))
+    
+    # Build FFmpeg command
+    cmd = [
+        "ffmpeg",
+        "-i", str(input_path),
+        "-c:v", codec_video,
+        "-c:a", codec_audio,
+        "-threads", str(max_threads),
+        "-progress", "pipe:1",
+        "-hide_banner",
+        "-loglevel", "error",
+    ]
+    
+    # Preserve aspect ratio with video filter
+    video_filters = []
+    if video_stream:
+        sar = video_stream.get("sample_aspect_ratio")
+        width = video_stream.get("width")
+        height = video_stream.get("height")
+        
+        # Use scale filter to preserve aspect ratio
+        if sar and sar != "1:1" and width and height:
+            video_filters.append(
+                f"scale={width}:{height}:force_original_aspect_ratio=1"
+            )
+    
+    # Add video filters if any
+    if video_filters:
+        cmd.extend(["-vf", ",".join(video_filters)])
+    
+    # Preserve color range for tv content
+    if video_stream:
+        color_range = video_stream.get("color_range", "").lower()
+        if color_range == "tv":
+            cmd.extend(["-color_range", "tv"])
+    
+    # Preserve audio sample rate
+    audio_stream = next(
+        (s for s in meta.get("streams", []) if s.get("codec_type") == "audio"),
+        None
+    )
+    if audio_stream:
+        sample_rate = audio_stream.get("sample_rate")
+        if sample_rate:
+            cmd.extend(["-ar", str(sample_rate)])
+    
+    # Output file
+    cmd.extend(["-y", str(output_path)])
+    
+    # Execute FFmpeg with progress bar
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+        
+        # Parse progress from FFmpeg output with improved progress bar
+        filename = Path(input_path).name
+        with tqdm(total=duration, unit='s', desc=filename) as pbar:
+            last_time = 0
+
+            # Read FFmpeg stdout line by line
+            for line in iter(proc.stdout.readline, ''):
+                if not line:
+                    break
+                # If out_time_ms in line, convert it to sec
+                match = re.search(r'out_time_ms=(\d+)', line)
+                if match:
+                    current_time = int(match.group(1)) / 1_000_000
+
+                    # Update tqdm bar
+                    delta = current_time - last_time
+                    if delta > 0 and current_time <= duration:
+                        pbar.update(delta)
+                        last_time = current_time
+
+        # Wait enf of FFmpeg
+        proc.wait()
+        
+        # Handle errors
+        if proc.returncode != 0:
+            raise subprocess.CalledProcessError(proc.returncode, cmd)
+        
+        print(f"✅ Encodage réussi : {output_path}\n")
+    
+    # Handle errors
+    except subprocess.CalledProcessError as exc:
+        print(f"❌ Erreur lors de l'encodage : {output_path}")
+        raise
 
 
 def format_duration_hms(duration_sec) -> str:
@@ -316,18 +410,6 @@ def compute_size_reduction(meta_before: dict, meta_after: dict) -> dict:
         "reduction_percent": reduction_percent,
         "compression_factor": compression_factor
     }
-
-def format_bytes(size_bytes: int) -> str:
-    """ 
-    Format bytes into human-readable string with units.
-    """
-    if size_bytes >= 1_000_000_000:
-        return f"{size_bytes / 1_000_000_000:.2f} Go"
-    if size_bytes >= 1_000_000:
-        return f"{size_bytes / 1_000_000:.2f} Mo"
-    if size_bytes >= 1_000:
-        return f"{size_bytes / 1_000:.2f} Ko"
-    return f"{size_bytes} octets"
 
 
 def print_size_reduction(stats: dict):
