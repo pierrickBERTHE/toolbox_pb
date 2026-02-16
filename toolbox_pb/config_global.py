@@ -50,7 +50,7 @@ SEGMENT_DIR = ROOT / "data" / "segment"
 
 # Codecs
 INPUT_ACCEPTED_FILES = [
-    ".avi", ".m4v", ".mkv", ".mod", ".mov", ".mp4", ".mts", ".vob", ".webm"
+    ".avi", ".m4v", ".mkv", ".mod", ".mov", ".mp4", ".mpg", ".mts", ".vob", ".webm"
 ]
 
 CODEC_VIDEO_LIST = ["libx264", "libx265"]
