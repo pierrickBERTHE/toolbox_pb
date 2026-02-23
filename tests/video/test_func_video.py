@@ -35,7 +35,7 @@ from unittest.mock import patch, MagicMock
 from io import StringIO
 
 # Add the toolbox_pb directory to sys.path for imports
-sys.path.append(str(Path(__file__).resolve().parents[1] / 'toolbox_pb'))
+sys.path.append(str(Path(__file__).resolve().parents[2] / 'toolbox_pb'))
 
 # Import the module to test
 from video.func_video import (

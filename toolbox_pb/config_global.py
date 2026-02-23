@@ -4,10 +4,10 @@ Fichier de configuration pour le projet toolbox_pb
 Auteur :
 Pierrick BERTHE
 mail : pierrick.berthe@gmx.fr
-Décembre 2025
+Février 2026
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List
 
@@ -17,12 +17,22 @@ from typing import List
 
 @dataclass(frozen=True)
 class AppConfig:
-    # Codecs
+    # Accepted files
     INPUT_ACCEPTED_FILES: List[str]
+    INPUT_ACCEPTED_VIDEO_FILES: List[str]
+    INPUT_ACCEPTED_IMAGE_FILES: List[str]
+    INPUT_ACCEPTED_PDF_FILES: List[str]
+
+    # Codecs
     CODEC_VIDEO_LIST: List[str]
     CODEC_VIDEO: str
     CODEC_AUDIO: str
-    SUFFIX_OUTPUT: str
+
+    # Suffix
+    SUFFIX_OUTPUT: List[str]
+    SUFFIX_OUTPUT_VIDEO: str
+    SUFFIX_OUTPUT_IMAGE: str
+    SUFFIX_OUTPUT_PDF: str
 
     # Paths
     ROOT: Path
@@ -48,27 +58,51 @@ INPUT_DIR = ROOT / "data" / "input"
 OUTPUT_DIR = ROOT / "data" / "output"
 SEGMENT_DIR = ROOT / "data" / "segment"
 
-# Codecs
-INPUT_ACCEPTED_FILES = [
+# Accepted files
+INPUT_ACCEPTED_VIDEO_FILES = [
     ".avi", ".m4v", ".mkv", ".mod", ".mov", ".mp4", ".mpg", ".mts", ".vob", ".webm"
 ]
+INPUT_ACCEPTED_IMAGE_FILES = [".jpg", ".png"]
+INPUT_ACCEPTED_PDF_FILES = [".pdf"]
+INPUT_ACCEPTED_FILES = [
+    *INPUT_ACCEPTED_VIDEO_FILES,
+    *INPUT_ACCEPTED_IMAGE_FILES,
+    *INPUT_ACCEPTED_PDF_FILES,
+]
 
+# Codecs
 CODEC_VIDEO_LIST = ["libx264", "libx265"]
 CODEC_VIDEO = CODEC_VIDEO_LIST[1]
 CODEC_AUDIO = "aac"
-SUFFIX_OUTPUT = ".mp4"
 
+# suffix
+SUFFIX_OUTPUT_VIDEO = ".mp4"
+SUFFIX_OUTPUT_IMAGE = ".jpg"
+SUFFIX_OUTPUT_PDF = ".pdf"
+SUFFIX_OUTPUT = [
+    SUFFIX_OUTPUT_VIDEO, SUFFIX_OUTPUT_IMAGE, SUFFIX_OUTPUT_PDF
+]
 # -----------------------------
 # INSTANCE UNIQUE DE CONFIGURATION
 # -----------------------------
 
 APP_CONFIG = AppConfig(
-    # Codecs
+    # Accepted files
     INPUT_ACCEPTED_FILES=INPUT_ACCEPTED_FILES,
+    INPUT_ACCEPTED_VIDEO_FILES=INPUT_ACCEPTED_VIDEO_FILES,
+    INPUT_ACCEPTED_IMAGE_FILES=INPUT_ACCEPTED_IMAGE_FILES,
+    INPUT_ACCEPTED_PDF_FILES=INPUT_ACCEPTED_PDF_FILES,
+
+    # Codecs
     CODEC_VIDEO_LIST=CODEC_VIDEO_LIST,
     CODEC_VIDEO=CODEC_VIDEO,
     CODEC_AUDIO=CODEC_AUDIO,
+    
+    # suffix
     SUFFIX_OUTPUT=SUFFIX_OUTPUT,
+    SUFFIX_OUTPUT_VIDEO=SUFFIX_OUTPUT_VIDEO,
+    SUFFIX_OUTPUT_IMAGE=SUFFIX_OUTPUT_IMAGE,
+    SUFFIX_OUTPUT_PDF=SUFFIX_OUTPUT_PDF,
 
     # Paths
     ROOT=ROOT,

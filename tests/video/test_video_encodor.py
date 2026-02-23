@@ -27,7 +27,7 @@ from unittest import mock
 import pytest
 
 # Add the toolbox_pb directory to sys.path for imports
-sys.path.append(str(Path(__file__).resolve().parents[1] / 'toolbox_pb'))
+sys.path.append(str(Path(__file__).resolve().parents[2] / 'toolbox_pb'))
 
 # local imports
 from config_global import AppConfig
@@ -60,10 +60,16 @@ def fake_config(tmp_path):
     # Return a fully valid AppConfig instance for testing
     return AppConfig(
         INPUT_ACCEPTED_FILES=[".mp4"],
+        INPUT_ACCEPTED_VIDEO_FILES=[".mp4"],
+        INPUT_ACCEPTED_IMAGE_FILES=[".jpg", ".png"],
+        INPUT_ACCEPTED_PDF_FILES=[".pdf"],
         CODEC_VIDEO_LIST=["libx264", "libx265"],
         CODEC_VIDEO="libx265",
         CODEC_AUDIO="aac",
-        SUFFIX_OUTPUT=".mp4",
+        SUFFIX_OUTPUT=[".mp4", ".jpg", ".pdf"],
+        SUFFIX_OUTPUT_VIDEO=".mp4",
+        SUFFIX_OUTPUT_IMAGE=".jpg",
+        SUFFIX_OUTPUT_PDF=".pdf",
 
         ROOT=tmp_path,
         LOG_DIR=tmp_path / "log",

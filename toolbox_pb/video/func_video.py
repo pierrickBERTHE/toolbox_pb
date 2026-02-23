@@ -14,11 +14,9 @@ import subprocess
 import os
 import csv
 from typing import Iterable
-import re
-from tqdm import tqdm
 
 # Import custom librairies
-from func_global import measure_time, format_bytes
+from func_global import measure_time, format_bytes, consume_ffmpeg_progress
 
 
 def count_cpu_threads() -> int:
@@ -107,25 +105,9 @@ def encode_full_video(input_path, output_path, codec_video, codec_audio):
             bufsize=1,
         )
         
-        # Parse progress from FFmpeg output with improved progress bar
+        # Parse progress from FFmpeg output with a shared progress helper
         filename = Path(input_path).name
-        with tqdm(total=duration, unit='s', desc=filename) as pbar:
-            last_time = 0
-
-            # Read FFmpeg stdout line by line
-            for line in iter(proc.stdout.readline, ''):
-                if not line:
-                    break
-                # If out_time_ms in line, convert it to sec
-                match = re.search(r'out_time_ms=(\d+)', line)
-                if match:
-                    current_time = int(match.group(1)) / 1_000_000
-
-                    # Update tqdm bar
-                    delta = current_time - last_time
-                    if delta > 0 and current_time <= duration:
-                        pbar.update(delta)
-                        last_time = current_time
+        consume_ffmpeg_progress(proc, duration=duration, desc=filename)
 
         # Wait enf of FFmpeg
         proc.wait()
