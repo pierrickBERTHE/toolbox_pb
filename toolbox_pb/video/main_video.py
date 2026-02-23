@@ -25,34 +25,28 @@ def video_encodor(cfg: AppConfig) -> None:
     """
 
     # ------------- CONFIGURATION -------------
-    accepted_file = cfg.INPUT_ACCEPTED_FILES
+    accepted_file = cfg.INPUT_ACCEPTED_VIDEO_FILES
     codec_v = cfg.CODEC_VIDEO
     codec_a = cfg.CODEC_AUDIO
-    suffix = cfg.SUFFIX_OUTPUT
+    suffix = cfg.SUFFIX_OUTPUT_VIDEO
     input_dir = cfg.INPUT_DIR
     output_dir = cfg.OUTPUT_DIR
     add_codec_in_output = cfg.ADD_CODEC_NAME_IN_OUTPUT
     print_all_keys = cfg.PRINT_ALL_KEYS_IN_METADATA_SUMMARY
 
-    # ------------- BOUCLE SUR LES FICHIERS D'ENTRÉE (RÉCURSIF) -------------
+    # ------------- LOOP THROUGH ALL FILES IN INPUT DIR -------------
     for input_file in input_dir.rglob('*'):
 
-        # ------------- IGNORER LES DOSSIERS ET LES FICHIERS NON VIDÉO -------------
+        # ------- IGNORE NON-VIDEO FILES AND DIRECTORIES -------
         if not input_file.is_file() or input_file.suffix.lower() not in accepted_file:
             continue
 
-        # ------------- CRÉER LA STRUCTURE DE DOSSIERS DANS OUTPUT CORRESPONDANT À INPUT -------------
-        # Calculer le chemin relatif par rapport à input_dir
-        relative_path = input_file.relative_to(input_dir)
+        # --- CREATE OUTPUT SUBDIR STRUCTURE BASED ON INPUT FILE PATH ---
+        output_subdir = func_glob.build_output_subdir_from_input(
+                input_file, input_dir, output_dir
+        )
 
-        # Obtenir le dossier parent relatif
-        relative_parent = relative_path.parent
-
-        # Créer le chemin de sortie avec la même structure
-        output_subdir = output_dir / relative_parent
-        output_subdir.mkdir(parents=True, exist_ok=True)
-
-        # ------------- NOM DU FICHIER ENCODE -------------
+        # ------------- FILENAME FOR OUTPUT VIDEO -------------
         output_path = func_glob.build_output_path(
             input_file,
             output_subdir,
@@ -63,7 +57,7 @@ def video_encodor(cfg: AppConfig) -> None:
         )
 
 
-        # ------------- ENCODAGE SI PAS DÉJÀ FAIT -------------
+        # ------------- ENCODE VIDEO IF NOT ALREADY DONE -------------
         func_glob.print_step(1, f"Encodage de la vidéo : {input_file.name}")
 
         # Check if already encoded
@@ -77,7 +71,7 @@ def video_encodor(cfg: AppConfig) -> None:
                 codec_audio=codec_a
             )
 
-        # ------------- COMPARAISON MÉTADONNÉES AVANT/APRÈS -------------
+        # ------------- COMPARE METADATA BEFORE/AFTER -------------
         func_glob.print_step(2, "Comparaison des fichiers avant/après")
         
         # Get metadata before and after encoding
@@ -110,12 +104,12 @@ def video_assemblor(cfg: AppConfig) -> None:
     # Import configuration
     codec_v = cfg.CODEC_VIDEO
     codec_a = cfg.CODEC_AUDIO
-    suffix = cfg.SUFFIX_OUTPUT
+    suffix = cfg.SUFFIX_OUTPUT_VIDEO
 
     # create file output path
     output_path = cfg.OUTPUT_DIR / f"assembled_v-{codec_v}_a-{codec_a}{suffix}"
         
-    # ------------- ENCODAGE SI PAS DÉJÀ FAIT -------------
+    # ------------- ENCODE AND ASSEMBLE VIDEOS -------------
     func_glob.print_step(1, f"Encodage des vidéos à assembler")
     
     # Check if already encoded
@@ -182,7 +176,7 @@ def video_assemblor(cfg: AppConfig) -> None:
             clip.close()
         final_clip.close()
         
-        # ------------- COMPARAISON MÉTADONNÉES AVANT/APRÈS -------------
+        # ------------- COMPARE METADATA BEFORE/AFTER -------------
         func_glob.print_step(2, "Comparaison des fichiers avant/après")
         
         # isolate first input file for metadata comparison

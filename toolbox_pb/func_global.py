@@ -12,9 +12,11 @@ import sys
 import time
 import json
 import subprocess
+import re
 import numpy as np
 from pathlib import Path
 from collections import defaultdict
+from tqdm import tqdm
 
 # Import specialized libraries
 import PIL
@@ -228,6 +230,21 @@ def build_output_path(
     return make_unique_path(path)
 
 
+def build_output_subdir_from_input(
+    input_file: Path,
+    input_dir: Path,
+    output_dir: Path
+) -> Path:
+    """
+    Build and create the output subdirectory that mirrors input_dir structure.
+    """
+    relative_path = input_file.relative_to(input_dir)
+    relative_parent = relative_path.parent
+    output_subdir = output_dir / relative_parent
+    output_subdir.mkdir(parents=True, exist_ok=True)
+    return output_subdir
+
+
 def summarize_files(dir_path: Path, label: str) -> None:
     """
     Print a summary of files in a directory.
@@ -271,3 +288,43 @@ def summarize_files(dir_path: Path, label: str) -> None:
 
     # Print total size in human-readable format
     print(f"\nTotal size : {format_bytes(total_size)}")
+
+
+def consume_ffmpeg_progress(
+    proc: subprocess.Popen,
+    duration: float,
+    desc: str,
+    unit: str = "s",
+) -> list[str]:
+    """
+    Read FFmpeg `-progress pipe:1` output and update a tqdm progress bar.
+    Returns collected stderr-like lines containing the word "error".
+    """
+    # Initialize progress bar and error collection
+    error_lines: list[str] = []
+    last_time = 0.0
+    total = max(float(duration), 0.0)
+
+    # Check that stdout is available
+    if proc.stdout is None:
+        return error_lines
+
+    # Read lines from FFmpeg output and update progress bar
+    with tqdm(total=total, unit=unit, desc=desc) as pbar:
+        for line in iter(proc.stdout.readline, ""):
+            if not line:
+                break
+
+            # Look for lines like "out_time_ms=12345678" to get current progress
+            match = re.search(r"out_time_ms=(\d+)", line)
+            if match:
+                current_time = int(match.group(1)) / 1_000_000
+                delta = current_time - last_time
+                if delta > 0:
+                    remaining = max(total - pbar.n, 0.0)
+                    pbar.update(min(delta, remaining))
+                    last_time = current_time
+            elif "error" in line.lower():
+                error_lines.append(line.strip())
+
+    return error_lines

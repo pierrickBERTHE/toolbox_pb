@@ -61,9 +61,11 @@ def test_codecs_configuration():
     assert isinstance(APP_CONFIG.CODEC_VIDEO_LIST, list)
     assert APP_CONFIG.CODEC_VIDEO in APP_CONFIG.CODEC_VIDEO_LIST
 
-    # Verify CODEC_AUDIO and SUFFIX_OUTPUT values
+    # Verify CODEC_AUDIO and suffix values
     assert APP_CONFIG.CODEC_AUDIO == "aac"
-    assert APP_CONFIG.SUFFIX_OUTPUT.startswith(".")
+    assert isinstance(APP_CONFIG.SUFFIX_OUTPUT, list)
+    assert APP_CONFIG.SUFFIX_OUTPUT_VIDEO.startswith(".")
+    assert APP_CONFIG.SUFFIX_OUTPUT_VIDEO in APP_CONFIG.SUFFIX_OUTPUT
 
 
 # -----------------------------

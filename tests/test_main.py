@@ -68,11 +68,11 @@ def test_main_video_assemblor_called(monkeypatch):
 
 # Decorator to parametrize other valid choices (2-6)
 @pytest.mark.parametrize("choice,msg", [
-    ("3", "Image_reductor"),
-    ("4", "PDF_filigranor"),
-    ("5", "PDF_assemblor"),
-    ("6", "Flatten_directory_tree"),
-    ("7", "Sport_garmin_recoltor"),
+    ("4", "Image_reductor"),
+    ("5", "PDF_filigranor"),
+    ("6", "PDF_assemblor"),
+    ("7", "Flatten_directory_tree"),
+    ("8", "Sport_garmin_recoltor"),
 ])
 def test_other_menu_choices(monkeypatch, capsys, choice, msg):
     """Test that other menu choices print the correct launch message."""
@@ -95,7 +95,7 @@ def test_other_menu_choices(monkeypatch, capsys, choice, msg):
 
 
 # Decorator to parametrize invalid choices (not in 1-7)
-@pytest.mark.parametrize("choice", ["invalid", "", "0", "9", "-1", "abc"])
+@pytest.mark.parametrize("choice", ["invalid", "", "0", "19", "-1", "abc"])
 def test_main_invalid_choice(monkeypatch, capsys, choice):
     """Test that invalid choices are handled properly.
     Args:
@@ -124,9 +124,9 @@ def test_main_invalid_choice(monkeypatch, capsys, choice):
 
 
 def test_main_quit(monkeypatch):
-    """Test that choosing option '8' exits the program."""
-    # Mock input for choice '8'
-    monkeypatch.setattr('builtins.input', lambda _: '8')
+    """Test that choosing option '9' exits the program."""
+    # Mock input for choice '9'
+    monkeypatch.setattr('builtins.input', lambda _: '9')
 
     # Mock python sys.exit to raise SystemExit
     with pytest.raises(SystemExit):
@@ -134,9 +134,9 @@ def test_main_quit(monkeypatch):
 
 
 def test_main_called(monkeypatch):
-    """Test that main runs without errors for choice '8' (quit). """
-    # Mock input for choice '8'
-    monkeypatch.setattr("builtins.input", lambda _: "8")
+    """Test that main runs without errors for choice '9' (quit). """
+    # Mock input for choice '9'
+    monkeypatch.setattr("builtins.input", lambda _: "9")
 
     # Mock others functions to avoid side effects
     with (
