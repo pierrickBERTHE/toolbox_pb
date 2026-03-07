@@ -70,8 +70,8 @@ INPUT_ACCEPTED_FILES = [
     *INPUT_ACCEPTED_PDF_FILES,
 ]
 
-# Codecs
-CODEC_VIDEO_LIST = ["libx264", "libx265"]
+# Codecs ("h264_amf", "hevc_amf" sont pour les GPU AMD)
+CODEC_VIDEO_LIST = ["libx264", "libx265", "h264_amf", "hevc_amf"]
 CODEC_VIDEO = CODEC_VIDEO_LIST[1]
 CODEC_AUDIO = "aac"
 
