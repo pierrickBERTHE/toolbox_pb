@@ -25,35 +25,28 @@ def video_encodor(cfg: AppConfig) -> None:
     """
 
     # ------------- CONFIGURATION -------------
-    accepted_file = cfg.INPUT_ACCEPTED_VIDEO_FILES
-    codec_v = cfg.CODEC_VIDEO
-    codec_a = cfg.CODEC_AUDIO
-    suffix = cfg.SUFFIX_OUTPUT_VIDEO
-    input_dir = cfg.INPUT_DIR
-    output_dir = cfg.OUTPUT_DIR
-    add_codec_in_output = cfg.ADD_CODEC_NAME_IN_OUTPUT
-    print_all_keys = cfg.PRINT_ALL_KEYS_IN_METADATA_SUMMARY
+    config = func_glob.parse_config(cfg)
 
     # ------------- LOOP THROUGH ALL FILES IN INPUT DIR -------------
-    for input_file in input_dir.rglob('*'):
+    for input_file in config["input_dir"].rglob('*'):
 
         # ------- IGNORE NON-VIDEO FILES AND DIRECTORIES -------
-        if not input_file.is_file() or input_file.suffix.lower() not in accepted_file:
+        if not input_file.is_file() or input_file.suffix.lower() not in config["accepted_file"]:
             continue
 
         # --- CREATE OUTPUT SUBDIR STRUCTURE BASED ON INPUT FILE PATH ---
         output_subdir = func_glob.build_output_subdir_from_input(
-                input_file, input_dir, output_dir
+                input_file, config["input_dir"], config["output_dir"]
         )
 
         # ------------- FILENAME FOR OUTPUT VIDEO -------------
         output_path = func_glob.build_output_path(
             input_file,
             output_subdir,
-            suffix,
-            codec_v,
-            codec_a,
-            add_codec_in_output
+            config["suffix"],
+            config["codec_v"],
+            config["codec_a"],
+            config["add_codec_in_output"]
         )
 
 
@@ -67,8 +60,8 @@ def video_encodor(cfg: AppConfig) -> None:
             func_vid.encode_full_video(
                 input_path=input_file,
                 output_path=output_path,
-                codec_video=codec_v,
-                codec_audio=codec_a
+                codec_video=config["codec_v"],
+                codec_audio=config["codec_a"]
             )
 
         # ------------- COMPARE METADATA BEFORE/AFTER -------------
@@ -79,7 +72,7 @@ def video_encodor(cfg: AppConfig) -> None:
         meta_after = func_vid.get_all_metadata(output_path)
 
         # Print all metadata if flag is set
-        if print_all_keys:
+        if config["print_all_keys"]:
             print("Méta avant l'encodage :")
             func_vid.print_metadata_summary_all_keys(meta_before)
             
@@ -102,13 +95,14 @@ def video_assemblor(cfg: AppConfig) -> None:
     otherwise assemble all videos found in input directory.
     """
     # Import configuration
-    codec_v = cfg.CODEC_VIDEO
-    codec_a = cfg.CODEC_AUDIO
-    suffix = cfg.SUFFIX_OUTPUT_VIDEO
+    config = func_glob.parse_config(cfg)
 
     # create file output path
-    output_path = cfg.OUTPUT_DIR / f"assembled_v-{codec_v}_a-{codec_a}{suffix}"
-        
+    output_path = (
+        config["output_dir"] / 
+        f"assembled_v-{config['codec_v']}_a-{config['codec_a']}{config['suffix']}"
+    )
+
     # ------------- ENCODE AND ASSEMBLE VIDEOS -------------
     func_glob.print_step(1, f"Encodage des vidéos à assembler")
     
@@ -167,8 +161,8 @@ def video_assemblor(cfg: AppConfig) -> None:
         func_vid.write_video_file(
             final_clip=final_clip,
             output_path=output_path,
-            codec_video=codec_v,
-            codec_audio=codec_a
+            codec_video=config['codec_v'],
+            codec_audio=config['codec_a']
         )
 
         # Cleanup
@@ -207,3 +201,59 @@ def video_assemblor(cfg: AppConfig) -> None:
         func_vid.print_size_reduction(stats)
 
     print("\n✅ La vidéo assemblée a été créée.\n")
+
+
+def video_audio_decalator(cfg: AppConfig) -> None:
+    """
+    Shift audio of video files in the input directory by a specified delay
+    without re-encoding the video stream.
+    """
+    # Import configuration
+    config = func_glob.parse_config(cfg)
+    
+    # Input the delay in seconds
+    while True:
+        user_input = input(
+            "Entrez le délai de décalage audio en secondes"
+            "(ex: -0.5 pour avancer de 0.5s, 0.5 pour retarder de 0.5s) : "
+            )
+        try:
+            delay = float(user_input)
+            break
+        except ValueError:
+            print("Format invalide. Entrer un nombre valide (ex : -0.5, 0.5).")
+
+    # ------------- LOOP THROUGH ALL FILES IN INPUT DIR -------------
+    for input_file in config["input_dir"].rglob('*'):
+
+        # ------- IGNORE NON-VIDEO FILES AND DIRECTORIES -------
+        if not input_file.is_file() or input_file.suffix.lower() not in config["accepted_file"]:
+            continue
+
+        # --- CREATE OUTPUT SUBDIR STRUCTURE BASED ON INPUT FILE PATH ---
+        output_subdir = func_glob.build_output_subdir_from_input(
+                input_file, config["input_dir"], config["output_dir"]
+        )
+
+        # ------------- FILENAME FOR OUTPUT VIDEO -------------
+        output_path = func_glob.build_output_path(
+            input_file,
+            output_subdir,
+            config["suffix"],
+            config["codec_v"],
+            config["codec_a"],
+            config["add_codec_in_output"]
+        )
+
+        # Check if already decalated
+        if output_path.exists():
+            print("Décalage déjà réalisé.")
+        else:
+            func_vid.shift_audio_no_reencode(
+            input_video= input_file,
+            output_video= output_path,
+            delay=delay
+        )
+
+        print("\n✅ La vidéo décalée a été créée.\n")
+

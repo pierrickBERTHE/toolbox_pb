@@ -430,22 +430,6 @@ def print_size_reduction(stats: dict):
     print("\n"* 3)
 
 
-# def parse_time(value, field, line_num) -> float | None:
-#     if value is None or value.strip() == "":
-#         return None
-#     try:
-#         t = float(value)
-#     except ValueError:
-#         raise ValueError(
-#             f"Invalid {field} value at line {line_num}: {value}"
-#         )
-#     if t < 0:
-#         raise ValueError(
-#             f"{field} must be >= 0 at line {line_num}"
-#         )
-#     return t
-
-
 def to_seconds(time_str: str) -> float:
     """Convertit HH:MM:SS en secondes."""
     h, m, s = map(float, time_str.split(":"))
@@ -709,3 +693,45 @@ def compute_size_reduction_from_inputs(
         "reduction_percent": reduction_percent,
         "compression_factor": compression_factor
     }
+
+
+def shift_audio_no_reencode(input_video: str, output_video: str, delay: float):
+    """
+    Shift audio without re-encoding using FFmpeg.
+    delay > 0 : audio is delayed (starts later)
+    delay < 0 : audio is advanced (starts earlier)
+    delay == 0 : no change in audio timing
+    """
+    # Build FFmpeg command based on delay direction
+    if delay > 0:
+        cmd = [
+            "ffmpeg", "-loglevel", "error", "-y",
+            "-i", input_video,
+            "-itsoffset", str(delay),
+            "-i", input_video,
+            "-map", "0:v",
+            "-map", "1:a",
+            "-c", "copy",
+            output_video
+        ]
+    elif delay < 0:
+        cmd = [
+            "ffmpeg", "-loglevel", "error", "-y",
+            "-i", input_video,
+            "-ss", str(abs(delay)),
+            "-i", input_video,
+            "-map", "0:v",
+            "-map", "1:a",
+            "-c", "copy",
+            output_video
+        ]
+    else:
+        cmd = [
+            "ffmpeg", "-loglevel", "error", "-y",
+            "-i", input_video,
+            "-c", "copy",
+            output_video
+        ]
+
+    # Execute FFmpeg command
+    subprocess.run(cmd, check=True)
