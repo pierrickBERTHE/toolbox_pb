@@ -28,4 +28,4 @@ htmlcov/
 git-cleanup.ps1
 
 # Temporary files
-codex_tmp/
+.test_tmp/

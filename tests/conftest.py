@@ -8,9 +8,9 @@ from pathlib import Path
 import pytest
 
 
-_TMP_ROOT = Path(__file__).resolve().parents[1] / "codex_tmp" / "pytest_runtime"
+_TMP_ROOT = Path(__file__).resolve().parents[1] / ".test_tmp" / "pytest_runtime"
 _TMP_ROOT.mkdir(parents=True, exist_ok=True)
-_TMP_CASES_ROOT = Path(__file__).resolve().parents[1] / "codex_tmp" / "tmp_cases"
+_TMP_CASES_ROOT = Path(__file__).resolve().parents[1] / ".test_tmp" / "tmp_cases"
 _TMP_CASES_ROOT.mkdir(parents=True, exist_ok=True)
 
 for _name in ("TMPDIR", "TEMP", "TMP"):
