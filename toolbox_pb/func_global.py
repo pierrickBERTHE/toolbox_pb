@@ -22,6 +22,9 @@ from tqdm import tqdm
 import PIL
 import moviepy
 
+# Import custom librairies
+from toolbox_pb.config_global import AppConfig
+
 
 class Logger(object):
     """
@@ -328,3 +331,20 @@ def consume_ffmpeg_progress(
                 error_lines.append(line.strip())
 
     return error_lines
+
+
+def parse_config(cfg: AppConfig) -> dict:
+    """
+    Parse the AppConfig object into a dictionary of relevant
+    configuration values.
+    """
+    return {
+        "accepted_file": cfg.INPUT_ACCEPTED_VIDEO_FILES,
+        "codec_v": cfg.CODEC_VIDEO,
+        "codec_a": cfg.CODEC_AUDIO,
+        "suffix": cfg.SUFFIX_OUTPUT_VIDEO,
+        "input_dir": cfg.INPUT_DIR,
+        "output_dir": cfg.OUTPUT_DIR,
+        "add_codec": cfg.ADD_CODEC_NAME_IN_OUTPUT,
+        "print_all_keys": cfg.PRINT_ALL_KEYS_IN_METADATA_SUMMARY,
+    }

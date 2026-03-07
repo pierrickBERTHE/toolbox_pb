@@ -38,6 +38,7 @@ from io import StringIO
 sys.path.append(str(Path(__file__).resolve().parents[2] / 'toolbox_pb'))
 
 # Import the module to test
+from toolbox_pb.video.func_video import shift_audio_no_reencode
 from video.func_video import (
     count_cpu_threads,
     encode_full_video,
@@ -57,7 +58,8 @@ from video.func_video import (
     write_video_file,
     get_inputs_metadata,
     sum_input_sizes,
-    compute_size_reduction_from_inputs
+    compute_size_reduction_from_inputs,
+    shift_audio_no_reencode
 )
 from func_global import Logger
 
@@ -96,57 +98,86 @@ def test_count_cpu_threads(monkeypatch, capsys):
     assert "Nombre de threads disponibles" in captured.out
 
 
-def test_encode_full_video_calls_ffmpeg_correctly(tmp_path, monkeypatch):
+def test_encode_full_video_builds_minimal_ffmpeg_command():
     """
-    Test that encode_full_video:
-    - Builds an FFmpeg command correctly
-    - Calls subprocess.Popen with proper parameters
-    - Handles FFmpeg progress output without errors
+    Test that encode_full_video builds and executes a minimal FFmpeg command.
     """
-    # Mock subprocess.run for ffprobe
-    def mock_subprocess_run(*args, **kwargs):
+    fake_meta = {"format": {"duration": "12.5"}, "streams": []}
+    proc = MagicMock()
+    proc.stdout = iter([])
+    proc.returncode = 0
+    proc.wait.return_value = 0
 
-        # Simulate ffprobe JSON return
-        class CompletedProcess:
-            def __init__(self):
-                # Return fake metadata as JSON string
-                self.stdout = json.dumps(fake_meta)
-                self.returncode = 0
-        return CompletedProcess()
-    
-    # Replace real subprocess.run with mock
-    monkeypatch.setattr(
-        "toolbox_pb.video.func_video.subprocess.run",
-        mock_subprocess_run
-    )
-    
-    # Mock subprocess.Popen for ffmpeg
-    class DummyFFmpegProcess:
-        def __init__(self, *args, **kwargs):
-            # Simulate FFmpeg progress output (timestamps in microseconds)
-            self.stdout = iter([
-                "out_time_ms=1000000\n",
-                "out_time_ms=2000000\n",
-            ])
-            self.returncode = 0
-        
-        def wait(self):
-            # Simulate process completion
-            return 0
-        
-        def __enter__(self):
-            # Support context manager protocol (required by subprocess.run)
-            return self
-        
-        def __exit__(self, exc_type, exc_val, exc_tb):
-            # Exit context manager without suppressing exceptions
-            return False
-    
-    # Replace real subprocess.Popen with mock
-    monkeypatch.setattr(
-        "toolbox_pb.video.func_video.subprocess.Popen",
-        DummyFFmpegProcess
-    )
+    with mock.patch("video.func_video.count_cpu_threads", return_value=8), \
+        mock.patch("video.func_video.get_all_metadata", return_value=fake_meta), \
+        mock.patch("video.func_video.consume_ffmpeg_progress") as m_progress, \
+        mock.patch("video.func_video.subprocess.Popen", return_value=proc) as m_popen:
+
+        encode_full_video("in.mp4", "out.mp4", "libx265", "aac")
+
+    cmd = m_popen.call_args.args[0]
+    assert cmd[:8] == ["ffmpeg", "-i", "in.mp4", "-c:v", "libx265", "-c:a", "aac", "-threads"]
+    assert "8" in cmd
+    assert cmd[-2:] == ["-y", "out.mp4"]
+    m_progress.assert_called_once_with(proc, duration=12.5, desc="in.mp4")
+    proc.wait.assert_called_once()
+
+
+def test_encode_full_video_adds_optional_video_audio_flags():
+    """
+    Test that optional SAR/color/audio metadata is translated into FFmpeg flags.
+    """
+    fake_meta = {
+        "format": {"duration": "3.0"},
+        "streams": [
+            {
+                "codec_type": "video",
+                "sample_aspect_ratio": "4:3",
+                "width": 1920,
+                "height": 1080,
+                "color_range": "tv",
+            },
+            {"codec_type": "audio", "sample_rate": "48000"},
+        ],
+    }
+    proc = MagicMock()
+    proc.stdout = iter([])
+    proc.returncode = 0
+    proc.wait.return_value = 0
+
+    with mock.patch("video.func_video.count_cpu_threads", return_value=4), \
+        mock.patch("video.func_video.get_all_metadata", return_value=fake_meta), \
+        mock.patch("video.func_video.consume_ffmpeg_progress"), \
+        mock.patch("video.func_video.subprocess.Popen", return_value=proc) as m_popen:
+
+        encode_full_video("input.mp4", "output.mp4", "libx264", "aac")
+
+    cmd = m_popen.call_args.args[0]
+    assert "-vf" in cmd
+    vf_idx = cmd.index("-vf")
+    assert "scale=1920:1080:force_original_aspect_ratio=1" in cmd[vf_idx + 1]
+    assert "-color_range" in cmd
+    assert cmd[cmd.index("-color_range") + 1] == "tv"
+    assert "-ar" in cmd
+    assert cmd[cmd.index("-ar") + 1] == "48000"
+
+
+def test_encode_full_video_raises_when_ffmpeg_returns_non_zero():
+    """
+    Test that a non-zero FFmpeg return code raises CalledProcessError.
+    """
+    proc = MagicMock()
+    proc.stdout = iter([])
+    proc.returncode = 1
+    proc.wait.return_value = 0
+
+    with mock.patch("video.func_video.count_cpu_threads", return_value=2), \
+        mock.patch("video.func_video.get_all_metadata", return_value={"format": {"duration": "1"}, "streams": []}), \
+        mock.patch("video.func_video.consume_ffmpeg_progress"), \
+        mock.patch("video.func_video.subprocess.Popen", return_value=proc):
+
+        with pytest.raises(subprocess.CalledProcessError):
+            encode_full_video("bad_in.mp4", "bad_out.mp4", "libx265", "aac")
 
 
 # Different test cases for format_duration_hms
@@ -169,13 +200,13 @@ def test_format_duration_hms(input_val, expected):
 ############ get_all_metadata tests ############
 
 def test_get_all_metadata_file_not_found(tmp_path):
-    """ Test that the function raises FileNotFoundError for missing files."""
+    """Test that the function raises FileNotFoundError for missing files."""
     with pytest.raises(FileNotFoundError):
         get_all_metadata(tmp_path / "missing.mp4")
 
 
 def test_get_all_metadata_success(tmp_path):
-    """ Test that the function returns correct metadata on success."""
+    """Test that the function returns correct metadata on success."""
     
     # Create a temporary video file
     video = tmp_path / "video.mp4"
@@ -268,7 +299,7 @@ def test_get_all_metadata_empty_stdout(tmp_path):
 
 @pytest.fixture
 def temp_log_file(tmp_path):
-    """Fixture pour créer un fichier log temporaire et logger stdout dedans."""
+    """Create a temporary log file and a logger writing stdout into it."""
     log_file = tmp_path / "test_log.txt"
     logger = Logger(str(log_file))
     return logger, log_file
@@ -394,7 +425,7 @@ def test_print_metadata_summary_empty_meta(capsys):
 ############ format_value tests ############
 
 def test_format_value_non_numeric():
-    """Test that format_value returns non-numeric values unchanged. """
+    """Test that format_value returns non-numeric values unchanged."""
     assert format_value("bit_rate", "abc") == "abc"
     assert format_value("size", None) is None
 
@@ -406,7 +437,7 @@ def test_format_value_bit_rate():
 
 
 def test_format_value_sample_rate():
-    """"Test that format_value formats sample_rate correctly."""
+    """Test that format_value formats sample_rate correctly."""
     assert format_value("sample_rate", 44100) == "44,100 Hz"
 
 
@@ -555,7 +586,7 @@ def test_print_size_reduction_nominal(capsys):
 
 
 def test_print_size_reduction_missing_data(capsys):
-    """ Test that print_size_reduction handles missing data gracefully."""
+    """Test that print_size_reduction handles missing data gracefully."""
     
     # Call the function with missing statistics
     print_size_reduction({})
@@ -677,7 +708,7 @@ def test_resolve_sequence_no_videos(tmp_path):
 
 @patch("video.func_video.VideoFileClip")
 def test_load_and_trim_no_trim(mock_clip):
-    """Test loading a clip without trimming. """
+    """Test loading a clip without trimming."""
     clip = MagicMock(duration=10)
     mock_clip.return_value = clip
 
@@ -698,7 +729,7 @@ def test_load_and_trim_invalid_segment(mock_clip):
 ############# normalize_audio tests ############
 
 def test_normalize_audio():
-    """Test normalize_audio processes clips correctly. """
+    """Test normalize_audio processes clips correctly."""
     # Prepare mock clips
     clip_with_audio = MagicMock()
     clip_with_audio.audio = MagicMock()
@@ -745,7 +776,7 @@ def test_write_video_file_calls_moviepy_correctly(tmp_path):
 ############# get_inputs_metadata tests ############
 
 def test_get_inputs_metadata_ok():
-    """Test get_inputs_metadata processes input sequence correctly."""
+    """Test that get_inputs_metadata processes an input sequence correctly."""
     # Prepare input sequence and metadata function
     seq = [{"path": Path("a.mp4")}]
     fn = lambda p: {"format": {"filename": str(p)}}
@@ -762,7 +793,7 @@ def test_get_inputs_metadata_missing_path():
 
 
 def test_get_inputs_metadata_wrong_type():
-    """Test that get_inputs_metadata raises TypeError for wrong type."""
+    """Test that get_inputs_metadata raises TypeError for wrong path type."""
     with pytest.raises(TypeError):
         get_inputs_metadata([{"path": "a.mp4"}], lambda x: {})
 
@@ -770,7 +801,7 @@ def test_get_inputs_metadata_wrong_type():
 ############# sum_input_sizes tests ############
 
 def test_sum_input_sizes_ok(capsys):
-    """Test sum_input_sizes sums sizes correctly."""
+    """Test that sum_input_sizes adds input sizes correctly."""
     # Prepare sample metadata
     metas = [
         {"format": {"filename": "a.mp4", "size": 100}},
@@ -783,7 +814,7 @@ def test_sum_input_sizes_ok(capsys):
 
 
 def test_sum_input_sizes_invalid():
-    """Test sum_input_sizes returns None for invalid sizes."""
+    """Test that sum_input_sizes returns None for invalid sizes."""
     metas = [{"format": {"filename": "a.mp4", "size": "x"}}]
     assert sum_input_sizes(metas) is None
 
@@ -807,6 +838,94 @@ def test_compute_size_reduction_ok():
 
 
 def test_compute_size_reduction_invalid():
-    """Test compute_size_reduction_from_inputs handles invalid sizes."""
+    """Test that compute_size_reduction_from_inputs handles invalid sizes."""
     stats = compute_size_reduction_from_inputs([], {})
     assert stats["reduction_percent"] is None
+
+
+@patch("video.func_video.subprocess.run")
+def test_delay_positive(mock_run):
+    """Test that positive delay uses `-itsoffset`."""
+    shift_audio_no_reencode("input.mp4", "output.mp4", delay=0.5)
+    expected_cmd = [
+        "ffmpeg", "-loglevel", "error", "-y",
+        "-i", "input.mp4",
+        "-itsoffset", "0.5",
+        "-i", "input.mp4",
+        "-map", "0:v",
+        "-map", "1:a",
+        "-c", "copy",
+        "output.mp4",
+    ]
+    mock_run.assert_called_once_with(expected_cmd, check=True)
+
+
+@patch("video.func_video.subprocess.run")
+def test_delay_negative(mock_run):
+    """Test that negative delay uses `-ss`."""
+    shift_audio_no_reencode("input.mp4", "output.mp4", delay=-0.5)
+    expected_cmd = [
+        "ffmpeg", "-loglevel", "error", "-y",
+        "-i", "input.mp4",
+        "-ss", "0.5",
+        "-i", "input.mp4",
+        "-map", "0:v",
+        "-map", "1:a",
+        "-c", "copy",
+        "output.mp4",
+    ]
+    mock_run.assert_called_once_with(expected_cmd, check=True)
+
+
+@patch("video.func_video.subprocess.run")
+def test_delay_zero(mock_run):
+    """Test that zero delay copies streams without `-itsoffset` or `-ss`."""
+    shift_audio_no_reencode("input.mp4", "output.mp4", delay=0)
+    expected_cmd = [
+        "ffmpeg", "-loglevel", "error", "-y",
+        "-i", "input.mp4",
+        "-c", "copy",
+        "output.mp4",
+    ]
+    mock_run.assert_called_once_with(expected_cmd, check=True)
+
+
+@patch("video.func_video.subprocess.run")
+def test_accepts_pathlib_paths(mock_run):
+    """Test that shift_audio_no_reencode accepts `Path` objects."""
+    shift_audio_no_reencode(Path("input.mp4"), Path("output.mp4"), delay=1.0)
+    cmd_used = mock_run.call_args[0][0]
+    assert "1.0" in cmd_used
+    assert "-itsoffset" in cmd_used
+
+
+@patch("video.func_video.subprocess.run")
+def test_subprocess_called_with_check_true(mock_run):
+    """Test that subprocess.run is always called with `check=True`."""
+    shift_audio_no_reencode("input.mp4", "output.mp4", delay=0.5)
+    _, kwargs = mock_run.call_args
+    assert kwargs.get("check") is True
+
+
+@patch("video.func_video.subprocess.run", side_effect=subprocess.CalledProcessError(1, "ffmpeg"))
+def test_ffmpeg_error_raises(mock_run):
+    """
+    A FFmpeg error (non-zero exit code) raises a CalledProcessError
+    exception that is not caught inside the function.
+    """
+    with pytest.raises(subprocess.CalledProcessError):
+        shift_audio_no_reencode("input.mp4", "output.mp4", delay=0.5)
+
+
+@patch("video.func_video.subprocess.run")
+def test_loglevel_error_always_present(mock_run):
+    """
+    -loglevel error flag is always present in the ffmpeg command to
+    suppress non-error output.
+    """
+    for delay in [1.0, -1.0, 0]:
+        mock_run.reset_mock()
+        shift_audio_no_reencode("input.mp4", "output.mp4", delay=delay)
+        cmd_used = mock_run.call_args[0][0]
+        assert "-loglevel" in cmd_used
+        assert "error" in cmd_used

@@ -21,5 +21,5 @@ pytest = "^9.0.2"
 pytest-cov = "^7.0.0"
 
 [tool.pytest.ini_options]
-addopts = "--cov=toolbox_pb --cov-report=term-missing --cov-report=html --cov-fail-under=80"
+addopts = "--cov=toolbox_pb --cov-report=term-missing --cov-report=html --cov-fail-under=80 -p no:cacheprovider"
 testpaths = ["tests"]

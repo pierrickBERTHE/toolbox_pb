@@ -26,3 +26,6 @@ htmlcov/
 
 # help CLI
 git-cleanup.ps1
+
+# Temporary files
+.test_tmp/
