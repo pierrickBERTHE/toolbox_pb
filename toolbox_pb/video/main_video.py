@@ -8,12 +8,13 @@ mail : pierrick.berthe@gmx.fr
 Décembre 2025
 """
 # import custom librairies
+import sys
 from config_global import AppConfig
 import toolbox_pb.video.func_video as func_vid
 import func_global as func_glob
 
 
-def video_encodor(cfg: AppConfig) -> None:
+def video_encodor(cfg: AppConfig) -> bool:
     """
     Encode video files in the input directory according to the specified
     configuration and compares metadata before and after encoding.
@@ -28,11 +29,15 @@ def video_encodor(cfg: AppConfig) -> None:
     config = func_glob.parse_config(cfg)
 
     # ------------- LOOP THROUGH ALL FILES IN INPUT DIR -------------
+    is_empty_folder = True
     for input_file in config["input_dir"].rglob('*'):
 
         # ------- IGNORE NON-VIDEO FILES AND DIRECTORIES -------
         if not input_file.is_file() or input_file.suffix.lower() not in config["accepted_file"]:
             continue
+
+        # If we reach this point, it means we found at least one video file
+        is_empty_folder = False
 
         # --- CREATE OUTPUT SUBDIR STRUCTURE BASED ON INPUT FILE PATH ---
         output_subdir = func_glob.build_output_subdir_from_input(
@@ -46,7 +51,7 @@ def video_encodor(cfg: AppConfig) -> None:
             config["suffix"],
             config["codec_v"],
             config["codec_a"],
-            config["add_codec_in_output"]
+            config["add_codec"]
         )
 
 
@@ -86,10 +91,10 @@ def video_encodor(cfg: AppConfig) -> None:
         stats = func_vid.compute_size_reduction(meta_before, meta_after)
         func_vid.print_size_reduction(stats)
 
-    print("\n✅ Tous les fichiers ont été traités.\n")
+    return is_empty_folder
 
 
-def video_assemblor(cfg: AppConfig) -> None:
+def video_assemblor(cfg: AppConfig) -> bool:
     """
     Assemble videos based on segments.csv if present,
     otherwise assemble all videos found in input directory.
@@ -105,11 +110,22 @@ def video_assemblor(cfg: AppConfig) -> None:
 
     # ------------- ENCODE AND ASSEMBLE VIDEOS -------------
     func_glob.print_step(1, f"Encodage des vidéos à assembler")
-    
+
     # Check if already encoded
     if output_path.exists():
         print("Encodage déjà réalisé.")
     else:
+        # Vérifier s'il y a des fichiers vidéo dans le dossier d'entrée
+        video_files = list(cfg.INPUT_DIR.rglob('*'))
+        video_files = [
+            f for f in video_files if f.is_file() 
+            and f.suffix.lower() in cfg.INPUT_ACCEPTED_FILES
+        ]
+
+        # If no video files found, return early with is_empty_folder = True
+        if not video_files:
+            is_empty_folder = True
+            return is_empty_folder
 
         # Load segments if they exist
         segments = None
@@ -164,12 +180,13 @@ def video_assemblor(cfg: AppConfig) -> None:
             codec_video=config['codec_v'],
             codec_audio=config['codec_a']
         )
+        is_empty_folder = False
 
         # Cleanup
         for clip in clips:
             clip.close()
         final_clip.close()
-        
+
         # ------------- COMPARE METADATA BEFORE/AFTER -------------
         func_glob.print_step(2, "Comparaison des fichiers avant/après")
         
@@ -200,10 +217,10 @@ def video_assemblor(cfg: AppConfig) -> None:
         # Print size reduction stats
         func_vid.print_size_reduction(stats)
 
-    print("\n✅ La vidéo assemblée a été créée.\n")
+    return is_empty_folder
 
 
-def video_audio_decalator(cfg: AppConfig) -> None:
+def video_audio_decalator(cfg: AppConfig) -> bool:
     """
     Shift audio of video files in the input directory by a specified delay
     without re-encoding the video stream.
@@ -224,6 +241,7 @@ def video_audio_decalator(cfg: AppConfig) -> None:
             print("Format invalide. Entrer un nombre valide (ex : -0.5, 0.5).")
 
     # ------------- LOOP THROUGH ALL FILES IN INPUT DIR -------------
+    is_empty_folder = True
     for input_file in config["input_dir"].rglob('*'):
 
         # ------- IGNORE NON-VIDEO FILES AND DIRECTORIES -------
@@ -242,7 +260,7 @@ def video_audio_decalator(cfg: AppConfig) -> None:
             config["suffix"],
             config["codec_v"],
             config["codec_a"],
-            config["add_codec_in_output"]
+            config["add_codec"]
         )
 
         # Check if already decalated
@@ -254,6 +272,6 @@ def video_audio_decalator(cfg: AppConfig) -> None:
             output_video= output_path,
             delay=delay
         )
+        is_empty_folder = False
 
-        print("\n✅ La vidéo décalée a été créée.\n")
-
+    return is_empty_folder

@@ -75,23 +75,26 @@ def main(cfg : AppConfig):
     choix = input("Sélectionnez une option (1-10) : ")
     # choix = "2"
 
+    # Default value if selected action does not return a folder-state flag.
+    is_empty_folder = False
+
     # Match the case by the input
     match choix:
         case "1":
             print("\nLancement du Vidéo_encodor...")
-            video_encodor(cfg)
+            is_empty_folder = video_encodor(cfg)
 
         case "2":
             print("\nLancement du Vidéo_assemblor...")
-            video_assemblor(cfg)
+            is_empty_folder = video_assemblor(cfg)
 
         case "3":
             print("\nLancement du Vidéo_audio_decalator...")
-            video_audio_decalator(cfg)
+            is_empty_folder = video_audio_decalator(cfg)
 
         case "4":
             print("\nLancement du Image_defilor...")
-            run_image_defilor_interactive(cfg)
+            is_empty_folder = run_image_defilor_interactive(cfg)
 
         case "5":
             print("\nLancement du Image_reductor...")
@@ -120,9 +123,17 @@ def main(cfg : AppConfig):
         case _:
             print("Choix invalide, recommencez.")
 
+    # Check if no video was found in the input directory
+    if is_empty_folder is True:
+        print("\n⚠️ Aucun fichier vidéo trouvé dans le dossier d'entrée.\n")
+        sys.exit()
+
     # Print the summarize of files before and after
     func.summarize_files(cfg.INPUT_DIR, label="INPUT")
     func.summarize_files(cfg.OUTPUT_DIR, label="OUTPUT")
+    
+    # Print final message
+    print("\n✅ Tous les fichiers ont été traités.\n")
 
 # Main entry point
 if __name__ == "__main__":

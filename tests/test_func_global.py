@@ -56,7 +56,7 @@ def test_logger_write(tmp_path, capsys):
 # ==========================================================
 
 def test_get_git_version_ok():
-    """ Test get_git_version when git command works correctly."""
+    """Test get_git_version when git command works correctly."""
     # Mock subprocess.check_output to return a known git version
     with mock.patch(
         "subprocess.check_output",
@@ -85,7 +85,7 @@ def test_format_git_version_simple():
 
 
 def test_format_git_version_extended():
-    """ Test format_git_version with extended format."""
+    """Test format_git_version with extended format."""
     result = func_global.format_git_version("v1.0.0-3-gabc123")
     assert "v1.0.0" in result
     assert "3 commits" in result
@@ -232,3 +232,80 @@ def test_exit_toolbox():
     """Test exit_toolbox function."""
     with pytest.raises(SystemExit):
         func_global.exit_toolbox()
+
+
+# ==========================================================
+# Tests consume_ffmpeg_progress
+# ==========================================================
+
+class _FakeStdout:
+    """Minimal stdout stub exposing `readline`."""
+
+    def __init__(self, lines):
+        self._lines = iter(lines)
+
+    def readline(self):
+        return next(self._lines, "")
+
+
+class _FakeTqdm:
+    """Minimal tqdm stub to capture progress updates."""
+
+    def __init__(self, total, unit, desc):
+        self.total = total
+        self.unit = unit
+        self.desc = desc
+        self.n = 0.0
+        self.updates = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        return False
+
+    def update(self, delta):
+        self.updates.append(delta)
+        self.n += delta
+
+
+def test_consume_ffmpeg_progress_tracks_progress_and_errors(monkeypatch):
+    """Test that progress is parsed and error lines are collected."""
+    created = {}
+
+    def fake_tqdm(total, unit, desc):
+        bar = _FakeTqdm(total=total, unit=unit, desc=desc)
+        created["bar"] = bar
+        return bar
+
+    monkeypatch.setattr(func_global, "tqdm", fake_tqdm)
+
+    proc = mock.Mock()
+    proc.stdout = _FakeStdout(
+        [
+            "frame=1\n",
+            "out_time_ms=1000000\n",
+            "Some ERROR happened\n",
+            "out_time_ms=2500000\n",
+        ]
+    )
+
+    errors = func_global.consume_ffmpeg_progress(
+        proc=proc,
+        duration=2.0,
+        desc="sample.mp4",
+    )
+
+    bar = created["bar"]
+    assert bar.total == 2.0
+    assert bar.unit == "s"
+    assert bar.desc == "sample.mp4"
+    assert pytest.approx(bar.n) == 2.0
+    assert errors == ["Some ERROR happened"]
+
+
+def test_consume_ffmpeg_progress_returns_empty_when_no_stdout():
+    """Test that the function returns an empty list when stdout is None."""
+    proc = mock.Mock()
+    proc.stdout = None
+    assert func_global.consume_ffmpeg_progress(proc, duration=10.0, desc="x") == []
