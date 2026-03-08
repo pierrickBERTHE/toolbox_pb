@@ -309,3 +309,38 @@ def test_consume_ffmpeg_progress_returns_empty_when_no_stdout():
     proc = mock.Mock()
     proc.stdout = None
     assert func_global.consume_ffmpeg_progress(proc, duration=10.0, desc="x") == []
+
+
+# ==========================================================
+# Tests convert_hhmmss_to_seconds
+# ==========================================================
+
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        ("3661", 3661.0),
+        ("12.5", 12.5),
+        ("01:02", 62.0),
+        ("1:02:03", 3723.0),
+        ("00:00:00.5", 0.5),
+    ],
+)
+def test_convert_hhmmss_to_seconds_valid_formats(value, expected):
+    """Test conversion for accepted numeric, MM:SS and HH:MM:SS formats."""
+    assert func_global.convert_hhmmss_to_seconds(value) == expected
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "abc",
+        "1:2:3:4",
+        "1:aa",
+        "aa:bb:cc",
+        "",
+    ],
+)
+def test_convert_hhmmss_to_seconds_invalid_formats(value):
+    """Test conversion raises ValueError for invalid formats."""
+    with pytest.raises(ValueError):
+        func_global.convert_hhmmss_to_seconds(value)

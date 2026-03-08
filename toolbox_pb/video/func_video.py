@@ -7,7 +7,7 @@ mail : pierrick.berthe@gmx.fr
 Décembre 2025
 """
 # Imports standard
-from moviepy import VideoFileClip
+from moviepy import VideoFileClip, concatenate_videoclips
 from pathlib import Path
 import json
 import subprocess
