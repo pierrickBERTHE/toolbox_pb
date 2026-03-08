@@ -40,7 +40,10 @@ sys.path.append(str(Path(__file__).resolve().parents[2] / 'toolbox_pb'))
 # Import the module to test
 from toolbox_pb.video.func_video import shift_audio_no_reencode
 from video.func_video import (
+    AudioBoost,
+    apply_audio_boosts_ffmpeg,
     count_cpu_threads,
+    load_boost_csv,
     encode_full_video,
     format_duration_hms,
     get_all_metadata,
@@ -929,3 +932,76 @@ def test_loglevel_error_always_present(mock_run):
         cmd_used = mock_run.call_args[0][0]
         assert "-loglevel" in cmd_used
         assert "error" in cmd_used
+
+
+############# load_boost_csv tests ############
+
+def test_load_boost_csv_ok(tmp_path):
+    """Test loading valid audio boosts from CSV."""
+    csv_file = tmp_path / "boosts.csv"
+    csv_file.write_text(
+        "start,end,gain_db\n"
+        "00:00:01,00:00:03,6\n"
+        "00:00:10,00:00:12,-3\n",
+        encoding="utf-8",
+    )
+
+    boosts = load_boost_csv(str(csv_file))
+
+    assert len(boosts) == 2
+    assert boosts[0] == AudioBoost(start=1.0, end=3.0, gain_db=6.0)
+    assert boosts[1] == AudioBoost(start=10.0, end=12.0, gain_db=-3.0)
+
+
+def test_load_boost_csv_rejects_too_high_gain(tmp_path):
+    """Test that gain outside +/-20 dB raises ValueError."""
+    csv_file = tmp_path / "boosts.csv"
+    csv_file.write_text(
+        "start,end,gain_db\n"
+        "00:00:01,00:00:03,25\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError):
+        load_boost_csv(str(csv_file))
+
+
+############# apply_audio_boosts_ffmpeg tests ############
+
+@patch("video.func_video.subprocess.run")
+@patch("video.func_video.load_boost_csv")
+def test_apply_audio_boosts_ffmpeg_builds_command(mock_load_boost_csv, mock_run):
+    """Test FFmpeg command construction from boost segments."""
+    mock_load_boost_csv.return_value = [
+        AudioBoost(start=1.0, end=3.0, gain_db=6.0),
+        AudioBoost(start=10.0, end=12.0, gain_db=-3.0),
+    ]
+
+    apply_audio_boosts_ffmpeg(
+        input_video=Path("input.mp4"),
+        output_video=Path("output.mp4"),
+        csv_path="boosts.csv",
+    )
+
+    mock_load_boost_csv.assert_called_once_with("boosts.csv")
+    mock_run.assert_called_once()
+    cmd = mock_run.call_args.args[0]
+
+    assert cmd[:8] == ["ffmpeg", "-loglevel", "error", "-y", "-i", "input.mp4", "-af", cmd[7]]
+    assert "between(t,1.0,3.0)" in cmd[7]
+    assert "volume=1.9953" in cmd[7]
+    assert "between(t,10.0,12.0)" in cmd[7]
+    assert "volume=0.7079" in cmd[7]
+    assert cmd[-2:] == ["-c:v", "copy"] or cmd[-2:] == ["copy", "output.mp4"]
+    assert cmd[-1] == "output.mp4"
+    assert mock_run.call_args.kwargs["check"] is True
+
+
+@patch("video.func_video.subprocess.run")
+@patch("video.func_video.load_boost_csv", return_value=[])
+def test_apply_audio_boosts_ffmpeg_with_no_boosts(mock_load_boost_csv, mock_run):
+    """Test command still executes when no boosts are provided."""
+    apply_audio_boosts_ffmpeg("input.mp4", "output.mp4", "boosts.csv")
+    cmd = mock_run.call_args.args[0]
+    assert "-af" in cmd
+    assert cmd[cmd.index("-af") + 1] == ""

@@ -14,9 +14,22 @@ import subprocess
 import os
 import csv
 from typing import Iterable
+from dataclasses import dataclass
 
 # Import custom librairies
-from func_global import measure_time, format_bytes, consume_ffmpeg_progress
+from func_global import (
+    measure_time,
+    format_bytes,
+    consume_ffmpeg_progress,
+    convert_hhmmss_to_seconds
+)
+
+
+@dataclass
+class AudioBoost:
+    start: float
+    end: float
+    gain_db: float
 
 
 def count_cpu_threads() -> int:
@@ -734,4 +747,69 @@ def shift_audio_no_reencode(input_video: str, output_video: str, delay: float):
         ]
 
     # Execute FFmpeg command
+    subprocess.run(cmd, check=True)
+
+
+def load_boost_csv(csv_path: str) -> list[AudioBoost]:
+    """
+    Load audio boost segments from CSV and validate gain values.
+    """
+    # Define max gain in dB for safety
+    MAX_GAIN_DB = 20
+
+    # Load boosts from CSV and validate gain values
+    boosts = []
+    with open(csv_path, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            gain_db = float(row["gain_db"])
+            if abs(gain_db) > MAX_GAIN_DB:
+                raise ValueError(
+                    f"gain_db={gain_db} dépasse la limite de ±{MAX_GAIN_DB} dB"
+                )
+            boosts.append(AudioBoost(
+                start=convert_hhmmss_to_seconds(row["start"]),
+                end=convert_hhmmss_to_seconds(row["end"]),
+                gain_db=gain_db
+            ))
+    return boosts
+
+
+def apply_audio_boosts_ffmpeg(
+    input_video: str,
+    output_video: str,
+    csv_path: str,
+) -> None:
+    """
+    Modify the audio of a video by applying gain boosts to specified segments
+    using FFmpeg. The CSV file should have columns: start, end, gain_db.
+    gain_db shoudl be between -20 and +20 for safety.
+    """
+    # Load and validate boosts from CSV
+    boosts = load_boost_csv(csv_path)
+
+    # Construct FFmpeg filter complex with volume adjustments for each segment
+    filters = []
+    for boost in boosts:
+        gain_linear = round(10 ** (boost.gain_db / 20), 4)
+        filters.append(
+            f"volume=enable='between(t,{boost.start},{boost.end})'"
+            f":volume={gain_linear}"
+        )
+        print(
+            f"\nApplying audio boost: {boost.start}s to {boost.end}s "
+            f"with gain {boost.gain_db} dB"
+        )
+
+    # Assemble the filter chain
+    audio_filter = ",".join(filters)
+    
+    # Build FFmpeg command to apply audio boosts without re-encoding video
+    cmd = [
+        "ffmpeg", "-loglevel", "error", "-y",
+        "-i", str(input_video),
+        "-af", audio_filter,
+        "-c:v", "copy",
+        str(output_video),
+    ]
     subprocess.run(cmd, check=True)
