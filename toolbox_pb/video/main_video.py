@@ -8,7 +8,10 @@ mail : pierrick.berthe@gmx.fr
 Décembre 2025
 """
 # import custom librairies
-import sys
+import csv
+from dataclasses import dataclass
+import numpy as np
+from moviepy import AudioArrayClip, VideoFileClip
 from config_global import AppConfig
 import toolbox_pb.video.func_video as func_vid
 import func_global as func_glob
@@ -272,6 +275,48 @@ def video_audio_decalator(cfg: AppConfig) -> bool:
             output_video= output_path,
             delay=delay
         )
+        is_empty_folder = False
+
+    return is_empty_folder
+
+
+def video_volume_adjust(cfg: AppConfig) -> bool:
+    """
+    Adjust the audio volume of video files in the input directory
+    based on boost segments defined in a CSV file.
+    """
+    # Import configuration
+    config = func_glob.parse_config(cfg)
+
+    # Check if segments CSV exists
+    segments_csv = cfg.SEGMENT_DIR / "boosts.csv"
+    if not segments_csv.exists():
+        print(f"⚠️ Fichier de segments introuvable : {segments_csv}")
+        return True
+
+    # ------------- LOOP THROUGH ALL FILES IN INPUT DIR -------------
+    is_empty_folder = True
+    for input_file in config["input_dir"].rglob('*'):
+
+        # ------- IGNORE NON-VIDEO FILES AND DIRECTORIES -------
+        if not input_file.is_file() or input_file.suffix.lower() not in config["accepted_file"]:
+            continue
+
+        # create file output path
+        stem_file = input_file.stem
+        output_path = (
+            config["output_dir"] / f"{stem_file}{config['suffix']}"
+        )
+
+        # Check if already boosted
+        if output_path.exists():
+            print("Ajustement déjà réalisé.")
+        else:
+            func_vid.apply_audio_boosts_ffmpeg(
+                input_video=input_file,
+                output_video=output_path,
+                csv_path=segments_csv,
+            )
         is_empty_folder = False
 
     return is_empty_folder

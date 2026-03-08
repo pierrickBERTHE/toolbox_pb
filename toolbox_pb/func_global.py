@@ -348,3 +348,18 @@ def parse_config(cfg: AppConfig) -> dict:
         "add_codec": cfg.ADD_CODEC_NAME_IN_OUTPUT,
         "print_all_keys": cfg.PRINT_ALL_KEYS_IN_METADATA_SUMMARY,
     }
+
+
+def convert_hhmmss_to_seconds(value: str) -> float:
+    """
+    Convert HH:MM:SS or float string into seconds.
+    """
+    if ":" in value:
+        parts = value.strip().split(":")
+        if len(parts) == 3:
+            h, m, s = parts
+            return int(h) * 3600 + int(m) * 60 + float(s)
+        elif len(parts) == 2:
+            m, s = parts
+            return int(m) * 60 + float(s)
+    return float(value)
