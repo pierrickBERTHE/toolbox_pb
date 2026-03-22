@@ -42,6 +42,7 @@ from toolbox_pb.video.func_video import shift_audio_no_reencode
 from video.func_video import (
     AudioBoost,
     apply_audio_boosts_ffmpeg,
+    apply_video_srt_ffmpeg,
     count_cpu_threads,
     load_boost_csv,
     encode_full_video,
@@ -1005,3 +1006,59 @@ def test_apply_audio_boosts_ffmpeg_with_no_boosts(mock_load_boost_csv, mock_run)
     cmd = mock_run.call_args.args[0]
     assert "-af" in cmd
     assert cmd[cmd.index("-af") + 1] == ""
+
+
+############# apply_video_srt_ffmpeg tests ############
+
+@patch("video.func_video.subprocess.run")
+def test_apply_video_srt_ffmpeg_builds_command(mock_run):
+    """Test FFmpeg command construction for SRT subtitle integration."""
+    mock_run.return_value = subprocess.CompletedProcess(
+        args=["ffmpeg"],
+        returncode=0,
+        stdout="",
+        stderr="",
+    )
+
+    apply_video_srt_ffmpeg(
+        input_video=Path("input.mp4"),
+        output_video=Path("output.mp4"),
+        srt_path=Path("subs.srt"),
+    )
+
+    mock_run.assert_called_once()
+    cmd = mock_run.call_args.args[0]
+
+    assert cmd == [
+        "ffmpeg",
+        "-i", "input.mp4",
+        "-i", "subs.srt",
+        "-c:v", "copy",
+        "-c:a", "copy",
+        "-c:s", "mov_text",
+        "-map", "0",
+        "-map", "1",
+        "-y",
+        "output.mp4",
+    ]
+    assert mock_run.call_args.kwargs["capture_output"] is True
+    assert mock_run.call_args.kwargs["text"] is True
+    assert mock_run.call_args.kwargs["check"] is False
+
+
+@patch("video.func_video.subprocess.run")
+def test_apply_video_srt_ffmpeg_raises_on_ffmpeg_error(mock_run):
+    """Test that a FFmpeg failure raises CalledProcessError."""
+    mock_run.return_value = subprocess.CompletedProcess(
+        args=["ffmpeg"],
+        returncode=1,
+        stdout="bad stdout",
+        stderr="bad stderr",
+    )
+
+    with pytest.raises(subprocess.CalledProcessError):
+        apply_video_srt_ffmpeg(
+            input_video="input.mp4",
+            output_video="output.mp4",
+            srt_path="subs.srt",
+        )
