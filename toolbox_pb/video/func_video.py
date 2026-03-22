@@ -813,3 +813,43 @@ def apply_audio_boosts_ffmpeg(
         str(output_video),
     ]
     subprocess.run(cmd, check=True)
+
+
+def apply_video_srt_ffmpeg(
+    input_video: str,
+    output_video: str,
+    srt_path: str,
+) -> None:
+    """
+    Add SRT subtitles to a video as an optional stream without re-encoding.
+    Subtitles are added as mov_text codec for MP4 containers.
+    """
+    # Build FFmpeg command to add SRT without re-encoding
+    cmd = [
+        "ffmpeg",
+        "-i", str(input_video),
+        "-i", str(srt_path),
+        "-c:v", "copy",
+        "-c:a", "copy",
+        "-c:s", "mov_text",
+        "-map", "0",
+        "-map", "1",
+        "-y",
+        str(output_video),
+    ]
+    
+    # Execute FFmpeg command and handle errors with detailed output
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        
+        if result.returncode != 0:
+            print(f"⚠️ FFmpeg stdout:\n{result.stdout}")
+            print(f"⚠️ FFmpeg stderr:\n{result.stderr}")
+            raise subprocess.CalledProcessError(result.returncode, cmd)
+        
+        print(f"✅ Sous-titres ajoutés : {output_video}\n")
+    
+    # Handle errors and print FFmpeg output for debugging
+    except subprocess.CalledProcessError as exc:
+        print(f"❌ Erreur lors de l'ajout des SRT : {output_video}")
+        raise
