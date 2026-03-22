@@ -15,7 +15,8 @@ from video.main_video import (
     video_encodor,
     video_assemblor,
     video_audio_decalator,
-    video_volume_adjust
+    video_volume_adjust,
+    video_srt_integrator
 )
 from image.main_image import run_image_defilor_interactive
 from config_global import APP_CONFIG, AppConfig
@@ -69,16 +70,17 @@ def main(cfg : AppConfig):
     print("2. Vidéo_assemblor")
     print("3. Vidéo_audio_decalator")
     print("4. Vidéo_volume_adjust")
-    print("5. Image_defilor")
-    print("6. Image_reductor")
-    print("7. PDF_filigranor")
-    print("8. PDF_assemblor")
-    print("9. Flatten_directory_tree")
-    print("10. Sport_garmin_recoltor")
-    print("11. Quitter")
+    print("5. Vidéo_srt_integrator")
+    print("6. Image_defilor")
+    print("7. Image_reductor")
+    print("8. PDF_filigranor")
+    print("9. PDF_assemblor")
+    print("10. Flatten_directory_tree")
+    print("11. Sport_garmin_recoltor")
+    print("12. Quitter")
 
     # Get user choice
-    choix = input("Sélectionnez une option (1-11) : ")
+    choix = input("Sélectionnez une option (1-12) : ")
     # choix = "5"
 
     # Default value if selected action does not return a folder-state flag.
@@ -103,30 +105,34 @@ def main(cfg : AppConfig):
             is_empty_folder = video_volume_adjust(cfg)
 
         case "5":
+            print("\nLancement du Vidéo_srt_integrator...")
+            is_empty_folder = video_srt_integrator(cfg)
+
+        case "6":
             print("\nLancement du Image_defilor...")
             is_empty_folder = run_image_defilor_interactive(cfg)
 
-        case "6":
+        case "7":
             print("\nLancement du Image_reductor...")
             # A FAIRE
 
-        case "7":
+        case "8":
             print("\nLancement du PDF_filigranor...")
             # A FAIRE
 
-        case "8":
+        case "9":
             print("\nLancement du PDF_assemblor...")
             # A FAIRE
 
-        case "9":
+        case "10":
             print("\nLancement du Flatten_directory_tree...")
             # A FAIRE
 
-        case "10":
+        case "11":
             print("\nLancement du Sport_garmin_recoltor...")
             # A FAIRE
 
-        case "11":
+        case "12":
             print("Quitter l'application. Au revoir !")
             sys.exit(0)
 
