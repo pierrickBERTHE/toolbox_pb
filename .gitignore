@@ -32,3 +32,6 @@ git-cleanup.ps1
 
 # Personal tools
 /git-tools/*
+
+# Documentation
+/doc/*
