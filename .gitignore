@@ -29,3 +29,6 @@ git-cleanup.ps1
 
 # Temporary files
 .test_tmp/
+
+# Personal tools
+/git-tools/*
