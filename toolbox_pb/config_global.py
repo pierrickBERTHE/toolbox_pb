@@ -82,6 +82,11 @@ SUFFIX_OUTPUT_PDF = ".pdf"
 SUFFIX_OUTPUT = [
     SUFFIX_OUTPUT_VIDEO, SUFFIX_OUTPUT_IMAGE, SUFFIX_OUTPUT_PDF
 ]
+
+# Define a constant for the mandatory prefix in the watermark text for PDFs
+WATERMARK_PREFIX = "document exclusivement destiné à "
+
+
 # -----------------------------
 # INSTANCE UNIQUE DE CONFIGURATION
 # -----------------------------

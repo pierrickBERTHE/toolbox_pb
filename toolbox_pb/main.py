@@ -19,6 +19,7 @@ from video.main_video import (
     video_srt_integrator
 )
 from image.main_image import run_image_defilor_interactive
+from pdf.main_pdf import pdf_filigranor
 from config_global import APP_CONFIG, AppConfig
 import func_global as func
 
@@ -118,7 +119,7 @@ def main(cfg : AppConfig):
 
         case "8":
             print("\nLancement du PDF_filigranor...")
-            # A FAIRE
+            is_empty_folder = pdf_filigranor(cfg)
 
         case "9":
             print("\nLancement du PDF_assemblor...")

@@ -100,6 +100,21 @@ def test_main_video_volume_adjust_called(monkeypatch):
         mock_volume.assert_called_once_with(APP_CONFIG)
 
 
+def test_main_pdf_filigranor_called(monkeypatch):
+    """Test that choosing option '8' calls pdf_filigranor."""
+    monkeypatch.setattr('builtins.input', lambda _: '8')
+
+    with mock.patch('main.pdf_filigranor', autospec=True) as mock_pdf, \
+        mock.patch('func_global.get_git_version', return_value="git123"), \
+        mock.patch('func_global.format_git_version', return_value="git123"), \
+        mock.patch('func_global.print_system_info'), \
+        mock.patch('func_global.print_config_flags'), \
+        mock.patch('func_global.summarize_files'):
+
+        main.main(APP_CONFIG)
+        mock_pdf.assert_called_once_with(APP_CONFIG)
+
+
 # Decorator to parametrize other valid choices
 @pytest.mark.parametrize("choice,msg", [
     ("5", "Vidéo_srt_integrator"),
@@ -121,6 +136,7 @@ def test_other_menu_choices(monkeypatch, capsys, choice, msg):
     with mock.patch('main.video_encodor', return_value=False), \
         mock.patch('main.video_srt_integrator', return_value=False), \
         mock.patch('main.run_image_defilor_interactive'), \
+        mock.patch('main.pdf_filigranor', return_value=False), \
         mock.patch('func_global.print_system_info'), \
         mock.patch('func_global.get_git_version', return_value="git123"), \
         mock.patch('func_global.format_git_version', return_value="git123"), \
