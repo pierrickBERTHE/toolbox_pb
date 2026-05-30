@@ -45,6 +45,64 @@ def parse_defilor_extra_args(raw_args: str | None) -> argparse.Namespace:
     return args
 
 
+def _import_pypdf_dependency():
+    """
+    Import pypdf lazily so image-only workflows do not require PDF support.
+    """
+    try:
+        from pypdf import PdfReader
+    except ImportError as exc:
+        raise RuntimeError(
+            "Dépendance PDF manquante. Installe-la avec : "
+            "poetry install ou poetry add pypdf"
+        ) from exc
+
+    return PdfReader
+
+
+def extract_pdf_images_to_files(
+    pdf_path: Path,
+    output_dir: Path,
+) -> list[Path]:
+    """
+    Extract embedded page images from a PDF as temporary image files.
+    pypdf can extract images contained in PDF pages, but it cannot render a
+    complete PDF page to an image. This supports scanned/image-based PDFs.
+    """
+    # Validate the input path before extracting images
+    if not pdf_path.exists() or not pdf_path.is_file():
+        raise FileNotFoundError(f"PDF not found or invalid: {pdf_path}")
+    if pdf_path.suffix.lower() != ".pdf":
+        raise ValueError(f"File is not a PDF: {pdf_path}")
+
+    # Extract each embedded image from PDF pages.
+    PdfReader = _import_pypdf_dependency()
+    output_dir.mkdir(parents=True, exist_ok=True)
+    extracted_images = []
+    reader = PdfReader(str(pdf_path))
+
+    # Loop through each page and its images, saving them to the output directory with unique names.
+    for page_index, page in enumerate(reader.pages, start=1):
+        for image_index, image in enumerate(page.images, start=1):
+            suffix = Path(image.name).suffix.lower() or ".img"
+            image_path = (
+                output_dir
+                / f"{pdf_path.stem}_page_{page_index:03d}_image_{image_index:03d}{suffix}"
+            )
+            image_path.write_bytes(image.data)
+            extracted_images.append(image_path)
+
+    # If no images were extracted, raise an error with a helpful message about PDF content types.
+    if not extracted_images:
+        raise RuntimeError(
+            "Aucune image exploitable trouvée dans le PDF. "
+            "Avec pypdf, Image_defilor peut importer les PDFs scannés "
+            "ou contenant des images, mais pas rendre une page PDF texte/vectorielle."
+        )
+
+    return extracted_images
+
+
 def get_image_size(image_path: Path) -> tuple[int, int]:
     """
     Read image width/height with ffprobe and return (width, height).

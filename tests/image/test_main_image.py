@@ -18,6 +18,7 @@ def build_fake_cfg(tmp_path):
     """Create a minimal config object compatible with image_defilor."""
     return SimpleNamespace(
         INPUT_ACCEPTED_IMAGE_FILES={".jpg", ".png"},
+        INPUT_ACCEPTED_PDF_FILES={".pdf"},
         SUFFIX_OUTPUT_VIDEO=".mp4",
         INPUT_DIR=tmp_path / "input",
         OUTPUT_DIR=tmp_path / "output",
@@ -58,12 +59,14 @@ def test_image_defilor_processes_only_images_and_skips_existing(tmp_path):
             "image.main_image.func_glob.build_output_subdir_from_input",
             return_value=cfg.OUTPUT_DIR
         ), \
+        mock.patch("image.main_image.func_ima.get_image_size", return_value=(800, 600)), \
         mock.patch("image.main_image.func_ima.generate_image_defilor") as generate_mock:
         image_defilor(cfg)
 
     # Assert
     generate_mock.assert_called_once()
     assert generate_mock.call_args.kwargs["image_path"] == img_2
+    assert generate_mock.call_args.kwargs["output_height"] == 600
 
 
 def test_image_defilor_passes_extra_args_to_parser(tmp_path):
@@ -97,6 +100,91 @@ def test_image_defilor_passes_extra_args_to_parser(tmp_path):
 
     # Assert
     parse_mock.assert_called_once_with(raw)
+
+
+def test_image_defilor_keeps_explicit_height(tmp_path):
+    """It should not clamp height when the user explicitly provides --height."""
+    # Build a fake config with input and output directories
+    cfg = build_fake_cfg(tmp_path)
+    cfg.INPUT_DIR.mkdir(parents=True)
+    cfg.OUTPUT_DIR.mkdir(parents=True)
+    (cfg.INPUT_DIR / "a.jpg").touch()
+
+    # Define params to be returned by the parser
+    params = SimpleNamespace(
+        height=1080,
+        fps=60,
+        speed=35.0,
+        hold_start=5.0,
+        hold_end=5.0,
+        codec="libx265",
+        crf=18,
+    )
+
+    # Mock the parser to return our params, and the output subdir builder to return our output dir
+    with mock.patch("image.main_image.func_ima.parse_defilor_extra_args", return_value=params), \
+        mock.patch(
+            "image.main_image.func_glob.build_output_subdir_from_input",
+            return_value=cfg.OUTPUT_DIR
+        ), \
+        mock.patch("image.main_image.func_ima.get_image_size") as size_mock, \
+        mock.patch("image.main_image.func_ima.generate_image_defilor") as generate_mock:
+        image_defilor(cfg, extra_args="--height 1080")
+
+    # Assert
+    size_mock.assert_not_called()
+    assert generate_mock.call_args.kwargs["output_height"] == 1080
+
+
+def test_image_defilor_extracts_pdf_images(tmp_path):
+    """It should extract PDF images and generate one scrolling video per image."""
+    # Build a fake config with input and output directories
+    cfg = build_fake_cfg(tmp_path)
+    cfg.INPUT_DIR.mkdir(parents=True)
+    cfg.OUTPUT_DIR.mkdir(parents=True)
+
+    pdf = cfg.INPUT_DIR / "document.pdf"
+    pdf.touch()
+    page_1 = tmp_path / "page_001.png"
+    page_2 = tmp_path / "page_002.png"
+
+    # Define params to be returned by the parser
+    params = SimpleNamespace(
+        height=1080,
+        fps=60,
+        speed=35.0,
+        hold_start=5.0,
+        hold_end=5.0,
+        codec="libx265",
+        crf=18,
+    )
+
+    # Mock PDF image extraction and video generation to avoid side effects
+    with mock.patch("image.main_image.func_ima.parse_defilor_extra_args", return_value=params), \
+        mock.patch(
+            "image.main_image.func_glob.build_output_subdir_from_input",
+            return_value=cfg.OUTPUT_DIR
+        ), \
+        mock.patch(
+            "image.main_image.func_ima.extract_pdf_images_to_files",
+            return_value=[page_1, page_2],
+        ) as extract_mock, \
+        mock.patch("image.main_image.func_ima.get_image_size", return_value=(800, 600)), \
+        mock.patch("image.main_image.func_ima.generate_image_defilor") as generate_mock:
+        is_empty = image_defilor(cfg)
+
+    # Assert
+    assert is_empty is False
+    extract_mock.assert_called_once()
+    assert generate_mock.call_count == 2
+    assert generate_mock.call_args_list[0].kwargs["image_path"] == page_1
+    assert generate_mock.call_args_list[0].kwargs["output_path"] == (
+        cfg.OUTPUT_DIR / "document_image_001_scrolled.mp4"
+    )
+    assert generate_mock.call_args_list[1].kwargs["image_path"] == page_2
+    assert generate_mock.call_args_list[1].kwargs["output_path"] == (
+        cfg.OUTPUT_DIR / "document_image_002_scrolled.mp4"
+    )
 
 
 def test_run_image_defilor_interactive_without_extra_args(monkeypatch):

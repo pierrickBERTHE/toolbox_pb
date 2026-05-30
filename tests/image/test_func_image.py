@@ -15,6 +15,7 @@ sys.path.append(str(Path(__file__).resolve().parents[2] / "toolbox_pb"))
 # Import the module to test
 from image.func_image import (
     parse_defilor_extra_args,
+    extract_pdf_images_to_files,
     get_image_size,
     build_scroll_expression,
     generate_image_defilor,
@@ -61,6 +62,57 @@ def test_parse_defilor_extra_args_unknown_arg():
     """It should raise ValueError when unknown args are present."""
     with pytest.raises(ValueError, match="Unknown arguments"):
         parse_defilor_extra_args("--unknown 1")
+
+
+def test_extract_pdf_images_to_files(tmp_path):
+    """It should extract embedded PDF images to files with stable names."""
+    # Create a dummy PDF file
+    pdf = tmp_path / "scan.pdf"
+    pdf.touch()
+    output_dir = tmp_path / "rendered"
+
+    # Build fake pypdf-like objects
+    image = mock.Mock()
+    image.name = "image.png"
+    image.data = b"png-bytes"
+    page = mock.Mock()
+    page.images = [image]
+    reader = mock.Mock()
+    reader.pages = [page]
+    reader_cls = mock.Mock(return_value=reader)
+
+    # Mock the lazy pypdf import to avoid parsing a real PDF
+    with mock.patch(
+        "image.func_image._import_pypdf_dependency",
+        return_value=reader_cls,
+    ):
+        extracted = extract_pdf_images_to_files(pdf, output_dir)
+
+    # Assert
+    assert extracted == [output_dir / "scan_page_001_image_001.png"]
+    assert extracted[0].read_bytes() == b"png-bytes"
+    reader_cls.assert_called_once_with(str(pdf))
+
+
+def test_extract_pdf_images_to_files_without_images(tmp_path):
+    """It should raise a clear error when pypdf finds no embedded image."""
+    # Create a dummy PDF file
+    pdf = tmp_path / "text.pdf"
+    pdf.touch()
+
+    # Build fake pypdf-like objects with no images
+    page = mock.Mock()
+    page.images = []
+    reader = mock.Mock()
+    reader.pages = [page]
+
+    # Mock the lazy pypdf import to avoid parsing a real PDF
+    with mock.patch(
+        "image.func_image._import_pypdf_dependency",
+        return_value=mock.Mock(return_value=reader),
+    ):
+        with pytest.raises(RuntimeError, match="Aucune image exploitable"):
+            extract_pdf_images_to_files(pdf, tmp_path / "rendered")
 
 
 def test_get_image_size_missing_file(tmp_path):
