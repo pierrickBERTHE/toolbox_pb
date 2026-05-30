@@ -142,7 +142,7 @@ def main(cfg : AppConfig):
 
     # Check if no video was found in the input directory
     if is_empty_folder is True:
-        print("\n⚠️ Aucun fichier vidéo trouvé dans le dossier d'entrée.\n")
+        print("\n⚠️ Aucun fichier compatible trouvé dans le dossier d'entrée.\n")
         sys.exit()
 
     # Print the summarize of files before and after
