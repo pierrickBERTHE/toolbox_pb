@@ -119,7 +119,10 @@ def main(cfg : AppConfig):
 
         case "8":
             print("\nLancement du PDF_filigranor...")
-            is_empty_folder = pdf_filigranor(cfg)
+            watermark_recipient = input(
+                "\nEntrez le nom du destinataire du filigrane: "
+            ).strip()
+            is_empty_folder = pdf_filigranor(cfg, watermark_recipient)
 
         case "9":
             print("\nLancement du PDF_assemblor...")
