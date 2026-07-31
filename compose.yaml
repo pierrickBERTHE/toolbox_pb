@@ -1,0 +1,15 @@
+services:
+  toolbox:
+    build:
+      context: .
+    # Par defaut, l'image locale est utilisee. Definir TOOLBOX_IMAGE permet
+    # d'utiliser une image publiee (ex. mon-compte/toolbox-pb:1.0.0).
+    image: ${TOOLBOX_IMAGE:-toolbox-pb:1.0.0}
+    stdin_open: true
+    tty: true
+    volumes:
+      # Fichiers visibles et persistants sur le PC Windows hote.
+      - ./data/input:/app/data/input
+      - ./data/output:/app/data/output
+      - ./data/segment:/app/data/segment
+      - ./log:/app/log

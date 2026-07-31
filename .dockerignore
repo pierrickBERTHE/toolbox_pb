@@ -1,0 +1,13 @@
+.git
+.test_tmp
+.pytest_cache
+__pycache__
+**/__pycache__
+htmlcov
+.coverage
+data/input
+data/output
+log
+doc
+git-tools
+*.lnk

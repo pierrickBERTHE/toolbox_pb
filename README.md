@@ -56,6 +56,63 @@ Sous Windows, un lanceur est aussi present :
 execute_toolbox.bat
 ```
 
+## Deploiement avec Docker (Windows 11)
+
+Cette methode inclut Python, FFmpeg et FFprobe dans le conteneur : aucune
+installation de Python, Poetry ou FFmpeg n'est necessaire sur le PC cible.
+
+1. Installer [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+   sur le PC Windows 11 cible et verifier qu'il utilise les conteneurs Linux.
+2. Copier tout le dossier du projet sur ce PC (ou le cloner depuis son depot Git).
+3. Ouvrir PowerShell dans le dossier du projet et lancer :
+
+   ```powershell
+   docker compose run --rm --build toolbox
+   ```
+
+   Au premier lancement, Docker construit l'image et telecharge les dependances.
+   Les lancements suivants reutilisent l'image. Le fichier
+   `run_toolbox_docker.bat` permet d'executer la meme commande par double-clic.
+
+Les dossiers locaux `data/input`, `data/output`, `data/segment` et `log` sont
+montes dans le conteneur. Deposez donc les fichiers sources dans `data/input`
+sur Windows, utilisez le menu dans la console, puis recuperer les fichiers
+generes dans `data/output` sur Windows.
+
+Pour reconstruire l'image apres une mise a jour du code :
+
+```powershell
+docker compose build --no-cache
+```
+
+### Transfert de l'image par Internet (Docker Hub)
+
+Sur le PC de construction, apres avoir cree un compte Docker Hub, remplacez
+`MON_COMPTE` par votre identifiant Docker Hub puis publiez l'image :
+
+```powershell
+docker login
+docker compose build
+docker tag toolbox-pb:1.0.0 MON_COMPTE/toolbox-pb:1.0.0
+docker push MON_COMPTE/toolbox-pb:1.0.0
+```
+
+Sur le PC cible, dans PowerShell, telechargez et utilisez l'image publiee :
+
+```powershell
+docker login  # seulement si le depot Docker Hub est prive
+$env:TOOLBOX_IMAGE = "MON_COMPTE/toolbox-pb:1.0.0"
+docker compose pull
+docker compose run --rm toolbox
+```
+
+Le nom de l'image peut etre rendu permanent sur le PC cible en creant un
+fichier `.env` a la racine du projet contenant :
+
+```text
+TOOLBOX_IMAGE=MON_COMPTE/toolbox-pb:1.0.0
+```
+
 ## Organisation du projet
 
 ```text
