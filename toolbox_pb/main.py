@@ -16,7 +16,8 @@ from video.main_video import (
     video_assemblor,
     video_audio_decalator,
     video_volume_adjust,
-    video_srt_integrator
+    video_srt_integrator,
+    image_diapo_video_creator,
 )
 from image.main_image import run_image_defilor_interactive
 from pdf.main_pdf import pdf_filigranor
@@ -74,14 +75,15 @@ def main(cfg : AppConfig):
     print("5. Vidéo_srt_integrator")
     print("6. Image_defilor")
     print("7. Image_reductor")
-    print("8. PDF_filigranor")
-    print("9. PDF_assemblor")
-    print("10. Flatten_directory_tree")
-    print("11. Sport_garmin_recoltor")
-    print("12. Quitter")
+    print("8. Image_diapo_video_creator")
+    print("9. PDF_filigranor")
+    print("10. PDF_assemblor")
+    print("11. Flatten_directory_tree")
+    print("12. Sport_garmin_recoltor")
+    print("13. Quitter")
 
     # Get user choice
-    choix = input("Sélectionnez une option (1-12) : ")
+    choix = input("Sélectionnez une option (1-13) : ")
     # choix = "5"
 
     # Default value if selected action does not return a folder-state flag.
@@ -118,25 +120,29 @@ def main(cfg : AppConfig):
             # A FAIRE
 
         case "8":
+            print("\nLancement du Image_diapo_video_creator...")
+            is_empty_folder = image_diapo_video_creator(cfg)
+
+        case "9":
             print("\nLancement du PDF_filigranor...")
             watermark_recipient = input(
                 "\nEntrez le nom du destinataire du filigrane: "
             ).strip()
             is_empty_folder = pdf_filigranor(cfg, watermark_recipient)
 
-        case "9":
+        case "10":
             print("\nLancement du PDF_assemblor...")
             # A FAIRE
 
-        case "10":
+        case "11":
             print("\nLancement du Flatten_directory_tree...")
             # A FAIRE
 
-        case "11":
+        case "12":
             print("\nLancement du Sport_garmin_recoltor...")
             # A FAIRE
 
-        case "12":
+        case "13":
             print("Quitter l'application. Au revoir !")
             sys.exit(0)
 

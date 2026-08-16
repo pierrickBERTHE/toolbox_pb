@@ -357,3 +357,81 @@ def video_srt_integrator(cfg: AppConfig) -> bool:
         is_empty_folder = False
 
     return is_empty_folder
+
+
+def image_diapo_video_creator(cfg: AppConfig) -> bool:
+    """Create one slideshow that displays every image at full frame height.
+
+    Images are ordered by their relative path, each remains visible for the
+    configured duration. The output width is set from the widest image after
+    height normalization; the single audio file found in input is attached
+    when present.
+    """
+    # extract configuration values
+    duration = cfg.IMAGE_DIAPO_DURATION_SECONDS
+    
+    # Validate configuration values
+    if duration <= 0:
+        raise ValueError("IMAGE_DIAPO_DURATION_SECONDS doit être strictement positif.")
+    if cfg.IMAGE_DIAPO_FPS <= 0:
+        raise ValueError("IMAGE_DIAPO_FPS doit être strictement positif.")
+    if cfg.IMAGE_DIAPO_MAX_HEIGHT <= 0:
+        raise ValueError("IMAGE_DIAPO_MAX_HEIGHT doit être strictement positif.")
+
+    # ------------ FIND IMAGE AND AUDIO FILES -------------
+    image_files = func_vid.find_files_by_extensions(
+        cfg.INPUT_DIR, cfg.INPUT_ACCEPTED_IMAGE_FILES
+    )
+    if not image_files:
+        return True
+
+    audio_files = func_vid.find_files_by_extensions(
+        cfg.INPUT_DIR, cfg.INPUT_ACCEPTED_AUDIO_FILES
+    )
+    if len(audio_files) > 1:
+        raise ValueError("Un seul fichier audio est autorisé dans le dossier d'entrée.")
+
+    # ----------- CALCULATE FRAME SIZE -------------
+    image_dimensions = [
+        (image_path, *func_vid.get_image_size(image_path))
+        for image_path in image_files
+    ]
+    frame_height = min(
+        max(height for _, _, height in image_dimensions),
+        cfg.IMAGE_DIAPO_MAX_HEIGHT,
+    )
+    frame_height = max(2, frame_height - frame_height % 2)
+    frame_width = max(
+        func_vid.fit_image_size_in_frame((width, height), (0, frame_height))[0]
+        for _, width, height in image_dimensions
+    )
+
+    # create output path for the slideshow video
+    cfg.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    output_path = cfg.OUTPUT_DIR / (
+        f"image_diapo_video_v-{cfg.CODEC_VIDEO}_a-{cfg.CODEC_AUDIO}"
+        f"{cfg.SUFFIX_OUTPUT_VIDEO}"
+    )
+
+    # check if output video already exists, else delete existing SRT file if present
+    srt_output_path = output_path.with_suffix(".srt")
+    if srt_output_path.exists():
+        srt_output_path.unlink()
+    if output_path.exists():
+        print("\nCréation du diaporama déjà réalisée.")
+        return False
+
+    # ------------ CREATE SLIDESHOW VIDEO -------------
+    func_vid.create_image_diapo_ffmpeg(
+        image_paths=image_files,
+        input_dir=cfg.INPUT_DIR,
+        audio_path=audio_files[0] if audio_files else None,
+        output_path=output_path,
+        duration=duration,
+        fps=cfg.IMAGE_DIAPO_FPS,
+        frame_size=(frame_width, frame_height),
+        codec_video=cfg.CODEC_VIDEO,
+        codec_audio=cfg.CODEC_AUDIO,
+    )
+
+    return False

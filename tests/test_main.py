@@ -100,9 +100,26 @@ def test_main_video_volume_adjust_called(monkeypatch):
         mock_volume.assert_called_once_with(APP_CONFIG)
 
 
-def test_main_pdf_filigranor_called(monkeypatch):
-    """Test that choosing option '8' calls pdf_filigranor."""
+def test_main_image_diapo_video_creator_called(monkeypatch):
+    """Test that choosing option '8' calls the image slideshow creator."""
     monkeypatch.setattr('builtins.input', lambda _: '8')
+
+    with mock.patch('main.image_diapo_video_creator', return_value=False) as mock_diapo, \
+        mock.patch('func_global.get_git_version', return_value="git123"), \
+        mock.patch('func_global.format_git_version', return_value="git123"), \
+        mock.patch('func_global.print_system_info'), \
+        mock.patch('func_global.print_config_flags'), \
+        mock.patch('func_global.summarize_files'):
+
+        main.main(APP_CONFIG)
+
+    mock_diapo.assert_called_once_with(APP_CONFIG)
+
+
+def test_main_pdf_filigranor_called(monkeypatch):
+    """Test that choosing option '9' calls pdf_filigranor."""
+    answers = iter(['9', 'Destinataire'])
+    monkeypatch.setattr('builtins.input', lambda _: next(answers))
 
     with mock.patch('main.pdf_filigranor', autospec=True) as mock_pdf, \
         mock.patch('func_global.get_git_version', return_value="git123"), \
@@ -112,7 +129,7 @@ def test_main_pdf_filigranor_called(monkeypatch):
         mock.patch('func_global.summarize_files'):
 
         main.main(APP_CONFIG)
-        mock_pdf.assert_called_once_with(APP_CONFIG)
+        mock_pdf.assert_called_once_with(APP_CONFIG, 'Destinataire')
 
 
 # Decorator to parametrize other valid choices
@@ -120,10 +137,11 @@ def test_main_pdf_filigranor_called(monkeypatch):
     ("5", "Vidéo_srt_integrator"),
     ("6", "Image_defilor"),
     ("7", "Image_reductor"),
-    ("8", "PDF_filigranor"),
-    ("9", "PDF_assemblor"),
-    ("10", "Flatten_directory_tree"),
-    ("11", "Sport_garmin_recoltor"),
+    ("8", "Image_diapo_video_creator"),
+    ("9", "PDF_filigranor"),
+    ("10", "PDF_assemblor"),
+    ("11", "Flatten_directory_tree"),
+    ("12", "Sport_garmin_recoltor"),
 ])
 def test_other_menu_choices(monkeypatch, capsys, choice, msg):
     """Test that other menu choices print the correct launch message."""
@@ -136,6 +154,7 @@ def test_other_menu_choices(monkeypatch, capsys, choice, msg):
     with mock.patch('main.video_encodor', return_value=False), \
         mock.patch('main.video_srt_integrator', return_value=False), \
         mock.patch('main.run_image_defilor_interactive'), \
+        mock.patch('main.image_diapo_video_creator', return_value=False), \
         mock.patch('main.pdf_filigranor', return_value=False), \
         mock.patch('func_global.print_system_info'), \
         mock.patch('func_global.get_git_version', return_value="git123"), \
@@ -181,9 +200,9 @@ def test_main_invalid_choice(monkeypatch, capsys, choice):
 
 
 def test_main_quit(monkeypatch):
-    """Test that choosing option '12' exits the program."""
-    # Mock input for choice '12'
-    monkeypatch.setattr('builtins.input', lambda _: '12')
+    """Test that choosing option '13' exits the program."""
+    # Mock input for choice '13'
+    monkeypatch.setattr('builtins.input', lambda _: '13')
 
     # Mock python sys.exit to raise SystemExit
     with pytest.raises(SystemExit):
@@ -191,9 +210,9 @@ def test_main_quit(monkeypatch):
 
 
 def test_main_called(monkeypatch):
-    """Test that main runs without errors for choice '12' (quit)."""
-    # Mock input for choice '12'
-    monkeypatch.setattr("builtins.input", lambda _: "12")
+    """Test that main runs without errors for choice '13' (quit)."""
+    # Mock input for choice '13'
+    monkeypatch.setattr("builtins.input", lambda _: "13")
 
     # Mock others functions to avoid side effects
     with (

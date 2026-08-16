@@ -8,19 +8,21 @@ Le projet fournit une interface console interactive qui lit les fichiers depuis 
 
 Fonctionnalites actuellement disponibles dans le menu principal :
 
-- `Video_encodor` : reencode les videos du dossier d'entree avec les codecs configures, compare les metadonnees avant/apres et affiche le gain de taille.
-- `Video_assemblor` : assemble plusieurs videos en un seul fichier. Si `data/segment/segments.csv` existe, l'ordre et les coupes sont pris depuis ce fichier.
-- `Video_audio_decalator` : decale la piste audio d'une video sans reencoder le flux video.
-- `Video_volume_adjust` : applique des boosts audio sur des plages temporelles definies dans `data/segment/boosts.csv`.
-- `Video_srt_integrator` : ajoute un fichier `sous_titre.srt` aux videos du dossier d'entree.
-- `Image_defilor` : genere une video verticale defilante a partir d'une image, avec hauteur, vitesse, FPS et codec parametrables.
+- `Video_encodor` : reencode chaque video du dossier d'entree avec les codecs configures. Les metadonnees et la taille avant/apres sont comparees.
+- `Video_assemblor` : assemble plusieurs videos en un seul fichier. Si `data/segment/segments.csv` existe, il definit l'ordre des clips et leurs points de debut/fin ; sinon, les videos sont assemblees dans l'ordre des noms de fichiers.
+- `Video_audio_decalator` : avance ou retarde la piste audio d'une video sans reencoder le flux video.
+- `Video_volume_adjust` : applique des variations de volume audio sur des plages temporelles definies dans `data/segment/boosts.csv`, sans reencoder le flux video.
+- `Video_srt_integrator` : integre `data/segment/sous_titre.srt` comme piste de sous-titres MP4 aux videos du dossier d'entree, sans reencoder l'audio ou la video.
+- `Image_defilor` : genere une video verticale defilante pour chaque image source et, pour les PDF, une video par image extraite de chaque page. La hauteur, la vitesse, le FPS, les temps d'arret et le codec sont parametrables.
+- `Image_diapo_video_creator` : assemble toutes les photos du dossier d'entree dans une seule video avec une duree configurable par photo. Les images sont redimensionnees sans deformation, a leur orientation EXIF reelle, et leur ratio est conserve. Une piste audio unique du dossier d'entree peut etre ajoutee ; les noms des photos et leurs timings sont integres comme piste de sous-titres dans le MP4.
+- `PDF_filigranor` : ajoute a chaque PDF un filigrane textuel diagonal repete. Le menu demande le destinataire et ajoute automatiquement le prefixe configure `document exclusivement destine a`.
 
 Entrees de menu deja prevues mais non implementees :
 
 - `Image_reductor`
-- `PDF_filigranor`
 - `PDF_assemblor`
 - `Flatten_directory_tree`
+- `Sport_garmin_recoltor`
 
 ## Prerequis
 
@@ -201,6 +203,19 @@ Bonjour
 Sous-titre de demonstration
 ```
 
+## Diaporama video (`Image_diapo_video_creator`)
+
+L'option `8` cree `image_diapo_video_v-<codec_video>_a-<codec_audio>.mp4` dans
+`data/output`.
+
+- Toutes les images `.jpeg`, `.jpg` et `.png` de `data/input` et de ses sous-dossiers sont prises en compte dans un ordre deterministe.
+- Une image reste affichee pendant `IMAGE_DIAPO_DURATION_SECONDS` secondes (5 s par defaut).
+- La sortie conserve les proportions de chaque photo et applique son orientation EXIF. Toutes les images remplissent la hauteur de trame ; de possibles bandes laterales preservent les pixels sans recadrage ni etirement.
+- La hauteur est plafonnee par `IMAGE_DIAPO_MAX_HEIGHT` (2160 px par defaut) pour eviter les echecs d'encodage sur les tres grandes photos.
+- Un seul fichier audio parmi `.aac`, `.flac`, `.m4a`, `.mp3`, `.ogg` et `.wav` peut etre place dans `data/input`. Il est ajoute a la video.
+- Les sous-titres sont integres directement au flux MP4 : chaque entree contient le timing et le nom de la photo, sans extension. Seule la premiere annee valide a quatre chiffres du nom est conservee ; les autres chiffres sont retires.
+- L'encodage est realise photo par photo puis assemble, afin de limiter la consommation de memoire. Deux barres `tqdm` indiquent la photo en cours et la progression globale.
+
 ## Parametres d'`Image_defilor`
 
 Lors du lancement de l'option image, des arguments supplementaires peuvent etre saisis.
@@ -231,8 +246,15 @@ Points importants :
 - codecs video supportes : `libx264`, `libx265`, `h264_amf`, `hevc_amf`
 - codec audio par defaut : `aac`
 - extensions video : `.avi`, `.m4v`, `.mkv`, `.mod`, `.mov`, `.mp4`, `.mpg`, `.mts`, `.vob`, `.webm`
-- extensions image : `.jpg`, `.png`
+- extensions image : `.jpeg`, `.jpg`, `.png`
+- extensions audio pour le diaporama : `.aac`, `.flac`, `.m4a`, `.mp3`, `.ogg`, `.wav`
 - extensions pdf : `.pdf`
+
+Parametres du diaporama :
+
+- `IMAGE_DIAPO_DURATION_SECONDS` : duree d'affichage de chaque image, par defaut `5.0`
+- `IMAGE_DIAPO_FPS` : cadence de sortie, par defaut `24`
+- `IMAGE_DIAPO_MAX_HEIGHT` : hauteur maximale de la sortie, par defaut `2160`
 
 Flags disponibles :
 
