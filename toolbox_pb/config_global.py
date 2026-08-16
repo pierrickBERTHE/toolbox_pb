@@ -47,10 +47,12 @@ class AppConfig:
     PRINT_ALL_KEYS_IN_METADATA_SUMMARY: bool
 
     # Image slideshow
-    IMAGE_DIAPO_DURATION_SECONDS: float
-    IMAGE_DIAPO_FPS: int
-    IMAGE_DIAPO_MAX_HEIGHT: int
-    INPUT_ACCEPTED_AUDIO_FILES: List[str]
+    IMAGE_DIAPO_DURATION_SECONDS: float = 4.0
+    IMAGE_DIAPO_FPS: int = 24
+    IMAGE_DIAPO_MAX_HEIGHT: int = 2160
+    INPUT_ACCEPTED_AUDIO_FILES: List[str] = field(
+        default_factory=lambda: [".aac", ".flac", ".m4a", ".mp3", ".ogg", ".wav"]
+    )
 
 
 # -----------------------------
