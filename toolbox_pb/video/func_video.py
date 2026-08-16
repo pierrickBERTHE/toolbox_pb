@@ -9,12 +9,17 @@ Décembre 2025
 # Imports standard
 from moviepy import VideoFileClip, concatenate_videoclips
 from pathlib import Path
+from PIL import Image, ImageOps
 import json
 import subprocess
 import os
 import csv
+import tempfile
+import re
+from datetime import date
 from typing import Iterable
 from dataclasses import dataclass
+from tqdm import tqdm
 
 # Import custom librairies
 from func_global import (
@@ -30,6 +35,277 @@ class AudioBoost:
     start: float
     end: float
     gain_db: float
+
+
+def find_files_by_extensions(input_dir: Path, extensions: list[str]) -> list[Path]:
+    """
+    Return input files matching extensions, in deterministic path order.
+    """
+    accepted_extensions = {extension.lower() for extension in extensions}
+    return sorted(
+        (
+            path for path in input_dir.rglob("*")
+            if path.is_file() and path.suffix.lower() in accepted_extensions
+        ),
+        key=lambda path: str(path.relative_to(input_dir)).lower(),
+    )
+
+
+def get_image_size(image_path: Path) -> tuple[int, int]:
+    """
+    Return visual dimensions after applying any EXIF orientation metadata.
+    """
+    with Image.open(image_path) as image:
+        return ImageOps.exif_transpose(image).size
+
+
+def fit_image_size_in_frame(
+    image_size: tuple[int, int], frame_size: tuple[int, int]
+) -> tuple[int, int]:
+    """
+    Return an even size that fills the full frame height.
+    The returned size preserves the input ratio. Every image occupies the
+    entire frame height, so no top or bottom padding is ever introduced.
+    """
+    # Validate input sizes
+    image_width, image_height = image_size
+    _, frame_height = frame_size
+    if image_width <= 0 or image_height <= 0:
+        raise ValueError("Les dimensions de l'image doivent être positives.")
+
+    # Calculate the scaled width to maintain aspect ratio
+    scaled_height = frame_height
+    scaled_width = max(2, round(image_width * frame_height / image_height))
+    scaled_width -= scaled_width % 2
+    return scaled_width, scaled_height
+
+
+def format_srt_timestamp(milliseconds: int) -> str:
+    """
+    Format a non-negative millisecond offset as an SRT timestamp.
+    """
+    milliseconds = max(0, milliseconds)
+    hours, remainder = divmod(milliseconds, 3_600_000)
+    minutes, remainder = divmod(remainder, 60_000)
+    seconds, milliseconds = divmod(remainder, 1_000)
+    return f"{hours:02}:{minutes:02}:{seconds:02},{milliseconds:03}"
+
+
+def build_image_subtitle(image_path: Path, input_dir: Path) -> str:
+    """
+    Build a subtitle from a filename, retaining only its first valid year.
+    All other digits (such as month, day, or photo sequence numbers) are
+    removed. The filename extension is never included.
+    """
+    # Validate input paths
+    image_name = image_path.relative_to(input_dir).with_suffix("").as_posix()
+    valid_year = None
+
+    # Search for the first valid 4-digit year in the filename
+    for match in re.finditer(r"(?<!\d)(\d{4})(?!\d)", image_name):
+        try:
+            date(int(match.group(1)), 1, 1)
+        except ValueError:
+            continue
+        valid_year = match.group(1)
+        break
+
+    # Remove all digits and clean up the text
+    text = re.sub(r"\d+", "", image_name)
+    text = re.sub(r"\(\s*\)", "", text)
+    text = re.sub(r"[-_\s]{2,}", " ", text).strip(" -_")
+    return f"{valid_year} {text}".strip() if valid_year else text
+
+
+def write_image_diapo_srt(
+    image_paths: list[Path],
+    input_dir: Path,
+    duration: float,
+    output_path: Path,
+) -> None:
+    """
+    Write one SRT cue per slideshow image with its display time range.
+    """
+    entries = []
+
+    # Loop over images and create SRT entries
+    for index, image_path in enumerate(image_paths, start=1):
+
+        # Calculate start and end times in milliseconds
+        start_ms = round((index - 1) * duration * 1_000)
+        end_ms = round(index * duration * 1_000)
+        
+        # Build the subtitle text from the image filename
+        image_name = build_image_subtitle(image_path, input_dir)
+        entries.append(
+            f"{index}\n"
+            f"{format_srt_timestamp(start_ms)} --> {format_srt_timestamp(end_ms)}\n"
+            f"{image_name}\n"
+        )
+    output_path.write_text("\n".join(entries), encoding="utf-8")
+
+
+def create_image_diapo_ffmpeg(
+    image_paths: list[Path],
+    input_dir: Path,
+    audio_path: Path | None,
+    output_path: Path,
+    duration: float,
+    fps: int,
+    frame_size: tuple[int, int],
+    codec_video: str,
+    codec_audio: str,
+) -> None:
+    """
+    Create a slideshow through one temporary video segment per image.
+    Encoding one source image at a time avoids loading all high-resolution
+    photos into FFmpeg's filter graph at once. Segments are then remuxed into
+    the final video, optionally with the supplied audio track.
+    """
+    # Validate input parameters
+    width, height = frame_size
+    total_duration = duration * len(image_paths)
+    
+    # use tqdm to show a progress bar for the slideshow creation
+    with tqdm(
+        total=len(image_paths),
+        unit="étape",
+        desc="Progression globale",
+        position=1,
+        leave=True,
+        bar_format="{l_bar}{bar}| {n:.0f}/{total:.0f} [{elapsed}<{remaining}]",
+    ) as global_progress, tempfile.TemporaryDirectory(
+        prefix="image_diapo_"
+    ) as temp_dir_name:
+        temp_dir = Path(temp_dir_name)
+        segment_paths = []
+
+        # Loop over each image and create a temporary video segment
+        for index, image_path in enumerate(image_paths):
+
+            # Calculate the scaled size for the image to fit in the frame
+            scaled_width, scaled_height = fit_image_size_in_frame(
+                get_image_size(image_path), frame_size
+            )
+            segment_path = temp_dir / f"segment_{index:05d}.mp4"
+
+            # Build the FFmpeg command to create a video segment from the image
+            command = [
+                "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+                "-loop", "1", "-framerate", str(fps), "-t", str(duration),
+                "-i", str(image_path),
+                "-vf", (
+                    f"scale={scaled_width}:{scaled_height},"
+                    f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black,"
+                    f"setsar=1,fps={fps}"
+                ),
+                "-an", "-c:v", codec_video, "-pix_fmt", "yuv420p",
+                "-r", str(fps), "-threads", "1", "-progress", "pipe:1",
+                str(segment_path),
+            ]
+
+            # Run FFmpeg command with progress bar for each image segment
+            _run_ffmpeg_with_progress(
+                command,
+                duration,
+                f"Création du diaporama ({index + 1}/{len(image_paths)})",
+            )
+            segment_paths.append(segment_path)
+            global_progress.update(1)
+
+        # Create a temporary text file listing all segment paths for FFmpeg concatenation
+        concat_file = temp_dir / "segments.txt"
+        concat_file.write_text(
+            "".join(
+                f"file '{path.as_posix().replace("'", "'\\''")}'\n"
+                for path in segment_paths
+            ),
+            encoding="utf-8",
+        )
+
+        # Create a temporary SRT file for subtitles
+        subtitles_path = temp_dir / "subtitles.srt"
+        write_image_diapo_srt(image_paths, input_dir, duration, subtitles_path)
+        command = [
+            "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+            "-f", "concat", "-safe", "0", "-i", str(concat_file),
+        ]
+
+        # Add audio input if provided
+        if audio_path is not None:
+            command.extend(["-i", str(audio_path)])
+        
+        # Add subtitles input and map streams for final output
+        command.extend(["-i", str(subtitles_path), "-map", "0:v:0"])
+        
+        # Map audio if provided, else skip audio mapping
+        if audio_path is not None:
+            command.extend(["-map", "1:a:0?", "-c:a", codec_audio])
+
+        # Determine the index of the subtitle input based on whether audio is present
+        subtitle_input_index = 2 if audio_path is not None else 1
+        
+        # Add subtitles mapping and encoding for final output
+        command.extend([
+            "-map", f"{subtitle_input_index}:s:0",
+            "-c:s", "mov_text",
+        ])
+        command.extend([
+            "-c:v", "copy", "-t", str(total_duration), str(output_path),
+        ])
+
+        # Run FFmpeg command to concatenate segments and add audio/subtitles
+        _run_ffmpeg_silently(command)
+
+
+def _run_ffmpeg_with_progress(
+    command: list[str],
+    duration: float,
+    desc: str,
+) -> None:
+    """
+    Run FFmpeg silently while forwarding only progress to tqdm.
+    """
+    # Run FFmpeg command with subprocess and capture output for progress
+    proc = subprocess.Popen(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+
+    # Use the consume_ffmpeg_progress function to parse FFmpeg output and update the progress bar
+    errors = consume_ffmpeg_progress(
+        proc,
+        duration=duration,
+        desc=desc,
+        position=0,
+        leave=False,
+    )
+
+    # Wait for FFmpeg to finish and check for errors
+    return_code = proc.wait()
+
+    # If FFmpeg returned a non-zero exit code, raise an exception with errors
+    if return_code != 0:
+        raise subprocess.CalledProcessError(
+            return_code, command, output="\n".join(errors)
+        )
+
+
+def _run_ffmpeg_silently(command: list[str]) -> None:
+    """
+    Run a short FFmpeg remux step without adding a progress bar.
+    """
+    # Run FFmpeg command with subprocess and capture output
+    result = subprocess.run(command, capture_output=True, text=True, check=False)
+
+    # If FFmpeg returned a non-zero exit code, raise an exception with stderr or stdout
+    if result.returncode != 0:
+        raise subprocess.CalledProcessError(
+            result.returncode, command, output=result.stderr or result.stdout
+        )
 
 
 def count_cpu_threads() -> int:
@@ -592,7 +868,8 @@ def write_video_file(
     final_clip: VideoFileClip,
     output_path: Path,
     codec_video: str,
-    codec_audio: str
+    codec_audio: str,
+    fps: int | None = None,
 ):
     """
     Write the final video file with specified codecs.
@@ -601,12 +878,18 @@ def write_video_file(
     max_threads = count_cpu_threads()
 
     # Write the final video file
+    write_options = {
+        "codec": codec_video,
+        "audio_codec": codec_audio,
+        "threads": max_threads,
+        "logger": "bar",
+    }
+    if fps is not None:
+        write_options["fps"] = fps
+
     final_clip.write_videofile(
         str(output_path),
-        codec=codec_video,
-        audio_codec=codec_audio,
-        threads=max_threads,
-        logger="bar"
+        **write_options,
     )
 
 

@@ -298,6 +298,9 @@ def consume_ffmpeg_progress(
     duration: float,
     desc: str,
     unit: str = "s",
+    progress_bar=None,
+    position: int | None = None,
+    leave: bool = True,
 ) -> list[str]:
     """
     Read FFmpeg `-progress pipe:1` output and update a tqdm progress bar.
@@ -313,7 +316,16 @@ def consume_ffmpeg_progress(
         return error_lines
 
     # Read lines from FFmpeg output and update progress bar
-    with tqdm(total=total, unit=unit, desc=desc) as pbar:
+    tqdm_options = {"total": total, "unit": unit, "desc": desc}
+    if position is not None:
+        tqdm_options["position"] = position
+        tqdm_options["bar_format"] = (
+            "{l_bar}{bar}| {n:.0f}/{total:.0f} [{elapsed}<{remaining}]"
+        )
+    if leave is not True:
+        tqdm_options["leave"] = leave
+
+    with tqdm(**tqdm_options) as pbar:
         for line in iter(proc.stdout.readline, ""):
             if not line:
                 break
@@ -325,7 +337,13 @@ def consume_ffmpeg_progress(
                 delta = current_time - last_time
                 if delta > 0:
                     remaining = max(total - pbar.n, 0.0)
-                    pbar.update(min(delta, remaining))
+                    applied_delta = min(delta, remaining)
+                    pbar.update(applied_delta)
+                    if progress_bar is not None:
+                        global_remaining = max(
+                            float(progress_bar.total or 0) - progress_bar.n, 0.0
+                        )
+                        progress_bar.update(min(applied_delta, global_remaining))
                     last_time = current_time
             elif "error" in line.lower():
                 error_lines.append(line.strip())

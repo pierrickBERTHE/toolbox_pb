@@ -33,6 +33,7 @@ import pytest
 from unittest import mock
 from unittest.mock import patch, MagicMock
 from io import StringIO
+from PIL import Image
 
 # Add the toolbox_pb directory to sys.path for imports
 sys.path.append(str(Path(__file__).resolve().parents[2] / 'toolbox_pb'))
@@ -43,11 +44,16 @@ from video.func_video import (
     AudioBoost,
     apply_audio_boosts_ffmpeg,
     apply_video_srt_ffmpeg,
+    build_image_subtitle,
+    create_image_diapo_ffmpeg,
+    fit_image_size_in_frame,
+    format_srt_timestamp,
     count_cpu_threads,
     load_boost_csv,
     encode_full_video,
     format_duration_hms,
     get_all_metadata,
+    get_image_size,
     print_metadata_summary_all_keys,
     print_metadata_diff_summary,
     format_value,
@@ -63,7 +69,8 @@ from video.func_video import (
     get_inputs_metadata,
     sum_input_sizes,
     compute_size_reduction_from_inputs,
-    shift_audio_no_reencode
+    shift_audio_no_reencode,
+    write_image_diapo_srt,
 )
 from func_global import Logger
 
@@ -775,6 +782,116 @@ def test_write_video_file_calls_moviepy_correctly(tmp_path):
         threads=4,
         logger="bar"
     )
+
+
+def test_write_video_file_passes_explicit_fps_when_requested(tmp_path):
+    """An explicit frame rate is forwarded to MoviePy for image clips."""
+    input_clip = MagicMock()
+
+    with mock.patch("video.func_video.count_cpu_threads", return_value=4):
+        write_video_file(
+            final_clip=input_clip,
+            output_path=tmp_path / "out.mp4",
+            codec_video="libx265",
+            codec_audio="aac",
+            fps=24,
+        )
+
+    assert input_clip.write_videofile.call_args.kwargs["fps"] == 24
+
+
+@patch("video.func_video.subprocess.run")
+@patch("video.func_video.subprocess.Popen")
+@patch("video.func_video.consume_ffmpeg_progress", return_value=[])
+@patch("video.func_video.get_image_size", side_effect=[(4000, 3000), (3000, 4000)])
+def test_create_image_diapo_ffmpeg_preserves_ratio_with_padding(
+    mock_size, mock_progress, mock_popen, mock_run, tmp_path
+):
+    """FFmpeg scales images to fit the frame without cropping or stretching."""
+    images = [tmp_path / "a.jpg", tmp_path / "b.png"]
+    audio = tmp_path / "sound.mp3"
+    proc = MagicMock()
+    proc.wait.return_value = 0
+    mock_popen.return_value = proc
+    mock_run.return_value = subprocess.CompletedProcess([], 0, "", "")
+
+    create_image_diapo_ffmpeg(
+        image_paths=images,
+        input_dir=tmp_path,
+        audio_path=audio,
+        output_path=tmp_path / "out.mp4",
+        duration=2.5,
+        fps=24,
+        frame_size=(1920, 1080),
+        codec_video="libx265",
+        codec_audio="aac",
+    )
+
+    assert mock_popen.call_count == 2
+    first_segment = mock_popen.call_args_list[0].args[0]
+    second_segment = mock_popen.call_args_list[1].args[0]
+    assert "scale=1440:1080" in first_segment[first_segment.index("-vf") + 1]
+    assert "scale=810:1080" in second_segment[second_segment.index("-vf") + 1]
+    assert "pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=black" in first_segment[
+        first_segment.index("-vf") + 1
+    ]
+    final_command = mock_run.call_args.args[0]
+    assert "-f" in final_command and "concat" in final_command
+    assert "1:a:0?" in final_command
+    assert "2:s:0" in final_command
+    assert final_command[final_command.index("-c:s") + 1] == "mov_text"
+    assert mock_progress.call_count == 2
+
+
+def test_fit_image_size_in_frame_fills_frame_height():
+    """Landscape and portrait images always fill the frame height completely."""
+    assert fit_image_size_in_frame((4000, 3000), (1920, 1080)) == (1440, 1080)
+    assert fit_image_size_in_frame((3000, 4000), (1920, 1080)) == (810, 1080)
+
+
+def test_get_image_size_applies_exif_orientation(tmp_path):
+    """A rotated JPEG is sized from its displayed orientation, not raw pixels."""
+    image_path = tmp_path / "rotated.jpg"
+    image = Image.new("RGB", (40, 20), color="white")
+    exif = image.getexif()
+    exif[274] = 6  # Rotate 90° clockwise.
+    image.save(image_path, exif=exif)
+
+    assert get_image_size(image_path) == (20, 40)
+
+
+def test_write_image_diapo_srt_records_each_image_timing(tmp_path):
+    """The SRT file contains ordered image names and precise display ranges."""
+    input_dir = tmp_path / "input"
+    nested_dir = input_dir / "nested"
+    nested_dir.mkdir(parents=True)
+    images = [input_dir / "first.jpg", nested_dir / "second.png"]
+    output_path = tmp_path / "diapo.srt"
+
+    write_image_diapo_srt(images, input_dir, 2.5, output_path)
+
+    assert output_path.read_text(encoding="utf-8") == (
+        "1\n00:00:00,000 --> 00:00:02,500\nfirst\n\n"
+        "2\n00:00:02,500 --> 00:00:05,000\nnested/second\n"
+    )
+
+
+def test_build_image_subtitle_keeps_only_the_first_valid_year(tmp_path):
+    """Date fragments and sequence numbers are excluded from the subtitle."""
+    input_dir = tmp_path / "input"
+    input_dir.mkdir()
+    image = input_dir / "1986-08-30- (27)-Marie-Lise  - Philippe.JPG"
+
+    assert build_image_subtitle(image, input_dir) == "1986 Marie-Lise Philippe"
+
+
+def test_build_image_subtitle_rejects_year_zero_and_removes_all_digits(tmp_path):
+    """Only a valid calendar year is retained."""
+    input_dir = tmp_path / "input"
+    input_dir.mkdir()
+    image = input_dir / "0000-12-31 - photo 42.png"
+
+    assert build_image_subtitle(image, input_dir) == "photo"
 
 
 ############# get_inputs_metadata tests ############
