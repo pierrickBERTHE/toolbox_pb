@@ -214,7 +214,8 @@ def build_output_path(
     suffix: str,
     codec_v: str,
     codec_a: str,
-    add_codec: bool
+    add_codec: bool,
+    name_suffix: str = "",
 ) -> Path:
     """
     Build the output video file path in a safe and deterministic way.
@@ -222,9 +223,9 @@ def build_output_path(
 
     # Build the output filename
     if add_codec:
-        name = f"{input_file.stem}_v-{codec_v}_a-{codec_a}{suffix}"
+        name = f"{input_file.stem}_v-{codec_v}_a-{codec_a}{name_suffix}{suffix}"
     else:
-        name = f"{input_file.stem}{suffix}"
+        name = f"{input_file.stem}{name_suffix}{suffix}"
 
     # Build the full output path
     path = output_subdir / name
@@ -364,6 +365,7 @@ def parse_config(cfg: AppConfig) -> dict:
         "input_dir": cfg.INPUT_DIR,
         "output_dir": cfg.OUTPUT_DIR,
         "add_codec": cfg.ADD_CODEC_NAME_IN_OUTPUT,
+        "add_compressed": cfg.ADD_COMPRESSED_IN_NAME_IN_OUTPUT,
         "print_all_keys": cfg.PRINT_ALL_KEYS_IN_METADATA_SUMMARY,
     }
 

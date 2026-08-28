@@ -8,9 +8,23 @@ mail : pierrick.berthe@gmx.fr
 Décembre 2025
 """
 # import custom librairies
+import filecmp
+import subprocess
+from tqdm import tqdm
 from config_global import AppConfig
 import toolbox_pb.video.func_video as func_vid
 import func_global as func_glob
+
+
+def _is_unchanged_input_copy(input_path, output_path) -> bool:
+    """
+    Return True only for an output created by shutil.copy2 from its input.
+    """
+    if not output_path.exists() or input_path.stat().st_size != output_path.stat().st_size:
+        return False
+    if input_path.stat().st_mtime_ns != output_path.stat().st_mtime_ns:
+        return False
+    return filecmp.cmp(input_path, output_path, shallow=False)
 
 
 def video_encodor(cfg: AppConfig) -> bool:
@@ -28,15 +42,15 @@ def video_encodor(cfg: AppConfig) -> bool:
     config = func_glob.parse_config(cfg)
 
     # ------------- LOOP THROUGH ALL FILES IN INPUT DIR -------------
-    is_empty_folder = True
-    for input_file in config["input_dir"].rglob('*'):
-
-        # ------- IGNORE NON-VIDEO FILES AND DIRECTORIES -------
-        if not input_file.is_file() or input_file.suffix.lower() not in config["accepted_file"]:
-            continue
-
-        # If we reach this point, it means we found at least one video file
-        is_empty_folder = False
+    video_files = func_vid.find_files_by_extensions(
+        config["input_dir"], config["accepted_file"]
+    )
+    is_empty_folder = not video_files
+    encoded_videos = 0
+    unchanged_videos = 0
+    already_encoded_videos = 0
+    failed_videos = 0
+    for input_file in tqdm(video_files, desc="Video_encodor", unit="vidéo"):
 
         # --- CREATE OUTPUT SUBDIR STRUCTURE BASED ON INPUT FILE PATH ---
         output_subdir = func_glob.build_output_subdir_from_input(
@@ -50,7 +64,8 @@ def video_encodor(cfg: AppConfig) -> bool:
             config["suffix"],
             config["codec_v"],
             config["codec_a"],
-            config["add_codec"]
+            config["add_codec"],
+            name_suffix="_Compressed" if config["add_compressed"] else "",
         )
 
 
@@ -58,15 +73,26 @@ def video_encodor(cfg: AppConfig) -> bool:
         func_glob.print_step(1, f"Encodage de la vidéo : {input_file.name}")
 
         # Check if already encoded
-        if output_path.exists():
+        if output_path.exists() and not _is_unchanged_input_copy(input_file, output_path):
             print("Encodage déjà réalisé.")
+            already_encoded_videos += 1
         else:
-            func_vid.encode_full_video(
-                input_path=input_file,
-                output_path=output_path,
-                codec_video=config["codec_v"],
-                codec_audio=config["codec_a"]
-            )
+            if output_path.exists():
+                print("Copie intacte détectée. Encodage de la vidéo...")
+            try:
+                func_vid.encode_full_video(
+                    input_path=input_file,
+                    output_path=output_path,
+                    codec_video=config["codec_v"],
+                    codec_audio=config["codec_a"]
+                )
+            except (subprocess.CalledProcessError, RuntimeError, OSError) as exc:
+                failed_videos += 1
+                if output_path.exists():
+                    output_path.unlink()
+                print(f"Vidéo ignorée : {input_file.name} ({exc})")
+                continue
+            encoded_videos += 1
 
         # ------------- COMPARE METADATA BEFORE/AFTER -------------
         func_glob.print_step(2, "Comparaison des fichiers avant/après")
@@ -89,6 +115,16 @@ def video_encodor(cfg: AppConfig) -> bool:
         # Get size reduction stats and print them
         stats = func_vid.compute_size_reduction(meta_before, meta_after)
         func_vid.print_size_reduction(stats)
+
+    # print summary of encoding results
+    if video_files:
+        print(
+            "\nRésumé Video_encodor : "
+            f"{encoded_videos} vidéo(s) compressée(s), "
+            f"{unchanged_videos} laissée(s) intacte(s), "
+            f"{already_encoded_videos} déjà traitée(s), "
+            f"{failed_videos} ignorée(s) après erreur."
+        )
 
     return is_empty_folder
 

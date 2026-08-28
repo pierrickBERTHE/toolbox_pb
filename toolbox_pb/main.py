@@ -19,10 +19,13 @@ from video.main_video import (
     video_srt_integrator,
     image_diapo_video_creator,
 )
-from image.main_image import run_image_defilor_interactive
+from video.func_video import find_files_by_extensions
+from image.main_image import image_reductor, run_image_defilor_interactive
 from pdf.main_pdf import pdf_filigranor
 from config_global import APP_CONFIG, AppConfig
 import func_global as func
+import reductor_workflow
+
 
 def main(cfg : AppConfig):
     """ 
@@ -59,6 +62,7 @@ def main(cfg : AppConfig):
     func.print_config_flags(cfg, flag_names=[
         "LOG_TO_FILE",
         "ADD_CODEC_NAME_IN_OUTPUT",
+        "ADD_COMPRESSED_IN_NAME_IN_OUTPUT",
         "PRINT_ALL_KEYS_IN_METADATA_SUMMARY"
     ])
 
@@ -94,6 +98,11 @@ def main(cfg : AppConfig):
         case "1":
             print("\nLancement du Vidéo_encodor...")
             is_empty_folder = video_encodor(cfg)
+            complementary_is_empty = reductor_workflow._run_complementary_reductor(
+                cfg, "video", find_files_by_extensions, video_encodor, image_reductor
+            )
+            if complementary_is_empty is not None:
+                is_empty_folder = is_empty_folder and complementary_is_empty
 
         case "2":
             print("\nLancement du Vidéo_assemblor...")
@@ -117,7 +126,12 @@ def main(cfg : AppConfig):
 
         case "7":
             print("\nLancement du Image_reductor...")
-            # A FAIRE
+            is_empty_folder = image_reductor(cfg)
+            complementary_is_empty = reductor_workflow._run_complementary_reductor(
+                cfg, "image", find_files_by_extensions, video_encodor, image_reductor
+            )
+            if complementary_is_empty is not None:
+                is_empty_folder = is_empty_folder and complementary_is_empty
 
         case "8":
             print("\nLancement du Image_diapo_video_creator...")
