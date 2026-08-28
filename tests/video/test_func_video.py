@@ -51,6 +51,7 @@ from video.func_video import (
     count_cpu_threads,
     load_boost_csv,
     encode_full_video,
+    normalize_audio_sample_rate,
     format_duration_hms,
     get_all_metadata,
     get_image_size,
@@ -166,11 +167,52 @@ def test_encode_full_video_adds_optional_video_audio_flags():
     cmd = m_popen.call_args.args[0]
     assert "-vf" in cmd
     vf_idx = cmd.index("-vf")
-    assert "scale=1920:1080:force_original_aspect_ratio=1" in cmd[vf_idx + 1]
+    assert (
+        "scale=1920:1080:force_original_aspect_ratio=1:force_divisible_by=2"
+        in cmd[vf_idx + 1]
+    )
     assert "-color_range" in cmd
     assert cmd[cmd.index("-color_range") + 1] == "tv"
     assert "-ar" in cmd
     assert cmd[cmd.index("-ar") + 1] == "48000"
+
+
+def test_normalize_audio_sample_rate_adjusts_unsupported_aac_rate():
+    """
+    AAC accepts 11025 Hz, but not legacy camera rates like 11024 Hz.
+    """
+    assert normalize_audio_sample_rate("11024", "aac") == 11025
+    assert normalize_audio_sample_rate("48000", "aac") == 48000
+    assert normalize_audio_sample_rate("11024", "pcm_s16le") == 11024
+
+
+def test_encode_full_video_adjusts_unsupported_aac_sample_rate(capsys):
+    """
+    Unsupported AAC sample rates should be rounded to the nearest valid rate.
+    """
+    fake_meta = {
+        "format": {"duration": "3.0"},
+        "streams": [
+            {"codec_type": "video"},
+            {"codec_type": "audio", "sample_rate": "11024"},
+        ],
+    }
+    proc = MagicMock()
+    proc.stdout = iter([])
+    proc.returncode = 0
+    proc.wait.return_value = 0
+
+    with mock.patch("video.func_video.count_cpu_threads", return_value=4), \
+        mock.patch("video.func_video.get_all_metadata", return_value=fake_meta), \
+        mock.patch("video.func_video.consume_ffmpeg_progress"), \
+        mock.patch("video.func_video.subprocess.Popen", return_value=proc) as m_popen:
+
+        encode_full_video("input.avi", "output.mp4", "libx265", "aac")
+
+    cmd = m_popen.call_args.args[0]
+    assert "-ar" in cmd
+    assert cmd[cmd.index("-ar") + 1] == "11025"
+    assert "11024 Hz -> 11025 Hz" in capsys.readouterr().out
 
 
 def test_encode_full_video_raises_when_ffmpeg_returns_non_zero():

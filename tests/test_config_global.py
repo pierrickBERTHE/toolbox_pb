@@ -95,6 +95,7 @@ def test_flags_are_booleans():
     """All flags must be boolean values."""
     assert isinstance(APP_CONFIG.LOG_TO_FILE, bool)
     assert isinstance(APP_CONFIG.ADD_CODEC_NAME_IN_OUTPUT, bool)
+    assert isinstance(APP_CONFIG.ADD_COMPRESSED_IN_NAME_IN_OUTPUT, bool)
     assert isinstance(APP_CONFIG.PRINT_ALL_KEYS_IN_METADATA_SUMMARY, bool)
 
 

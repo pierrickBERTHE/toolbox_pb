@@ -11,15 +11,20 @@ from unittest import mock
 sys.path.append(str(Path(__file__).resolve().parents[2] / "toolbox_pb"))
 
 # Imports local
-from image.main_image import image_defilor, run_image_defilor_interactive
+from image.main_image import (
+    image_defilor, image_reductor, run_image_defilor_interactive
+)
 
 
 def build_fake_cfg(tmp_path):
     """Create a minimal config object compatible with image_defilor."""
     return SimpleNamespace(
         INPUT_ACCEPTED_IMAGE_FILES={".jpg", ".png"},
+        INPUT_ACCEPTED_VIDEO_FILES={".mp4"},
         INPUT_ACCEPTED_PDF_FILES={".pdf"},
         SUFFIX_OUTPUT_VIDEO=".mp4",
+        ADD_CODEC_NAME_IN_OUTPUT=True,
+        ADD_COMPRESSED_IN_NAME_IN_OUTPUT=True,
         INPUT_DIR=tmp_path / "input",
         OUTPUT_DIR=tmp_path / "output",
     )
@@ -222,3 +227,85 @@ def test_run_image_defilor_interactive_catches_value_error(monkeypatch, capsys):
         run_image_defilor_interactive(cfg)
     captured = capsys.readouterr()
     assert "Arguments invalides pour Image_defilor" in captured.out
+
+
+def test_image_reductor_mirrors_subdirectories_and_skips_existing(tmp_path):
+    """It should process supported images through the reduction helper."""
+    cfg = build_fake_cfg(tmp_path)
+    cfg.INPUT_DIR.mkdir(parents=True)
+    source = cfg.INPUT_DIR / "nested" / "photo.jpg"
+    source.parent.mkdir()
+    source.touch()
+    (cfg.INPUT_DIR / "notes.txt").write_bytes(b"notes to preserve")
+    existing = cfg.OUTPUT_DIR / "nested" / "already_Compressed.jpg"
+    existing.parent.mkdir(parents=True)
+    existing.touch()
+
+    with mock.patch(
+        "image.main_image.func_ima.reduce_image_for_screen",
+        return_value=(1000, 400),
+    ) as reduce_mock, \
+        mock.patch(
+            "image.main_image.func_vid.compute_size_reduction", return_value={}
+        ) as compute_mock, \
+        mock.patch("image.main_image.func_vid.print_size_reduction") as print_mock:
+        is_empty = image_reductor(cfg)
+
+    assert is_empty is False
+    reduce_mock.assert_called_once_with(
+        input_path=source,
+        output_path=cfg.OUTPUT_DIR / "nested" / "photo_Compressed.jpg",
+        quality=95,
+    )
+    compute_mock.assert_called_once_with(
+        {"format": {"size": 1000}}, {"format": {"size": 400}}
+    )
+    print_mock.assert_called_once_with({})
+    assert (cfg.OUTPUT_DIR / "notes.txt").read_bytes() == b"notes to preserve"
+
+
+def test_image_reductor_copies_unreducible_images_and_other_files(tmp_path, capsys):
+    """Every input file should have an output counterpart when not reduced."""
+    cfg = build_fake_cfg(tmp_path)
+    cfg.INPUT_DIR.mkdir(parents=True)
+    image = cfg.INPUT_DIR / "album" / "photo.jpg"
+    document = cfg.INPUT_DIR / "album" / "document.pdf"
+    video = cfg.INPUT_DIR / "album" / "video.mp4"
+    image.parent.mkdir()
+    image.write_bytes(b"original image")
+    document.write_bytes(b"original document")
+    video.write_bytes(b"original video")
+
+    with mock.patch(
+        "image.main_image.func_ima.reduce_image_for_screen", return_value=None
+    ):
+        is_empty = image_reductor(cfg)
+
+    assert is_empty is False
+    assert (cfg.OUTPUT_DIR / "album" / "photo.jpg").read_bytes() == image.read_bytes()
+    assert (cfg.OUTPUT_DIR / "album" / "document.pdf").read_bytes() == document.read_bytes()
+    assert not (cfg.OUTPUT_DIR / "album" / "video.mp4").exists()
+    assert "0 image(s) compressée(s), 1 laissée(s) intacte(s)" in capsys.readouterr().out
+
+
+def test_image_reductor_skips_failed_images_and_continues(tmp_path, capsys):
+    """A broken image should not stop the whole batch."""
+    cfg = build_fake_cfg(tmp_path)
+    cfg.INPUT_DIR.mkdir(parents=True)
+    broken_image = cfg.INPUT_DIR / "photo noel.jpg"
+    broken_image.write_bytes(b"truncated image bytes")
+
+    with mock.patch(
+        "image.main_image.func_ima.reduce_image_for_screen",
+        side_effect=RuntimeError(
+            "Impossible de réduire l'image 'photo noel.jpg': "
+            "image file is truncated"
+        ),
+    ):
+        is_empty = image_reductor(cfg)
+
+    captured = capsys.readouterr()
+    assert is_empty is False
+    assert (cfg.OUTPUT_DIR / "photo noel.jpg").read_bytes() == broken_image.read_bytes()
+    assert "Image ignorée : photo noel.jpg" in captured.out
+    assert "1 ignorée(s) après erreur" in captured.out

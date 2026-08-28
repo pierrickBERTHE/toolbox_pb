@@ -8,6 +8,7 @@ import subprocess
 from pathlib import Path
 from unittest import mock
 import pytest
+from PIL import Image
 
 # Add the toolbox_pb directory to sys.path for imports
 sys.path.append(str(Path(__file__).resolve().parents[2] / "toolbox_pb"))
@@ -19,6 +20,7 @@ from image.func_image import (
     get_image_size,
     build_scroll_expression,
     generate_image_defilor,
+    reduce_image_for_screen,
 )
 
 
@@ -300,3 +302,32 @@ def test_generate_image_defilor_raises_runtimeerror_on_ffmpeg_failure(tmp_path):
                 codec="libx265",
                 crf=18,
             )
+
+
+def test_reduce_image_for_screen_writes_smaller_png_and_keeps_dimensions(tmp_path):
+    """It should keep the PNG format, dimensions and transparency."""
+    source = tmp_path / "photo.png"
+    output = tmp_path / "photo_compressed.png"
+    Image.new("RGBA", (1000, 700), (24, 120, 220, 120)).save(source)
+
+    sizes = reduce_image_for_screen(source, output)
+
+    assert sizes is not None
+    assert sizes[1] < sizes[0]
+    assert output.exists()
+    with Image.open(output) as result:
+        assert result.format == "PNG"
+        assert result.size == (1000, 700)
+        assert result.mode == "RGBA"
+
+
+def test_reduce_image_for_screen_discards_larger_candidate(tmp_path):
+    """It should not leave a file behind when it cannot reduce the file."""
+    source = tmp_path / "tiny.png"
+    output = tmp_path / "tiny_compressed.png"
+    Image.new("RGB", (1, 1), "red").save(source)
+
+    result = reduce_image_for_screen(source, output)
+
+    assert result is None
+    assert not output.exists()

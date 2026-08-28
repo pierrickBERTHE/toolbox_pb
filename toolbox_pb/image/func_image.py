@@ -12,7 +12,110 @@ import json
 from pathlib import Path
 import subprocess
 import shlex
+from PIL import Image, ImageOps
 from func_global import consume_ffmpeg_progress
+
+
+def reduce_image_for_screen(
+    input_path: Path,
+    output_path: Path,
+    quality: int = 95,
+) -> tuple[int, int] | None:
+    """
+    Re-encode an image in its original format, only keeping it if lighter.
+
+    The source pixels are never resized.  EXIF orientation is applied so the
+    exported file displays identically in applications that do not interpret
+    that tag; the remaining EXIF and ICC colour profile are retained.
+
+    Returns the input and output byte sizes when an output was written, or
+    ``None`` when recompression would not make the file lighter.
+    """
+    # Validate input parameters and paths
+    if not input_path.is_file():
+        raise FileNotFoundError(f"Image not found or invalid: {input_path}")
+    if not 0 <= quality <= 100:
+        raise ValueError("quality must be between 0 and 100")
+
+    # Determine the output format based on the input file extension and validate it
+    output_format = input_path.suffix.lower()
+    if output_format not in {".jpg", ".jpeg", ".png"}:
+        raise ValueError(f"Unsupported image format: {input_path.suffix}")
+    if output_path.suffix.lower() != output_format:
+        raise ValueError("output_path must keep the same extension as input_path")
+
+    # Ensure the output directory exists and prepare a temporary candidate path for saving the image
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    candidate_path = output_path.with_suffix(f"{output_path.suffix}.tmp")
+
+    try:
+        # Open the input image and apply EXIF orientation
+        with Image.open(input_path) as source:
+
+            # Apply EXIF orientation to the image
+            image = ImageOps.exif_transpose(source)
+
+            # if the image is not in a suitable mode, convert it to RGB or RGBA as needed
+            if image.mode not in {"RGB", "RGBA", "L"}:
+                image = image.convert(
+                    "RGBA" if "A" in image.getbands() else "RGB"
+                )
+
+            # Prepare EXIF data for saving
+            exif = image.getexif()
+
+            # Remove the orientation tag (274) to avoid reapplying it on display
+            exif.pop(274, None)
+
+            save_kwargs = {}
+
+            # If EXIF data exists, convert it to bytes and include it in the save parameters
+            if exif:
+                save_kwargs["exif"] = exif.tobytes()
+
+            # If an ICC profile exists, include it in the save parameters
+            if icc_profile := image.info.get("icc_profile"):
+                save_kwargs["icc_profile"] = icc_profile
+
+            # set the appropriate save parameters for JPEG or PNG
+            if output_format in {".jpg", ".jpeg"}:
+                if image.mode not in {"RGB", "L"}:
+                    image = image.convert("RGB")
+                save_kwargs.update(
+                    format="JPEG",
+                    quality=quality,
+                    subsampling=0,
+                    optimize=True,
+                    progressive=True,
+                )
+            else:
+                save_kwargs.update(
+                    format="PNG", optimize=True, compress_level=9
+                )
+
+            # Save the recompressed image to the temporary candidate path
+            image.save(candidate_path, **save_kwargs)
+
+        # Compare the sizes of the original and recompressed images
+        input_size = input_path.stat().st_size
+        output_size = candidate_path.stat().st_size
+
+        # If the recompressed image is not smaller than the original => delete
+        if output_size >= input_size:
+            candidate_path.unlink()
+            return None
+        
+        # If the recompressed image is smaller, replace the original
+        candidate_path.replace(output_path)
+        return input_size, output_size
+    
+    # Handle any OSError that occurs during image processing
+    except OSError as exc:
+        if candidate_path.exists():
+            candidate_path.unlink()
+        raise RuntimeError(
+            f"Impossible de réduire l'image '{input_path.name}': {exc}"
+        ) from exc
 
 
 def parse_defilor_extra_args(raw_args: str | None) -> argparse.Namespace:

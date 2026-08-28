@@ -8,18 +8,18 @@ Le projet fournit une interface console interactive qui lit les fichiers depuis 
 
 Fonctionnalites actuellement disponibles dans le menu principal :
 
-- `Video_encodor` : reencode chaque video du dossier d'entree avec les codecs configures. Les metadonnees et la taille avant/apres sont comparees.
+- `Video_encodor` : reencode chaque video du dossier d'entree avec les codecs configures. Une barre de progression, les comparaisons de taille et un bilan global sont affiches. Il ne copie pas les images : elles sont reservees a `Image_reductor`.
 - `Video_assemblor` : assemble plusieurs videos en un seul fichier. Si `data/segment/segments.csv` existe, il definit l'ordre des clips et leurs points de debut/fin ; sinon, les videos sont assemblees dans l'ordre des noms de fichiers.
 - `Video_audio_decalator` : avance ou retarde la piste audio d'une video sans reencoder le flux video.
 - `Video_volume_adjust` : applique des variations de volume audio sur des plages temporelles definies dans `data/segment/boosts.csv`, sans reencoder le flux video.
 - `Video_srt_integrator` : integre `data/segment/sous_titre.srt` comme piste de sous-titres MP4 aux videos du dossier d'entree, sans reencoder l'audio ou la video.
 - `Image_defilor` : genere une video verticale defilante pour chaque image source et, pour les PDF, une video par image extraite de chaque page. La hauteur, la vitesse, le FPS, les temps d'arret et le codec sont parametrables.
+- `Image_reductor` : reduit les photos JPEG/PNG sans changer leur format ni leurs dimensions. Une barre de progression, la comparaison de poids globale et un bilan des images compressees, intactes et deja traitees sont affiches. Les JPEG sont reencodes en qualite 95, les PNG sont optimises sans perte ; orientation EXIF, profil colorimetrique et transparence sont conserves. Les images non allegeables et les documents non-video sont copies intacts ; les videos compatibles sont reservees a `Video_encodor`.
 - `Image_diapo_video_creator` : assemble toutes les photos du dossier d'entree dans une seule video avec une duree configurable par photo. Les images sont redimensionnees sans deformation, a leur orientation EXIF reelle, et leur ratio est conserve. Une piste audio unique du dossier d'entree peut etre ajoutee ; les noms des photos et leurs timings sont integres comme piste de sous-titres dans le MP4.
 - `PDF_filigranor` : ajoute a chaque PDF un filigrane textuel diagonal repete. Le menu demande le destinataire et ajoute automatiquement le prefixe configure `document exclusivement destine a`.
 
 Entrees de menu deja prevues mais non implementees :
 
-- `Image_reductor`
 - `PDF_assemblor`
 - `Flatten_directory_tree`
 - `Sport_garmin_recoltor`
@@ -236,6 +236,44 @@ Exemple de saisie :
 --height 720 --speed 50 --fps 30 --hold-start 2 --hold-end 2 --codec libx264 --crf 20
 ```
 
+## Reducteurs image et video
+
+Les options `Video_encodor` et `Image_reductor` traitent les fichiers de
+maniere recursive et conservent les sous-dossiers de `data/input` dans
+`data/output`.
+
+- `Image_reductor` traite les `.jpeg`, `.jpg` et `.png`. Les JPEG sont
+  reencodes a la qualite 95 sans redimensionnement ; les PNG sont optimises
+  sans perte. Une image qui ne deviendrait pas plus legere est copiee telle
+  quelle. Les documents non-video (par exemple PDF et DOCX) sont aussi copies
+  intacts. Les formats video acceptes ne sont pas copies afin d'eviter les
+  doublons avec `Video_encodor`.
+- `Video_encodor` traite uniquement les formats video acceptes et ne copie pas
+  les images. Le filtre de mise a l'echelle force des dimensions paires lorsque
+  necessaire, pour rester compatible avec `libx265`.
+- Les deux traitements disposent d'une barre `tqdm` globale et d'un bilan en
+  fin de traitement. `Image_reductor` affiche en plus une comparaison de taille
+  cumulee des fichiers effectivement compresses.
+- Si le dossier d'entree contient aussi des fichiers de l'autre type, la
+  toolbox propose de lancer le reducteur complementaire. La reponse par defaut
+  est oui apres un compte a rebours de 10 secondes ; entrer `n` ou `non` avant
+  l'echeance annule ce second traitement. Le reducteur declenche ne demande pas
+  a relancer le premier : aucune boucle ne peut se produire.
+
+### Noms de sortie
+
+Les fichiers reels compresses peuvent etre identifies sans renommer les copies
+intactes :
+
+- `ADD_CODEC_NAME_IN_OUTPUT=True` ajoute les codecs aux videos, par exemple
+  `clip_v-libx265_a-aac.mp4`.
+- `ADD_COMPRESSED_IN_NAME_IN_OUTPUT=True` ajoute `_Compressed` avant
+  l'extension des fichiers compresses, par exemple `photo_Compressed.jpg` ou
+  `clip_Compressed.mp4`.
+
+Les deux flags sont independants et sont regroupes en haut de
+`toolbox_pb/config_global.py`.
+
 ## Configuration
 
 La configuration globale est centralisee dans [toolbox_pb/config_global.py](/c:/Users/pierr/VSC_Projects/toolbox_pb/toolbox_pb/config_global.py).
@@ -259,7 +297,8 @@ Parametres du diaporama :
 Flags disponibles :
 
 - `LOG_TO_FILE` : redirige les sorties console vers `log/process_log.txt`
-- `ADD_CODEC_NAME_IN_OUTPUT` : ajoute les codecs au nom du fichier de sortie
+- `ADD_CODEC_NAME_IN_OUTPUT` : ajoute les codecs au nom des vidéos réencodées
+- `ADD_COMPRESSED_IN_NAME_IN_OUTPUT` : ajoute le suffixe `_Compressed` aux fichiers réellement recompressés
 - `PRINT_ALL_KEYS_IN_METADATA_SUMMARY` : affiche toutes les metadonnees FFprobe
 
 ## Tests

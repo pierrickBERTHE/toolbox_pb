@@ -10,11 +10,137 @@ Février 2026
 # import custom librairies
 from pathlib import Path
 import shlex
+import shutil
 from tempfile import TemporaryDirectory
+from tqdm import tqdm
 
 from config_global import AppConfig
 import toolbox_pb.image.func_image as func_ima
+import toolbox_pb.video.func_video as func_vid
 import func_global as func_glob
+
+
+def _copy_unchanged_file(input_path: Path, output_path: Path) -> None:
+    """
+    Copy one file with metadata unless the destination is already present.
+    """
+    if output_path.exists():
+        return
+    shutil.copy2(input_path, output_path)
+
+
+def image_reductor(cfg: AppConfig, quality: int = 95) -> bool:
+    """
+    Reduce eligible photos for screen use while retaining their pixels.
+
+    JPEG files remain JPEG (quality 95); PNG files remain PNG and are optimized
+    losslessly. The directory layout is mirrored in the output folder, and a
+    file is only kept when it is actually smaller than its source. Non-image,
+    non-video files are copied unchanged; videos are left to Video_encodor.
+    """
+    # ------------ CONFIGURATION -------------
+    is_empty_folder = True
+    reduced_sizes: list[tuple[int, int]] = []
+    compressed_images = 0
+    unchanged_images = 0
+    already_compressed_images = 0
+    failed_images = 0
+
+    # ----------- LOOP THROUGH ALL FILES IN INPUT DIR -------------
+    input_files = sorted(
+        (path for path in cfg.INPUT_DIR.rglob("*") if path.is_file()),
+        key=lambda path: str(path.relative_to(cfg.INPUT_DIR)).lower(),
+    )
+
+    # Use tqdm to display a progress bar for the file processing
+    for input_file in tqdm(input_files, desc="Image_reductor", unit="fichier"):
+
+        # create the output subdirectory structure based on the input file path
+        is_empty_folder = False
+        output_subdir = func_glob.build_output_subdir_from_input(
+            input_file, cfg.INPUT_DIR, cfg.OUTPUT_DIR
+        )
+        unchanged_output_path = output_subdir / input_file.name
+
+        # if the file is not an accepted, copy it unchanged to the output folder
+        if input_file.suffix.lower() not in cfg.INPUT_ACCEPTED_IMAGE_FILES:
+            if input_file.suffix.lower() in cfg.INPUT_ACCEPTED_VIDEO_FILES:
+                continue
+            _copy_unchanged_file(input_file, unchanged_output_path)
+            continue
+
+        # modify the output filename to indicate compression if configured
+        compression_suffix = (
+            "_Compressed" if cfg.ADD_COMPRESSED_IN_NAME_IN_OUTPUT else ""
+        )
+
+        # Determine the output path for the reduced image
+        output_path = output_subdir / (
+            f"{input_file.stem}{compression_suffix}{input_file.suffix}"
+        )
+        # Check if the output file already exists; if so, skip processing
+        if output_path.exists():
+            print(f"Réduction déjà réalisée : {input_file.name}")
+            already_compressed_images += 1
+            continue
+
+        # Attempt to reduce the image and handle any exceptions that may occur
+        try:
+            result = func_ima.reduce_image_for_screen(
+                input_path=input_file,
+                output_path=output_path,
+                quality=quality,
+            )
+        except RuntimeError as exc:
+            failed_images += 1
+            _copy_unchanged_file(input_file, unchanged_output_path)
+            print(f"Image ignorée : {input_file.name} ({exc})")
+            continue
+
+        # If the image was not reduced, copy the original
+        if result is None:
+            unchanged_images += 1
+            _copy_unchanged_file(input_file, unchanged_output_path)
+            continue
+
+        # If the image was successfully reduced, record the sizes and print the reduction percentage
+        input_size, output_size = result
+        reduced_sizes.append((input_size, output_size))
+        compressed_images += 1
+        reduction = (1 - output_size / input_size) * 100
+        print(
+            f"Image réduite : {input_file.name} -> {output_path.name} "
+            f"({reduction:.1f} % de gain)"
+        )
+
+    # if any images were reduced, print a summary of the size reduction
+    if reduced_sizes:
+        func_glob.print_step(2, "Comparaison des fichiers avant/après")
+        total_before = sum(size_before for size_before, _ in reduced_sizes)
+        total_after = sum(size_after for _, size_after in reduced_sizes)
+        stats = func_vid.compute_size_reduction(
+            {"format": {"size": total_before}},
+            {"format": {"size": total_after}},
+        )
+        func_vid.print_size_reduction(stats)
+
+    # Print a summary of the number of images states processed
+    processed_image_count = (
+        compressed_images
+        + unchanged_images
+        + already_compressed_images
+        + failed_images
+    )
+    if processed_image_count:
+        print(
+            "\nRésumé Image_reductor : "
+            f"{compressed_images} image(s) compressée(s), "
+            f"{unchanged_images} laissée(s) intacte(s), "
+            f"{already_compressed_images} déjà traitée(s), "
+            f"{failed_images} ignorée(s) après erreur."
+        )
+
+    return is_empty_folder
 
 
 def _defilor_height_is_explicit(extra_args: str | None) -> bool:

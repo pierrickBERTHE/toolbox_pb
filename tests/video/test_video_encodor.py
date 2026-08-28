@@ -21,6 +21,7 @@ Test Coverage (functional tests):
     - Metadata workflow: Tests full metadata extraction, comparison, and reporting during encoding
 """
 # general imports
+import subprocess
 import sys
 from pathlib import Path
 from unittest import mock
@@ -94,6 +95,7 @@ def test_ignore_non_video_files(fake_config):
 
     # Create a non-video file in the input directory
     (fake_config.INPUT_DIR / "test.txt").touch()
+    (fake_config.INPUT_DIR / "photo.jpg").touch()
 
     # Mock all functions with side effects
     with mock.patch("video.main_video.func_vid.encode_full_video") as m_encode, \
@@ -108,6 +110,7 @@ def test_ignore_non_video_files(fake_config):
 
         # Ensure encoding was never triggered
         m_encode.assert_not_called()
+        assert not (fake_config.OUTPUT_DIR / "photo.jpg").exists()
 
 
 def test_encode_video_when_not_existing(fake_config):
@@ -142,6 +145,40 @@ def test_encode_video_when_not_existing(fake_config):
         assert kwargs["codec_audio"] == fake_config.CODEC_AUDIO
 
 
+def test_video_encodor_skips_failed_video_and_cleans_partial_output(fake_config, capsys):
+    """
+    A FFmpeg failure must not stop the batch or leave a partial output.
+    """
+
+    input_video = fake_config.INPUT_DIR / "broken.mp4"
+    output_video = fake_config.OUTPUT_DIR / "broken.mp4"
+    input_video.touch()
+
+    def fail_encoding(**kwargs):
+        kwargs["output_path"].write_bytes(b"partial mp4")
+        raise subprocess.CalledProcessError(1, ["ffmpeg"])
+
+    with mock.patch(
+        "video.main_video.func_vid.encode_full_video",
+        side_effect=fail_encoding,
+    ) as m_encode, \
+        mock.patch("video.main_video.func_vid.get_all_metadata") as m_get_meta, \
+        mock.patch("video.main_video.func_vid.print_metadata_diff_summary"), \
+        mock.patch("video.main_video.func_vid.compute_size_reduction", return_value={}), \
+        mock.patch("video.main_video.func_vid.print_size_reduction"), \
+        mock.patch("func_global.print_step"):
+
+        is_empty = video_encodor(fake_config)
+
+    captured = capsys.readouterr()
+    assert is_empty is False
+    m_encode.assert_called_once()
+    m_get_meta.assert_not_called()
+    assert not output_video.exists()
+    assert "Vidéo ignorée : broken.mp4" in captured.out
+    assert "1 ignorée(s) après erreur" in captured.out
+
+
 def test_skip_encoding_if_output_exists(fake_config, capsys):
     """
     Encoding must be skipped if the output file already exists.
@@ -149,8 +186,8 @@ def test_skip_encoding_if_output_exists(fake_config, capsys):
     # Create fake files
     input_video = fake_config.INPUT_DIR / "video.mp4"
     output_video = fake_config.OUTPUT_DIR / "video.mp4"
-    input_video.touch()
-    output_video.touch()
+    input_video.write_bytes(b"source video")
+    output_video.write_bytes(b"encoded video")
 
     # Mock all functions with side effects
     with mock.patch("video.main_video.func_vid.encode_full_video") as m_encode, \
@@ -170,6 +207,10 @@ def test_skip_encoding_if_output_exists(fake_config, capsys):
         # Verify message : "déjà réalisé" exists
         captured = capsys.readouterr()
         assert "Encodage déjà réalisé" in captured.out
+        assert (
+            "0 vidéo(s) compressée(s), 0 laissée(s) intacte(s), "
+            "1 déjà traitée(s)"
+        ) in captured.out
 
 
 def test_output_name_with_codec_flag(fake_config):
@@ -180,7 +221,8 @@ def test_output_name_with_codec_flag(fake_config):
     # Create a modified config with ADD_CODEC_NAME_IN_OUTPUT enabled
     fake_config = fake_config.__class__(**{
         **fake_config.__dict__,
-        "ADD_CODEC_NAME_IN_OUTPUT": True
+        "ADD_CODEC_NAME_IN_OUTPUT": True,
+        "ADD_COMPRESSED_IN_NAME_IN_OUTPUT": True,
     })
 
     # Create a fake input video
@@ -203,6 +245,7 @@ def test_output_name_with_codec_flag(fake_config):
 
         # Ensure codec name is included in filename
         assert "libx264" in output_path.name or "libx265" in output_path.name
+        assert output_path.stem.endswith("_Compressed")
 
         # Ensure output extension is correct
         assert output_path.suffix == ".mp4"

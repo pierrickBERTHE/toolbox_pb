@@ -37,6 +37,38 @@ class AudioBoost:
     gain_db: float
 
 
+AAC_SUPPORTED_SAMPLE_RATES = (
+    96000,
+    88200,
+    64000,
+    48000,
+    44100,
+    32000,
+    24000,
+    22050,
+    16000,
+    12000,
+    11025,
+    8000,
+    7350,
+)
+
+
+def normalize_audio_sample_rate(sample_rate: str | int, codec_audio: str) -> int | None:
+    """
+    Return a sample rate accepted by the requested audio encoder.
+    """
+    try:
+        rate = int(sample_rate)
+    except (TypeError, ValueError):
+        return None
+
+    if codec_audio.lower() != "aac" or rate in AAC_SUPPORTED_SAMPLE_RATES:
+        return rate
+
+    return min(AAC_SUPPORTED_SAMPLE_RATES, key=lambda supported: abs(supported - rate))
+
+
 def find_files_by_extensions(input_dir: Path, extensions: list[str]) -> list[Path]:
     """
     Return input files matching extensions, in deterministic path order.
@@ -358,7 +390,8 @@ def encode_full_video(input_path, output_path, codec_video, codec_audio):
         # Use scale filter to preserve aspect ratio
         if sar and sar != "1:1" and width and height:
             video_filters.append(
-                f"scale={width}:{height}:force_original_aspect_ratio=1"
+                f"scale={width}:{height}:force_original_aspect_ratio=1:"
+                "force_divisible_by=2"
             )
     
     # Add video filters if any
@@ -379,7 +412,17 @@ def encode_full_video(input_path, output_path, codec_video, codec_audio):
     if audio_stream:
         sample_rate = audio_stream.get("sample_rate")
         if sample_rate:
-            cmd.extend(["-ar", str(sample_rate)])
+            normalized_sample_rate = normalize_audio_sample_rate(
+                sample_rate, codec_audio
+            )
+            if normalized_sample_rate:
+                if str(normalized_sample_rate) != str(sample_rate):
+                    print(
+                        "Taux audio ajusté pour l'encodeur "
+                        f"{codec_audio}: {sample_rate} Hz -> "
+                        f"{normalized_sample_rate} Hz"
+                    )
+                cmd.extend(["-ar", str(normalized_sample_rate)])
     
     # Output file
     cmd.extend(["-y", str(output_path)])
@@ -396,14 +439,18 @@ def encode_full_video(input_path, output_path, codec_video, codec_audio):
         
         # Parse progress from FFmpeg output with a shared progress helper
         filename = Path(input_path).name
-        consume_ffmpeg_progress(proc, duration=duration, desc=filename)
+        error_lines = consume_ffmpeg_progress(proc, duration=duration, desc=filename)
 
         # Wait enf of FFmpeg
         proc.wait()
         
         # Handle errors
         if proc.returncode != 0:
-            raise subprocess.CalledProcessError(proc.returncode, cmd)
+            raise subprocess.CalledProcessError(
+                proc.returncode,
+                cmd,
+                output="\n".join(error_lines),
+            )
         
         print(f"✅ Encodage réussi : {output_path}\n")
     
