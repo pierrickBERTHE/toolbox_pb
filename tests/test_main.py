@@ -37,6 +37,7 @@ def test_main_video_encodor_called(monkeypatch):
 
     # Mock others functions to avoid side effects except video_encodor
     with mock.patch('main.video_encodor', autospec=True) as mock_video, \
+        mock.patch('main.find_files_by_extensions', return_value=[]), \
         mock.patch('func_global.get_git_version', return_value="git123"), \
         mock.patch('func_global.format_git_version', return_value="git123"), \
         mock.patch('func_global.print_system_info'), \
@@ -116,6 +117,68 @@ def test_main_image_diapo_video_creator_called(monkeypatch):
     mock_diapo.assert_called_once_with(APP_CONFIG)
 
 
+def test_main_image_reductor_called(monkeypatch):
+    """Test that choosing option '7' calls image_reductor."""
+    monkeypatch.setattr("builtins.input", lambda _: "7")
+
+    with mock.patch("main.image_reductor", return_value=False) as mock_reductor, \
+        mock.patch("main.find_files_by_extensions", return_value=[]), \
+        mock.patch("func_global.get_git_version", return_value="git123"), \
+        mock.patch("func_global.format_git_version", return_value="git123"), \
+        mock.patch("func_global.print_system_info"), \
+        mock.patch("func_global.print_config_flags"), \
+        mock.patch("func_global.summarize_files"):
+        main.main(APP_CONFIG)
+
+    mock_reductor.assert_called_once_with(APP_CONFIG)
+
+
+@pytest.mark.parametrize(
+    ("choice", "primary", "secondary", "extensions"),
+    [
+        ("7", "image_reductor", "video_encodor", [".mp4"]),
+        ("1", "video_encodor", "image_reductor", [".jpg"]),
+    ],
+)
+def test_main_offers_and_runs_complementary_reductor(
+    monkeypatch, choice, primary, secondary, extensions
+):
+    """A reducer should offer the other one when compatible files exist."""
+    answers = iter([choice, "o"])
+    monkeypatch.setattr("builtins.input", lambda _: next(answers))
+
+    with mock.patch("main.video_encodor", return_value=False) as video_mock, \
+        mock.patch("main.image_reductor", return_value=False) as image_mock, \
+        mock.patch("reductor_workflow._read_timed_confirmation", return_value="o"), \
+        mock.patch("main.find_files_by_extensions", return_value=[Path("input/file")]), \
+        mock.patch("func_global.get_git_version", return_value="git123"), \
+        mock.patch("func_global.format_git_version", return_value="git123"), \
+        mock.patch("func_global.print_system_info"), \
+        mock.patch("func_global.print_config_flags"), \
+        mock.patch("func_global.summarize_files"):
+        main.main(APP_CONFIG)
+
+    expected_mock = video_mock if secondary == "video_encodor" else image_mock
+    expected_mock.assert_called_once_with(APP_CONFIG)
+
+
+def test_main_does_not_offer_complementary_reductor_without_matching_files(monkeypatch):
+    """No extra prompt should appear when the other file type is absent."""
+    monkeypatch.setattr("builtins.input", lambda _: "7")
+
+    with mock.patch("main.image_reductor", return_value=False), \
+        mock.patch("main.video_encodor", return_value=False) as video_mock, \
+        mock.patch("main.find_files_by_extensions", return_value=[]), \
+        mock.patch("func_global.get_git_version", return_value="git123"), \
+        mock.patch("func_global.format_git_version", return_value="git123"), \
+        mock.patch("func_global.print_system_info"), \
+        mock.patch("func_global.print_config_flags"), \
+        mock.patch("func_global.summarize_files"):
+        main.main(APP_CONFIG)
+
+    video_mock.assert_not_called()
+
+
 def test_main_pdf_filigranor_called(monkeypatch):
     """Test that choosing option '9' calls pdf_filigranor."""
     answers = iter(['9', 'Destinataire'])
@@ -154,6 +217,8 @@ def test_other_menu_choices(monkeypatch, capsys, choice, msg):
     with mock.patch('main.video_encodor', return_value=False), \
         mock.patch('main.video_srt_integrator', return_value=False), \
         mock.patch('main.run_image_defilor_interactive'), \
+        mock.patch('main.image_reductor', return_value=False), \
+        mock.patch('main.find_files_by_extensions', return_value=[]), \
         mock.patch('main.image_diapo_video_creator', return_value=False), \
         mock.patch('main.pdf_filigranor', return_value=False), \
         mock.patch('func_global.print_system_info'), \
