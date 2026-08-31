@@ -12,7 +12,7 @@ sys.path.append(str(Path(__file__).resolve().parents[2] / "toolbox_pb"))
 
 # Imports local
 from image.main_image import (
-    image_defilor, image_reductor, run_image_defilor_interactive
+    image_defilor, image_reductor, image_withoutbg, run_image_defilor_interactive
 )
 
 
@@ -25,6 +25,7 @@ def build_fake_cfg(tmp_path):
         SUFFIX_OUTPUT_VIDEO=".mp4",
         ADD_CODEC_NAME_IN_OUTPUT=True,
         ADD_COMPRESSED_IN_NAME_IN_OUTPUT=True,
+        ADD_WITHOUTBG_IN_NAME_IN_OUTPUT=True,
         INPUT_DIR=tmp_path / "input",
         OUTPUT_DIR=tmp_path / "output",
     )
@@ -309,3 +310,68 @@ def test_image_reductor_skips_failed_images_and_continues(tmp_path, capsys):
     assert (cfg.OUTPUT_DIR / "photo noel.jpg").read_bytes() == broken_image.read_bytes()
     assert "Image ignorée : photo noel.jpg" in captured.out
     assert "1 ignorée(s) après erreur" in captured.out
+
+
+def test_image_withoutbg_mirrors_subdirectories_and_skips_existing(tmp_path):
+    """It should create transparent PNG outputs while preserving directories."""
+    cfg = build_fake_cfg(tmp_path)
+    source = cfg.INPUT_DIR / "nested" / "photo.jpg"
+    source.parent.mkdir(parents=True)
+    source.touch()
+    existing = cfg.OUTPUT_DIR / "nested" / "already_WithoutBG.png"
+    existing.parent.mkdir(parents=True)
+    existing.touch()
+    (cfg.INPUT_DIR / "nested" / "already.png").touch()
+
+    with mock.patch(
+        "image.main_image.func_ima.load_background_remover", return_value=mock.sentinel.remover
+    ) as load_mock, mock.patch(
+        "image.main_image.func_ima.remove_image_background"
+    ) as remove_mock:
+        is_empty = image_withoutbg(cfg)
+
+    assert is_empty is False
+    load_mock.assert_called_once_with()
+    remove_mock.assert_called_once_with(
+        source,
+        cfg.OUTPUT_DIR / "nested" / "photo_WithoutBG.png",
+        mock.sentinel.remover,
+    )
+
+
+def test_image_withoutbg_continues_after_one_image_failure(tmp_path, capsys):
+    """A failed image must not stop the rest of the batch."""
+    cfg = build_fake_cfg(tmp_path)
+    cfg.INPUT_DIR.mkdir(parents=True)
+    broken = cfg.INPUT_DIR / "broken.jpg"
+    valid = cfg.INPUT_DIR / "valid.png"
+    broken.touch()
+    valid.touch()
+
+    with mock.patch(
+        "image.main_image.func_ima.load_background_remover", return_value=mock.sentinel.remover
+    ), mock.patch(
+        "image.main_image.func_ima.remove_image_background",
+        side_effect=[RuntimeError("invalid image"), None],
+    ) as remove_mock:
+        is_empty = image_withoutbg(cfg)
+
+    assert is_empty is False
+    assert remove_mock.call_count == 2
+    assert "1 ignorée(s) après erreur" in capsys.readouterr().out
+
+
+def test_image_withoutbg_can_omit_output_suffix(tmp_path):
+    """The output suffix should follow the dedicated configuration flag."""
+    cfg = build_fake_cfg(tmp_path)
+    cfg.ADD_WITHOUTBG_IN_NAME_IN_OUTPUT = False
+    cfg.INPUT_DIR.mkdir(parents=True)
+    source = cfg.INPUT_DIR / "portrait.jpg"
+    source.touch()
+
+    with mock.patch(
+        "image.main_image.func_ima.load_background_remover", return_value=mock.sentinel.remover
+    ), mock.patch("image.main_image.func_ima.remove_image_background") as remove_mock:
+        image_withoutbg(cfg)
+
+    assert remove_mock.call_args.args[1] == cfg.OUTPUT_DIR / "portrait.png"
