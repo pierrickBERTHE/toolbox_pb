@@ -169,7 +169,7 @@ def add_text_watermark_to_pdf(
     """
 
     # ------------- IMPORT DEPENDENCIES -------------
-    PdfReader, PdfWriter, _, _ = _import_pdf_dependencies()
+    _, PdfWriter, _, _ = _import_pdf_dependencies()
 
     # ------------- VALIDATION -------------
     # Check that the input file exists
@@ -181,11 +181,12 @@ def add_text_watermark_to_pdf(
         raise ValueError(f"Le fichier n'est pas un PDF : {input_path}")
 
     # ------------- LOAD INPUT PDF -------------
-    reader = PdfReader(str(input_path))
-    writer = PdfWriter()
+    # Clone the source into the writer before merging overlays. pypdf requires
+    # pages to be attached to a writer when their content stream is modified.
+    writer = PdfWriter(clone_from=str(input_path))
 
     # ------------- ADD WATERMARK TO EACH PAGE -------------
-    for page in reader.pages:
+    for page in writer.pages:
 
         # Get page dimensions to generate a matching watermark overlay
         width = float(page.mediabox.width)
@@ -203,7 +204,6 @@ def add_text_watermark_to_pdf(
 
         # Merge the watermark overlay into the original page
         page.merge_page(watermark_page)
-        writer.add_page(page)
 
     # ------------- WRITE OUTPUT PDF -------------
     output_path.parent.mkdir(parents=True, exist_ok=True)
