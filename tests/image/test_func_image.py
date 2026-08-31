@@ -5,6 +5,7 @@ Unit tests for the image.func_image module
 import sys
 import json
 import subprocess
+from types import ModuleType
 from pathlib import Path
 from unittest import mock
 import pytest
@@ -20,6 +21,8 @@ from image.func_image import (
     get_image_size,
     build_scroll_expression,
     generate_image_defilor,
+    load_background_remover,
+    remove_image_background,
     reduce_image_for_screen,
 )
 
@@ -45,6 +48,26 @@ def test_parse_defilor_extra_args_defaults():
     assert args.hold_end == 5.0
     assert args.codec == "libx265"
     assert args.crf == 18
+
+
+def test_load_background_remover_uses_withoutbg_open_weights(monkeypatch):
+    """It should create the local remover through withoutbg's open weights API."""
+    withoutbg_module = ModuleType("withoutbg")
+    withoutbg_module.WithoutBG = mock.Mock()
+    monkeypatch.setitem(sys.modules, "withoutbg", withoutbg_module)
+
+    remover = load_background_remover()
+
+    assert remover is withoutbg_module.WithoutBG.open_weights.return_value
+    withoutbg_module.WithoutBG.open_weights.assert_called_once_with()
+
+
+def test_load_background_remover_explains_missing_dependency(monkeypatch):
+    """A missing withoutbg package should produce an actionable error."""
+    monkeypatch.setitem(sys.modules, "withoutbg", None)
+
+    with pytest.raises(RuntimeError, match="dépendance withoutbg est manquante"):
+        load_background_remover()
 
 
 def test_parse_defilor_extra_args_custom_values():
@@ -117,6 +140,17 @@ def test_extract_pdf_images_to_files_without_images(tmp_path):
             extract_pdf_images_to_files(pdf, tmp_path / "rendered")
 
 
+def test_extract_pdf_images_to_files_validates_path_and_extension(tmp_path):
+    """It should reject a missing file and a file that is not a PDF."""
+    with pytest.raises(FileNotFoundError):
+        extract_pdf_images_to_files(tmp_path / "missing.pdf", tmp_path / "rendered")
+
+    image = tmp_path / "photo.jpg"
+    image.touch()
+    with pytest.raises(ValueError, match="File is not a PDF"):
+        extract_pdf_images_to_files(image, tmp_path / "rendered")
+
+
 def test_get_image_size_missing_file(tmp_path):
     """It should raise FileNotFoundError for a missing image path."""
     missing = tmp_path / "missing.jpg"
@@ -161,6 +195,42 @@ def test_get_image_size_no_streams(tmp_path):
     with mock.patch("image.func_image.subprocess.run", return_value=completed):
         with pytest.raises(RuntimeError, match="No image stream detected"):
             get_image_size(image)
+
+
+def test_get_image_size_wraps_ffprobe_launch_and_process_errors(tmp_path):
+    """It should provide useful errors when ffprobe cannot start or fails."""
+    image = tmp_path / "img.jpg"
+    image.touch()
+
+    with mock.patch(
+        "image.func_image.subprocess.run", side_effect=FileNotFoundError
+    ), pytest.raises(RuntimeError, match="ffprobe not found"):
+        get_image_size(image)
+
+    process_error = subprocess.CalledProcessError(
+        1, ["ffprobe"], output="", stderr="invalid image"
+    )
+    with mock.patch(
+        "image.func_image.subprocess.run", side_effect=process_error
+    ), pytest.raises(RuntimeError, match="invalid image"):
+        get_image_size(image)
+
+
+def test_get_image_size_rejects_missing_dimensions(tmp_path):
+    """It should reject streams that do not include both dimensions."""
+    image = tmp_path / "img.jpg"
+    image.touch()
+    completed = subprocess.CompletedProcess(
+        args=["ffprobe"],
+        returncode=0,
+        stdout=json.dumps({"streams": [{"width": 1920}]}),
+        stderr="",
+    )
+
+    with mock.patch("image.func_image.subprocess.run", return_value=completed), pytest.raises(
+        RuntimeError, match="Invalid dimensions"
+    ):
+        get_image_size(image)
 
 
 def test_build_scroll_expression_no_travel():
@@ -331,3 +401,66 @@ def test_reduce_image_for_screen_discards_larger_candidate(tmp_path):
 
     assert result is None
     assert not output.exists()
+
+
+def test_remove_image_background_writes_transparent_png(tmp_path):
+    """It should delegate to the loaded model and write a PNG result."""
+    source = tmp_path / "photo.jpg"
+    source.touch()
+    output = tmp_path / "result.png"
+    result = mock.Mock()
+    remover = mock.Mock()
+    remover.remove_background.return_value = result
+
+    remove_image_background(source, output, remover)
+
+    remover.remove_background.assert_called_once_with(str(source))
+    result.save.assert_called_once_with(output, format="PNG")
+
+
+def test_remove_image_background_requires_png_output(tmp_path):
+    """JPEG output would silently lose alpha transparency and is rejected."""
+    source = tmp_path / "photo.jpg"
+    source.touch()
+
+    with pytest.raises(ValueError, match="format PNG"):
+        remove_image_background(source, tmp_path / "result.jpg", mock.Mock())
+
+
+def test_remove_image_background_validates_input_and_wraps_model_error(tmp_path):
+    """It should reject missing images and turn model failures into a clear error."""
+    with pytest.raises(FileNotFoundError):
+        remove_image_background(tmp_path / "missing.jpg", tmp_path / "result.png", mock.Mock())
+
+    source = tmp_path / "photo.jpg"
+    source.touch()
+    remover = mock.Mock()
+    remover.remove_background.side_effect = RuntimeError("model failure")
+
+    with pytest.raises(RuntimeError, match="Impossible de supprimer l'arrière-plan"):
+        remove_image_background(source, tmp_path / "result.png", remover)
+
+
+@pytest.mark.parametrize(
+    "source_name, output_name, quality, expected_message",
+    [
+        ("photo.jpg", "result.jpg", -1, "quality must be between"),
+        ("photo.gif", "result.gif", 95, "Unsupported image format"),
+        ("photo.jpg", "result.png", 95, "output_path must keep"),
+    ],
+)
+def test_reduce_image_for_screen_validates_arguments(
+    tmp_path, source_name, output_name, quality, expected_message
+):
+    """It should reject invalid source format, output format, and quality."""
+    source = tmp_path / source_name
+    source.touch()
+
+    with pytest.raises(ValueError, match=expected_message):
+        reduce_image_for_screen(source, tmp_path / output_name, quality)
+
+
+def test_reduce_image_for_screen_rejects_missing_source(tmp_path):
+    """It should fail before attempting to process a nonexistent image."""
+    with pytest.raises(FileNotFoundError):
+        reduce_image_for_screen(tmp_path / "missing.jpg", tmp_path / "result.jpg")

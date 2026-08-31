@@ -29,7 +29,7 @@ def test_main_prints_git_version(monkeypatch, capsys):
     """Test that the git version is printed on startup."""
 
     # Mock input for "Quitter"
-    monkeypatch.setattr('builtins.input', lambda _: '13')
+    monkeypatch.setattr('builtins.input', lambda _: '14')
     cfg = replace(APP_CONFIG, LOG_TO_FILE=False)
 
     # Mock get_git_version and format_git_version
@@ -49,7 +49,7 @@ def test_main_prints_system_info(monkeypatch, capsys):
     """Test that system info is printed on startup."""
     
     # Mock input for "Quitter"
-    monkeypatch.setattr('builtins.input', lambda _: '13')
+    monkeypatch.setattr('builtins.input', lambda _: '14')
     cfg = replace(APP_CONFIG, LOG_TO_FILE=False)
 
     # Mock print_system_info
@@ -67,7 +67,7 @@ def test_main_prints_config_flags(monkeypatch):
     """Test that config flags are printed on startup."""
 
     # Mock input for "Quitter"
-    monkeypatch.setattr('builtins.input', lambda _: '13')
+    monkeypatch.setattr('builtins.input', lambda _: '14')
     cfg = replace(APP_CONFIG, LOG_TO_FILE=False)
 
     # Mock print_config_flags
@@ -84,6 +84,7 @@ def test_main_prints_config_flags(monkeypatch):
                 "LOG_TO_FILE",
                 "ADD_CODEC_NAME_IN_OUTPUT",
                 "ADD_COMPRESSED_IN_NAME_IN_OUTPUT",
+                "ADD_WITHOUTBG_IN_NAME_IN_OUTPUT",
                 "PRINT_ALL_KEYS_IN_METADATA_SUMMARY"
             ]
         )
