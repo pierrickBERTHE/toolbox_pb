@@ -143,6 +143,64 @@ def image_reductor(cfg: AppConfig, quality: int = 95) -> bool:
     return is_empty_folder
 
 
+def image_withoutbg(cfg: AppConfig) -> bool:
+    """
+    Create transparent PNG copies of all supported input images locally.
+    """
+    # check if the input directory contains any supported image files
+    input_files = sorted(
+        (
+            path
+            for path in cfg.INPUT_DIR.rglob("*")
+            if path.is_file()
+            and path.suffix.lower() in cfg.INPUT_ACCEPTED_IMAGE_FILES
+        ),
+        key=lambda path: str(path.relative_to(cfg.INPUT_DIR)).lower(),
+    )
+    if not input_files:
+        return True
+
+    # load the background remover model and initialize counters
+    remover = func_ima.load_background_remover()
+    completed = 0
+    skipped = 0
+    failed = 0
+
+    # loop through all input files and process them with a progress bar
+    for input_file in tqdm(input_files, desc="Image_withoutbg", unit="image"):
+        output_subdir = func_glob.build_output_subdir_from_input(
+            input_file, cfg.INPUT_DIR, cfg.OUTPUT_DIR
+        )
+        withoutbg_suffix = (
+            "_WithoutBG" if cfg.ADD_WITHOUTBG_IN_NAME_IN_OUTPUT else ""
+        )
+        output_path = output_subdir / f"{input_file.stem}{withoutbg_suffix}.png"
+
+        # skip processing if the output file already exists
+        if output_path.exists():
+            skipped += 1
+            continue
+
+        # Attempt to remove the background from the image and handle errors
+        try:
+            func_ima.remove_image_background(input_file, output_path, remover)
+        except (OSError, RuntimeError, ValueError):
+            failed += 1
+            continue
+
+        # If successful, increment the completed counter.
+        completed += 1
+
+    # Print a summary of the number of images processed, skipped, and failed
+    print(
+        "\nRésumé Image_withoutbg : "
+        f"{completed} image(s) traitée(s), "
+        f"{skipped} déjà traitée(s), "
+        f"{failed} ignorée(s) après erreur."
+    )
+    return False
+
+
 def _defilor_height_is_explicit(extra_args: str | None) -> bool:
     """
     Return True when the user explicitly provided --height.

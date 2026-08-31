@@ -4,7 +4,7 @@ Ce fichier contient des fonctions pour les actions sur les images
 Authors:
 Pierrick BERTHE
 mail: pierrick.berthe@gmx.fr
-February 2026
+August 2026
 """
 # Imports standard
 import argparse
@@ -14,6 +14,51 @@ import subprocess
 import shlex
 from PIL import Image, ImageOps
 from func_global import consume_ffmpeg_progress
+
+
+def load_background_remover():
+    """
+    Load the local withoutBG model used for background removal.
+    Source : https://github.com/withoutbg/withoutbg-python
+    """
+    try:
+        from withoutbg import WithoutBG
+    except ImportError as exc:
+        raise RuntimeError(
+            "La dépendance withoutbg est manquante. "
+            "Installez la librairie 'withoutbg' avant d'utiliser Image_withoutbg."
+        ) from exc
+
+    return WithoutBG.open_weights()
+
+
+def remove_image_background(
+    input_path: Path,
+    output_path: Path,
+    remover,
+) -> None:
+    """
+    Remove an image background and save the transparent result as PNG.
+    """
+    # Validate input and output paths
+    if not input_path.is_file():
+        raise FileNotFoundError(f"Image not found or invalid: {input_path}")
+    if output_path.suffix.lower() != ".png":
+        raise ValueError("Le résultat Image_withoutbg doit être au format PNG")
+
+    # Ensure the output directory exists
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Use the withoutBG model to remove the background and save the result
+    try:
+        result = remover.remove_background(str(input_path))
+        result.save(output_path, format="PNG")
+
+    # Handle errors
+    except (OSError, ValueError, RuntimeError) as exc:
+        raise RuntimeError(
+            f"Impossible de supprimer l'arrière-plan de '{input_path.name}': {exc}"
+        ) from exc
 
 
 def reduce_image_for_screen(

@@ -20,7 +20,11 @@ from video.main_video import (
     image_diapo_video_creator,
 )
 from video.func_video import find_files_by_extensions
-from image.main_image import image_reductor, run_image_defilor_interactive
+from image.main_image import (
+    image_reductor,
+    run_image_defilor_interactive,
+    image_withoutbg,
+)
 from pdf.main_pdf import pdf_filigranor
 from config_global import APP_CONFIG, AppConfig
 import func_global as func
@@ -63,6 +67,7 @@ def main(cfg : AppConfig):
         "LOG_TO_FILE",
         "ADD_CODEC_NAME_IN_OUTPUT",
         "ADD_COMPRESSED_IN_NAME_IN_OUTPUT",
+        "ADD_WITHOUTBG_IN_NAME_IN_OUTPUT",
         "PRINT_ALL_KEYS_IN_METADATA_SUMMARY"
     ])
 
@@ -80,14 +85,15 @@ def main(cfg : AppConfig):
     print("6. Image_defilor")
     print("7. Image_reductor")
     print("8. Image_diapo_video_creator")
-    print("9. PDF_filigranor")
-    print("10. PDF_assemblor")
-    print("11. Flatten_directory_tree")
-    print("12. Sport_garmin_recoltor")
-    print("13. Quitter")
+    print("9. Image_withoutbg")
+    print("10. PDF_filigranor")
+    print("11. PDF_assemblor")
+    print("12. Flatten_directory_tree")
+    print("13. Sport_garmin_recoltor")
+    print("14. Quitter")
 
     # Get user choice
-    choix = input("Sélectionnez une option (1-13) : ")
+    choix = input("Sélectionnez une option (1-14) : ")
     # choix = "5"
 
     # Default value if selected action does not return a folder-state flag.
@@ -138,25 +144,29 @@ def main(cfg : AppConfig):
             is_empty_folder = image_diapo_video_creator(cfg)
 
         case "9":
+            print("\nLancement du Image_withoutbg...")
+            is_empty_folder = image_withoutbg(cfg)
+
+        case "10":
             print("\nLancement du PDF_filigranor...")
             watermark_recipient = input(
                 "\nEntrez le nom du destinataire du filigrane: "
             ).strip()
             is_empty_folder = pdf_filigranor(cfg, watermark_recipient)
 
-        case "10":
+        case "11":
             print("\nLancement du PDF_assemblor...")
             # A FAIRE
 
-        case "11":
+        case "12":
             print("\nLancement du Flatten_directory_tree...")
             # A FAIRE
 
-        case "12":
+        case "13":
             print("\nLancement du Sport_garmin_recoltor...")
             # A FAIRE
 
-        case "13":
+        case "14":
             print("Quitter l'application. Au revoir !")
             sys.exit(0)
 
