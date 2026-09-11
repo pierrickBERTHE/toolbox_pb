@@ -267,9 +267,12 @@ intactes :
 
 - `ADD_CODEC_NAME_IN_OUTPUT=True` ajoute uniquement le codec vidéo avant
   l'extension des vidéos réencodées, par exemple `clip_libx265.mp4`.
-- `ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT=True` ajoute `_compress` avant
-  l'extension des images effectivement réduites, par exemple
-  `photo_compress.jpg`.
+- `ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT=True` ajoute `_compress_<qualité>`
+  avant l'extension des JPEG effectivement réduits, par exemple
+  `photo_compress_95.jpg`. Les PNG gardent le suffixe `_compress` car ils ne
+  reçoivent pas de qualité JPEG.
+- `IMAGE_REDUCTOR_JPEG_QUALITY` définit la qualité JPEG du réducteur ; sa
+  valeur par défaut est `95`.
 
 Ce réglage est regroupé avec les autres flags utilisateur en tête de
 `toolbox_pb/config_global.py`.
@@ -299,8 +302,10 @@ Flags disponibles :
 - `LOG_TO_FILE` : redirige les sorties console vers `log/process_log.txt`
 - `ADD_CODEC_NAME_IN_OUTPUT` : ajoute le codec vidéo au nom des vidéos
   réencodées
-- `ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT` : ajoute `_compress` aux images
-  réellement réduites
+- `ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT` : ajoute `_compress_<qualité>` aux
+  JPEG réellement réduits et `_compress` aux PNG
+- `IMAGE_REDUCTOR_JPEG_QUALITY` : règle la qualité JPEG du réducteur, de `0`
+  à `100`
 - `PRINT_ALL_KEYS_IN_METADATA_SUMMARY` : affiche toutes les metadonnees FFprobe
 
 ## Tests
