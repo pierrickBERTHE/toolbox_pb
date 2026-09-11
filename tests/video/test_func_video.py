@@ -128,8 +128,11 @@ def test_encode_full_video_builds_minimal_ffmpeg_command():
         encode_full_video("in.mp4", "out.mp4", "libx265", "aac")
 
     cmd = m_popen.call_args.args[0]
-    assert cmd[:8] == ["ffmpeg", "-i", "in.mp4", "-c:v", "libx265", "-c:a", "aac", "-threads"]
+    assert cmd[:7] == ["ffmpeg", "-i", "in.mp4", "-c:v", "libx265", "-c:a", "aac"]
     assert "8" in cmd
+    assert cmd[cmd.index("-pix_fmt") + 1] == "yuv420p"
+    assert cmd[cmd.index("-profile:v") + 1] == "main"
+    assert cmd[cmd.index("-colorspace") + 1] == "bt709"
     assert cmd[-2:] == ["-y", "out.mp4"]
     m_progress.assert_called_once_with(proc, duration=12.5, desc="in.mp4")
     proc.wait.assert_called_once()
@@ -822,7 +825,12 @@ def test_write_video_file_calls_moviepy_correctly(tmp_path):
         codec="libx265",
         audio_codec="aac",
         threads=4,
-        logger="bar"
+        logger="bar",
+        ffmpeg_params=[
+            "-pix_fmt", "yuv420p", "-profile:v", "main",
+            "-color_range", "tv", "-colorspace", "bt709",
+            "-color_primaries", "bt709", "-color_trc", "bt709",
+        ],
     )
 
 

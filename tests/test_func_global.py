@@ -26,6 +26,17 @@ sys.path.append(str(Path(__file__).resolve().parents[1] / 'toolbox_pb'))
 import func_global
 
 
+@pytest.mark.parametrize("codec", ["libx264", "libx265", "h264_amf", "hevc_amf"])
+def test_mobile_video_output_options_force_sdr_compatibility(codec):
+    """Every supported encoder must explicitly target mobile-safe SDR output."""
+    options = func_global.get_mobile_video_output_options(codec)
+
+    assert options[:2] == ["-pix_fmt", "yuv420p"]
+    assert options[options.index("-color_range") + 1] == "tv"
+    assert options[options.index("-colorspace") + 1] == "bt709"
+    assert ("-profile:v" in options) is (codec in {"libx265", "hevc_amf"})
+
+
 # ==========================================================
 # Tests Logger
 # ==========================================================
