@@ -222,7 +222,6 @@ def test_output_name_with_codec_flag(fake_config):
     fake_config = fake_config.__class__(**{
         **fake_config.__dict__,
         "ADD_CODEC_NAME_IN_OUTPUT": True,
-        "ADD_COMPRESSED_IN_NAME_IN_OUTPUT": True,
     })
 
     # Create a fake input video
@@ -244,8 +243,7 @@ def test_output_name_with_codec_flag(fake_config):
         output_path = m_encode.call_args.kwargs["output_path"]
 
         # Ensure codec name is included in filename
-        assert "libx264" in output_path.name or "libx265" in output_path.name
-        assert output_path.stem.endswith("_Compressed")
+        assert output_path.stem.endswith("_libx265")
 
         # Ensure output extension is correct
         assert output_path.suffix == ".mp4"

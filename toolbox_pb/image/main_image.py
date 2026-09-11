@@ -69,12 +69,10 @@ def image_reductor(cfg: AppConfig, quality: int = 95) -> bool:
             _copy_unchanged_file(input_file, unchanged_output_path)
             continue
 
-        # modify the output filename to indicate compression if configured
-        compression_suffix = (
-            "_Compressed" if cfg.ADD_COMPRESSED_IN_NAME_IN_OUTPUT else ""
-        )
-
         # Determine the output path for the reduced image
+        compression_suffix = (
+            "_compress" if cfg.ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT else ""
+        )
         output_path = output_subdir / (
             f"{input_file.stem}{compression_suffix}{input_file.suffix}"
         )

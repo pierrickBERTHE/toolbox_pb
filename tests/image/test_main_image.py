@@ -24,8 +24,8 @@ def build_fake_cfg(tmp_path):
         INPUT_ACCEPTED_PDF_FILES={".pdf"},
         SUFFIX_OUTPUT_VIDEO=".mp4",
         ADD_CODEC_NAME_IN_OUTPUT=True,
-        ADD_COMPRESSED_IN_NAME_IN_OUTPUT=True,
         ADD_WITHOUTBG_IN_NAME_IN_OUTPUT=True,
+        ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT=False,
         INPUT_DIR=tmp_path / "input",
         OUTPUT_DIR=tmp_path / "output",
     )
@@ -255,7 +255,7 @@ def test_image_reductor_mirrors_subdirectories_and_skips_existing(tmp_path):
     assert is_empty is False
     reduce_mock.assert_called_once_with(
         input_path=source,
-        output_path=cfg.OUTPUT_DIR / "nested" / "photo_Compressed.jpg",
+        output_path=cfg.OUTPUT_DIR / "nested" / "photo.jpg",
         quality=95,
     )
     compute_mock.assert_called_once_with(
@@ -263,6 +263,29 @@ def test_image_reductor_mirrors_subdirectories_and_skips_existing(tmp_path):
     )
     print_mock.assert_called_once_with({})
     assert (cfg.OUTPUT_DIR / "notes.txt").read_bytes() == b"notes to preserve"
+
+
+def test_image_reductor_adds_compress_suffix_when_enabled(tmp_path):
+    """A reduced image is marked with _compress only when configured."""
+    cfg = build_fake_cfg(tmp_path)
+    cfg.ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT = True
+    cfg.INPUT_DIR.mkdir(parents=True)
+    source = cfg.INPUT_DIR / "photo.jpg"
+    source.touch()
+
+    with mock.patch(
+        "image.main_image.func_ima.reduce_image_for_screen",
+        return_value=(1000, 400),
+    ) as reduce_mock, \
+        mock.patch("image.main_image.func_vid.compute_size_reduction", return_value={}), \
+        mock.patch("image.main_image.func_vid.print_size_reduction"):
+        image_reductor(cfg)
+
+    reduce_mock.assert_called_once_with(
+        input_path=source,
+        output_path=cfg.OUTPUT_DIR / "photo_compress.jpg",
+        quality=95,
+    )
 
 
 def test_image_reductor_copies_unreducible_images_and_other_files(tmp_path, capsys):

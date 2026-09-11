@@ -26,7 +26,8 @@ from func_global import (
     measure_time,
     format_bytes,
     consume_ffmpeg_progress,
-    convert_hhmmss_to_seconds
+    convert_hhmmss_to_seconds,
+    get_mobile_video_output_options,
 )
 
 
@@ -231,7 +232,8 @@ def create_image_diapo_ffmpeg(
                     f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black,"
                     f"setsar=1,fps={fps}"
                 ),
-                "-an", "-c:v", codec_video, "-pix_fmt", "yuv420p",
+                "-an", "-c:v", codec_video,
+                *get_mobile_video_output_options(codec_video),
                 "-r", str(fps), "-threads", "1", "-progress", "pipe:1",
                 str(segment_path),
             ]
@@ -374,6 +376,7 @@ def encode_full_video(input_path, output_path, codec_video, codec_audio):
         "-i", str(input_path),
         "-c:v", codec_video,
         "-c:a", codec_audio,
+        *get_mobile_video_output_options(codec_video),
         "-threads", str(max_threads),
         "-progress", "pipe:1",
         "-hide_banner",
@@ -401,7 +404,7 @@ def encode_full_video(input_path, output_path, codec_video, codec_audio):
     # Preserve color range for tv content
     if video_stream:
         color_range = video_stream.get("color_range", "").lower()
-        if color_range == "tv":
+        if color_range == "tv" and codec_video.lower() not in {"libx265", "hevc_amf"}:
             cmd.extend(["-color_range", "tv"])
     
     # Preserve audio sample rate
@@ -931,6 +934,7 @@ def write_video_file(
         "threads": max_threads,
         "logger": "bar",
     }
+    write_options["ffmpeg_params"] = get_mobile_video_output_options(codec_video)
     if fps is not None:
         write_options["fps"] = fps
 

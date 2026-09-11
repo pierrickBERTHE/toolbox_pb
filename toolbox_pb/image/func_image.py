@@ -13,7 +13,7 @@ from pathlib import Path
 import subprocess
 import shlex
 from PIL import Image, ImageOps
-from func_global import consume_ffmpeg_progress
+from func_global import consume_ffmpeg_progress, get_mobile_video_output_options
 
 
 def load_background_remover():
@@ -412,8 +412,7 @@ def generate_image_defilor(
         codec,
         "-crf",
         str(crf),
-        "-pix_fmt",
-        "yuv420p",
+        *get_mobile_video_output_options(codec),
         str(output_path),
     ]
 

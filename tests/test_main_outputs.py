@@ -83,8 +83,8 @@ def test_main_prints_config_flags(monkeypatch):
             flag_names=[
                 "LOG_TO_FILE",
                 "ADD_CODEC_NAME_IN_OUTPUT",
-                "ADD_COMPRESSED_IN_NAME_IN_OUTPUT",
                 "ADD_WITHOUTBG_IN_NAME_IN_OUTPUT",
+                "ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT",
                 "PRINT_ALL_KEYS_IN_METADATA_SUMMARY"
             ]
         )
