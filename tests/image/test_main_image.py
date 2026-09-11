@@ -26,6 +26,7 @@ def build_fake_cfg(tmp_path):
         ADD_CODEC_NAME_IN_OUTPUT=True,
         ADD_WITHOUTBG_IN_NAME_IN_OUTPUT=True,
         ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT=False,
+        IMAGE_REDUCTOR_JPEG_QUALITY=95,
         INPUT_DIR=tmp_path / "input",
         OUTPUT_DIR=tmp_path / "output",
     )
@@ -233,6 +234,7 @@ def test_run_image_defilor_interactive_catches_value_error(monkeypatch, capsys):
 def test_image_reductor_mirrors_subdirectories_and_skips_existing(tmp_path):
     """It should process supported images through the reduction helper."""
     cfg = build_fake_cfg(tmp_path)
+    cfg.IMAGE_REDUCTOR_JPEG_QUALITY = 92
     cfg.INPUT_DIR.mkdir(parents=True)
     source = cfg.INPUT_DIR / "nested" / "photo.jpg"
     source.parent.mkdir()
@@ -256,7 +258,7 @@ def test_image_reductor_mirrors_subdirectories_and_skips_existing(tmp_path):
     reduce_mock.assert_called_once_with(
         input_path=source,
         output_path=cfg.OUTPUT_DIR / "nested" / "photo.jpg",
-        quality=95,
+        quality=92,
     )
     compute_mock.assert_called_once_with(
         {"format": {"size": 1000}}, {"format": {"size": 400}}
@@ -265,8 +267,8 @@ def test_image_reductor_mirrors_subdirectories_and_skips_existing(tmp_path):
     assert (cfg.OUTPUT_DIR / "notes.txt").read_bytes() == b"notes to preserve"
 
 
-def test_image_reductor_adds_compress_suffix_when_enabled(tmp_path):
-    """A reduced image is marked with _compress only when configured."""
+def test_image_reductor_adds_compress_and_jpeg_quality_suffix_when_enabled(tmp_path):
+    """A reduced JPEG is marked with its configured compression quality."""
     cfg = build_fake_cfg(tmp_path)
     cfg.ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT = True
     cfg.INPUT_DIR.mkdir(parents=True)
@@ -283,7 +285,7 @@ def test_image_reductor_adds_compress_suffix_when_enabled(tmp_path):
 
     reduce_mock.assert_called_once_with(
         input_path=source,
-        output_path=cfg.OUTPUT_DIR / "photo_compress.jpg",
+        output_path=cfg.OUTPUT_DIR / "photo_compress_95.jpg",
         quality=95,
     )
 
