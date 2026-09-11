@@ -63,9 +63,7 @@ def video_encodor(cfg: AppConfig) -> bool:
             output_subdir,
             config["suffix"],
             config["codec_v"],
-            config["codec_a"],
             config["add_codec"],
-            name_suffix="_Compressed" if config["add_compressed"] else "",
         )
 
 
@@ -294,7 +292,6 @@ def video_audio_decalator(cfg: AppConfig) -> bool:
             output_subdir,
             config["suffix"],
             config["codec_v"],
-            config["codec_a"],
             config["add_codec"]
         )
 

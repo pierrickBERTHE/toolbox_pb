@@ -265,13 +265,13 @@ maniere recursive et conservent les sous-dossiers de `data/input` dans
 Les fichiers reels compresses peuvent etre identifies sans renommer les copies
 intactes :
 
-- `ADD_CODEC_NAME_IN_OUTPUT=True` ajoute les codecs aux videos, par exemple
-  `clip_v-libx265_a-aac.mp4`.
-- `ADD_COMPRESSED_IN_NAME_IN_OUTPUT=True` ajoute `_Compressed` avant
-  l'extension des fichiers compresses, par exemple `photo_Compressed.jpg` ou
-  `clip_Compressed.mp4`.
+- `ADD_CODEC_NAME_IN_OUTPUT=True` ajoute uniquement le codec vidéo avant
+  l'extension des vidéos réencodées, par exemple `clip_libx265.mp4`.
+- `ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT=True` ajoute `_compress` avant
+  l'extension des images effectivement réduites, par exemple
+  `photo_compress.jpg`.
 
-Les deux flags sont independants et sont regroupes en haut de
+Ce réglage est regroupé avec les autres flags utilisateur en tête de
 `toolbox_pb/config_global.py`.
 
 ## Configuration
@@ -297,8 +297,10 @@ Parametres du diaporama :
 Flags disponibles :
 
 - `LOG_TO_FILE` : redirige les sorties console vers `log/process_log.txt`
-- `ADD_CODEC_NAME_IN_OUTPUT` : ajoute les codecs au nom des vidéos réencodées
-- `ADD_COMPRESSED_IN_NAME_IN_OUTPUT` : ajoute le suffixe `_Compressed` aux fichiers réellement recompressés
+- `ADD_CODEC_NAME_IN_OUTPUT` : ajoute le codec vidéo au nom des vidéos
+  réencodées
+- `ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT` : ajoute `_compress` aux images
+  réellement réduites
 - `PRINT_ALL_KEYS_IN_METADATA_SUMMARY` : affiche toutes les metadonnees FFprobe
 
 ## Tests

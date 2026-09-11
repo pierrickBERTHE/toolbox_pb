@@ -213,9 +213,7 @@ def build_output_path(
     output_subdir: Path,
     suffix: str,
     codec_v: str,
-    codec_a: str,
     add_codec: bool,
-    name_suffix: str = "",
 ) -> Path:
     """
     Build the output video file path in a safe and deterministic way.
@@ -223,9 +221,9 @@ def build_output_path(
 
     # Build the output filename
     if add_codec:
-        name = f"{input_file.stem}_v-{codec_v}_a-{codec_a}{name_suffix}{suffix}"
+        name = f"{input_file.stem}_{codec_v}{suffix}"
     else:
-        name = f"{input_file.stem}{name_suffix}{suffix}"
+        name = f"{input_file.stem}{suffix}"
 
     # Build the full output path
     path = output_subdir / name
@@ -352,6 +350,26 @@ def consume_ffmpeg_progress(
     return error_lines
 
 
+def get_mobile_video_output_options(codec_video: str) -> list[str]:
+    """
+    Return FFmpeg options for broadly compatible mobile video output.
+
+    Every supported encoder writes 8-bit 4:2:0 SDR BT.709. This prevents a
+    mobile decoder from guessing an incompatible colour interpretation. H.265
+    encoders additionally use the widely supported Main profile.
+    """
+    options = ["-pix_fmt", "yuv420p"]
+    if codec_video.lower() in {"libx265", "hevc_amf"}:
+        options.extend(["-profile:v", "main"])
+    options.extend([
+        "-color_range", "tv",
+        "-colorspace", "bt709",
+        "-color_primaries", "bt709",
+        "-color_trc", "bt709",
+    ])
+    return options
+
+
 def parse_config(cfg: AppConfig) -> dict:
     """
     Parse the AppConfig object into a dictionary of relevant
@@ -365,7 +383,6 @@ def parse_config(cfg: AppConfig) -> dict:
         "input_dir": cfg.INPUT_DIR,
         "output_dir": cfg.OUTPUT_DIR,
         "add_codec": cfg.ADD_CODEC_NAME_IN_OUTPUT,
-        "add_compressed": cfg.ADD_COMPRESSED_IN_NAME_IN_OUTPUT,
         "print_all_keys": cfg.PRINT_ALL_KEYS_IN_METADATA_SUMMARY,
     }
 
