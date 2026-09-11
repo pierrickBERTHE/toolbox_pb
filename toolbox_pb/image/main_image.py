@@ -29,7 +29,7 @@ def _copy_unchanged_file(input_path: Path, output_path: Path) -> None:
     shutil.copy2(input_path, output_path)
 
 
-def image_reductor(cfg: AppConfig, quality: int = 95) -> bool:
+def image_reductor(cfg: AppConfig, quality: int | None = None) -> bool:
     """
     Reduce eligible photos for screen use while retaining their pixels.
 
@@ -39,6 +39,8 @@ def image_reductor(cfg: AppConfig, quality: int = 95) -> bool:
     non-video files are copied unchanged; videos are left to Video_encodor.
     """
     # ------------ CONFIGURATION -------------
+    if quality is None:
+        quality = cfg.IMAGE_REDUCTOR_JPEG_QUALITY
     is_empty_folder = True
     reduced_sizes: list[tuple[int, int]] = []
     compressed_images = 0
@@ -70,9 +72,11 @@ def image_reductor(cfg: AppConfig, quality: int = 95) -> bool:
             continue
 
         # Determine the output path for the reduced image
-        compression_suffix = (
-            "_compress" if cfg.ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT else ""
-        )
+        compression_suffix = ""
+        if cfg.ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT:
+            compression_suffix = "_compress"
+            if input_file.suffix.lower() in {".jpg", ".jpeg"}:
+                compression_suffix += f"_{quality}"
         output_path = output_subdir / (
             f"{input_file.stem}{compression_suffix}{input_file.suffix}"
         )
