@@ -11,6 +11,7 @@ from io import BytesIO
 import math
 from pathlib import Path
 import re
+from collections.abc import Sequence
 
 
 def _import_pdf_dependencies():
@@ -212,3 +213,31 @@ def add_text_watermark_to_pdf(
 
     # Print success message
     print(f"Filigrane ajouté : {output_path}")
+
+
+def merge_pdf_files(input_paths: Sequence[Path], output_path: Path) -> None:
+    """Merge PDFs in the supplied order into one output PDF."""
+
+    # Validate the requested merge before creating or replacing the output.
+    if not input_paths:
+        raise ValueError("Au moins un PDF est nécessaire pour l'assemblage.")
+    if output_path.suffix.lower() != ".pdf":
+        raise ValueError(f"Le fichier de sortie n'est pas un PDF : {output_path}")
+
+    for input_path in input_paths:
+        if not input_path.is_file():
+            raise FileNotFoundError(f"PDF introuvable : {input_path}")
+        if input_path.suffix.lower() != ".pdf":
+            raise ValueError(f"Le fichier n'est pas un PDF : {input_path}")
+
+    # Append every source document in order; pypdf retains each document's pages.
+    _, PdfWriter, _, _ = _import_pdf_dependencies()
+    writer = PdfWriter()
+    for input_path in input_paths:
+        writer.append(str(input_path))
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with output_path.open("wb") as output_file:
+        writer.write(output_file)
+
+    print(f"PDF assemblé : {output_path}")

@@ -88,3 +88,26 @@ def pdf_filigranor(cfg: AppConfig, watermark_text: str | None = None) -> bool:
         is_empty_folder = False
 
     return is_empty_folder
+
+
+def pdf_assemblor(cfg: AppConfig) -> bool:
+    """Merge all PDFs from the input tree into one PDF in filename order."""
+
+    # Sort by relative path for an explicit, reproducible document order.
+    input_files = sorted(
+        (
+            path
+            for path in cfg.INPUT_DIR.rglob("*")
+            if path.is_file() and path.suffix.lower() in cfg.INPUT_ACCEPTED_PDF_FILES
+        ),
+        key=lambda path: tuple(
+            part.casefold() for part in path.relative_to(cfg.INPUT_DIR).parts
+        ),
+    )
+
+    if not input_files:
+        return True
+
+    output_path = cfg.OUTPUT_DIR / f"pdf_assemblage{cfg.SUFFIX_OUTPUT_PDF}"
+    func_pdf.merge_pdf_files(input_files, output_path)
+    return False

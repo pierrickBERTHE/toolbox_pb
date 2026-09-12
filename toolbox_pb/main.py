@@ -25,7 +25,7 @@ from image.main_image import (
     run_image_defilor_interactive,
     image_withoutbg,
 )
-from pdf.main_pdf import pdf_filigranor
+from pdf.main_pdf import pdf_assemblor, pdf_filigranor
 from config_global import APP_CONFIG, AppConfig
 import func_global as func
 import reductor_workflow
@@ -77,23 +77,21 @@ def main(cfg : AppConfig):
 
     # Print the menu
     print("\nMenu principal : ")
-    print("1. Vidéo_encodor")
-    print("2. Vidéo_assemblor")
-    print("3. Vidéo_audio_decalator")
-    print("4. Vidéo_volume_adjust")
-    print("5. Vidéo_srt_integrator")
-    print("6. Image_defilor")
-    print("7. Image_reductor")
-    print("8. Image_diapo_video_creator")
-    print("9. Image_withoutbg")
+    print("01. Vidéo_encodor")
+    print("02. Vidéo_assemblor")
+    print("03. Vidéo_audio_decalator")
+    print("04. Vidéo_volume_adjust")
+    print("05. Vidéo_srt_integrator")
+    print("06. Image_defilor")
+    print("07. Image_reductor")
+    print("08. Image_diapo_video_creator")
+    print("09. Image_withoutbg")
     print("10. PDF_filigranor")
     print("11. PDF_assemblor")
-    print("12. Flatten_directory_tree")
-    print("13. Sport_garmin_recoltor")
-    print("14. Quitter")
+    print("12. Quitter")
 
     # Get user choice
-    choix = input("Sélectionnez une option (1-14) : ")
+    choix = input("Sélectionnez une option (1-12) : ")
     # choix = "5"
 
     # Default value if selected action does not return a folder-state flag.
@@ -156,17 +154,9 @@ def main(cfg : AppConfig):
 
         case "11":
             print("\nLancement du PDF_assemblor...")
-            # A FAIRE
+            is_empty_folder = pdf_assemblor(cfg)
 
         case "12":
-            print("\nLancement du Flatten_directory_tree...")
-            # A FAIRE
-
-        case "13":
-            print("\nLancement du Sport_garmin_recoltor...")
-            # A FAIRE
-
-        case "14":
             print("Quitter l'application. Au revoir !")
             sys.exit(0)
 
