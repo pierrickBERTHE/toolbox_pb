@@ -127,8 +127,9 @@ def format_srt_timestamp(milliseconds: int) -> str:
 def build_image_subtitle(image_path: Path, input_dir: Path) -> str:
     """
     Build a subtitle from a filename, retaining only its first valid year.
-    All other digits (such as month, day, or photo sequence numbers) are
-    removed. The filename extension is never included.
+    The month and day of that date are removed, while other numbers (such as
+    ages or photo sequence numbers) are retained. The filename extension is
+    never included.
     """
     # Validate input paths
     image_name = image_path.relative_to(input_dir).with_suffix("").as_posix()
@@ -143,8 +144,28 @@ def build_image_subtitle(image_path: Path, input_dir: Path) -> str:
         valid_year = match.group(1)
         break
 
-    # Remove all digits and clean up the text
-    text = re.sub(r"\d+", "", image_name)
+    # Remove the year and its adjacent month/day components when they form a
+    # numeric date. A partial year-month date is handled too. Keep every other
+    # number: it may be an age, an event number or meaningful filename text.
+    text = image_name
+    if valid_year:
+        date_separator = r"[-_/\s.]"
+        year_first_date = re.compile(
+            rf"(?<!\d){re.escape(valid_year)}{date_separator}+\d{{1,2}}{date_separator}+\d{{1,2}}(?!\d)"
+        )
+        day_first_date = re.compile(
+            rf"(?<!\d)\d{{1,2}}{date_separator}+\d{{1,2}}{date_separator}+{re.escape(valid_year)}(?!\d)"
+        )
+        year_month_date = re.compile(
+            rf"(?<!\d){re.escape(valid_year)}{date_separator}+(?:0?[1-9]|1[0-2])(?!\d)"
+        )
+        text, substitutions = year_first_date.subn("", text, count=1)
+        if not substitutions:
+            text, substitutions = day_first_date.subn("", text, count=1)
+        if not substitutions:
+            text = year_month_date.sub("", text, count=1)
+        text = re.sub(rf"(?<!\d){re.escape(valid_year)}(?!\d)", "", text, count=1)
+    text = re.sub(r"(?<=\))[-_]+(?=\S)", " ", text)
     text = re.sub(r"\(\s*\)", "", text)
     text = re.sub(r"[-_\s]{2,}", " ", text).strip(" -_")
     return f"{valid_year} {text}".strip() if valid_year else text
