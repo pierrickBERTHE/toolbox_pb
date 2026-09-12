@@ -213,7 +213,7 @@ L'option `8` cree `image_diapo_video_v-<codec_video>_a-<codec_audio>.mp4` dans
 - La sortie conserve les proportions de chaque photo et applique son orientation EXIF. Toutes les images remplissent la hauteur de trame ; de possibles bandes laterales preservent les pixels sans recadrage ni etirement.
 - La hauteur est plafonnee par `IMAGE_DIAPO_MAX_HEIGHT` (2160 px par defaut) pour eviter les echecs d'encodage sur les tres grandes photos.
 - Un seul fichier audio parmi `.aac`, `.flac`, `.m4a`, `.mp3`, `.ogg` et `.wav` peut etre place dans `data/input`. Il est ajoute a la video.
-- Les sous-titres sont integres directement au flux MP4 : chaque entree contient le timing et le nom de la photo, sans extension. Seule la premiere annee valide a quatre chiffres du nom est conservee ; les autres chiffres sont retires.
+- Les sous-titres sont integres directement au flux MP4 : chaque entree contient le timing et le nom de la photo, sans extension. Pour une date numerique complete ou annee-mois, seule la premiere annee valide a quatre chiffres est conservee ; les autres chiffres du nom (par exemple un age) sont conserves.
 - L'encodage est realise photo par photo puis assemble, afin de limiter la consommation de memoire. Deux barres `tqdm` indiquent la photo en cours et la progression globale.
 
 ## Parametres d'`Image_defilor`

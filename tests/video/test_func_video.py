@@ -927,21 +927,39 @@ def test_write_image_diapo_srt_records_each_image_timing(tmp_path):
 
 
 def test_build_image_subtitle_keeps_only_the_first_valid_year(tmp_path):
-    """Date fragments and sequence numbers are excluded from the subtitle."""
+    """Date fragments are excluded while unrelated numbers are retained."""
     input_dir = tmp_path / "input"
     input_dir.mkdir()
     image = input_dir / "1986-08-30- (27)-Marie-Lise  - Philippe.JPG"
 
-    assert build_image_subtitle(image, input_dir) == "1986 Marie-Lise Philippe"
+    assert build_image_subtitle(image, input_dir) == "1986 (27) Marie-Lise Philippe"
 
 
-def test_build_image_subtitle_rejects_year_zero_and_removes_all_digits(tmp_path):
-    """Only a valid calendar year is retained."""
+def test_build_image_subtitle_removes_month_from_partial_date_only(tmp_path):
+    """A partial year-month date does not hide later numeric text."""
+    input_dir = tmp_path / "input"
+    input_dir.mkdir()
+    image = input_dir / "2022-02 anniv 60 ans Pierre.jpg"
+
+    assert build_image_subtitle(image, input_dir) == "2022 anniv 60 ans Pierre"
+
+
+def test_build_image_subtitle_preserves_numbers_that_are_not_a_valid_date(tmp_path):
+    """A number is retained unless it is the month or day of a valid year."""
     input_dir = tmp_path / "input"
     input_dir.mkdir()
     image = input_dir / "0000-12-31 - photo 42.png"
 
-    assert build_image_subtitle(image, input_dir) == "photo"
+    assert build_image_subtitle(image, input_dir) == "0000-12-31 photo 42"
+
+
+def test_build_image_subtitle_preserves_an_age(tmp_path):
+    """Ordinary numbers in a filename are displayed in the subtitle."""
+    input_dir = tmp_path / "input"
+    input_dir.mkdir()
+    image = input_dir / "anniv 60 ans Pierre.jpg"
+
+    assert build_image_subtitle(image, input_dir) == "anniv 60 ans Pierre"
 
 
 ############# get_inputs_metadata tests ############
