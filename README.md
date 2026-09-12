@@ -17,12 +17,7 @@ Fonctionnalites actuellement disponibles dans le menu principal :
 - `Image_reductor` : reduit les photos JPEG/PNG sans changer leur format ni leurs dimensions. Une barre de progression, la comparaison de poids globale et un bilan des images compressees, intactes et deja traitees sont affiches. Les JPEG sont reencodes en qualite 95, les PNG sont optimises sans perte ; orientation EXIF, profil colorimetrique et transparence sont conserves. Les images non allegeables et les documents non-video sont copies intacts ; les videos compatibles sont reservees a `Video_encodor`.
 - `Image_diapo_video_creator` : assemble toutes les photos du dossier d'entree dans une seule video avec une duree configurable par photo. Les images sont redimensionnees sans deformation, a leur orientation EXIF reelle, et leur ratio est conserve. Une piste audio unique du dossier d'entree peut etre ajoutee ; les noms des photos et leurs timings sont integres comme piste de sous-titres dans le MP4.
 - `PDF_filigranor` : ajoute a chaque PDF un filigrane textuel diagonal repete. Le menu demande le destinataire et ajoute automatiquement le prefixe configure `document exclusivement destine a`.
-
-Entrees de menu deja prevues mais non implementees :
-
-- `PDF_assemblor`
-- `Flatten_directory_tree`
-- `Sport_garmin_recoltor`
+- `PDF_assemblor` : fusionne tous les PDF du dossier d'entree (et de ses sous-dossiers) dans un unique fichier, dans l'ordre alphabetique de leurs chemins relatifs.
 
 ## Prerequis
 

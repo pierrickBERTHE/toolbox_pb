@@ -100,3 +100,38 @@ def test_add_text_watermark_writes_a_watermarked_pdf(tmp_path):
     PdfReader, _, _, _ = func_pdf._import_pdf_dependencies()
     assert output_path.is_file()
     assert len(PdfReader(str(output_path)).pages) == 1
+
+
+def test_merge_pdf_files_preserves_document_and_page_order(tmp_path):
+    """Merged pages must follow exactly the supplied input-file order."""
+    _, PdfWriter, _, _ = func_pdf._import_pdf_dependencies()
+    first_input = tmp_path / "first.pdf"
+    second_input = tmp_path / "second.pdf"
+
+    first_writer = PdfWriter()
+    first_writer.add_blank_page(width=101, height=201)
+    first_writer.add_blank_page(width=102, height=202)
+    with first_input.open("wb") as output_file:
+        first_writer.write(output_file)
+
+    second_writer = PdfWriter()
+    second_writer.add_blank_page(width=103, height=203)
+    with second_input.open("wb") as output_file:
+        second_writer.write(output_file)
+
+    output_path = tmp_path / "nested" / "assembled.pdf"
+    func_pdf.merge_pdf_files([first_input, second_input], output_path)
+
+    PdfReader, _, _, _ = func_pdf._import_pdf_dependencies()
+    output_pages = PdfReader(str(output_path)).pages
+    assert [(float(page.mediabox.width), float(page.mediabox.height)) for page in output_pages] == [
+        (101.0, 201.0),
+        (102.0, 202.0),
+        (103.0, 203.0),
+    ]
+
+
+def test_merge_pdf_files_rejects_an_empty_input_list(tmp_path):
+    """An empty merge request must not produce an empty PDF."""
+    with pytest.raises(ValueError, match="Au moins un PDF"):
+        func_pdf.merge_pdf_files([], tmp_path / "assembled.pdf")

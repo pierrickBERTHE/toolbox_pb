@@ -210,6 +210,21 @@ def test_main_pdf_filigranor_called(monkeypatch):
         mock_pdf.assert_called_once_with(APP_CONFIG, 'Destinataire')
 
 
+def test_main_pdf_assemblor_called(monkeypatch):
+    """Test that choosing option '11' calls pdf_assemblor."""
+    monkeypatch.setattr("builtins.input", lambda _: "11")
+
+    with mock.patch("main.pdf_assemblor", return_value=False) as mock_pdf, \
+        mock.patch("func_global.get_git_version", return_value="git123"), \
+        mock.patch("func_global.format_git_version", return_value="git123"), \
+        mock.patch("func_global.print_system_info"), \
+        mock.patch("func_global.print_config_flags"), \
+        mock.patch("func_global.summarize_files"):
+        main.main(APP_CONFIG)
+
+    mock_pdf.assert_called_once_with(APP_CONFIG)
+
+
 # Decorator to parametrize other valid choices
 @pytest.mark.parametrize("choice,msg", [
     ("5", "Vidéo_srt_integrator"),
@@ -219,8 +234,6 @@ def test_main_pdf_filigranor_called(monkeypatch):
     ("9", "Image_withoutbg"),
     ("10", "PDF_filigranor"),
     ("11", "PDF_assemblor"),
-    ("12", "Flatten_directory_tree"),
-    ("13", "Sport_garmin_recoltor"),
 ])
 def test_other_menu_choices(monkeypatch, capsys, choice, msg):
     """Test that other menu choices print the correct launch message."""
@@ -238,6 +251,7 @@ def test_other_menu_choices(monkeypatch, capsys, choice, msg):
         mock.patch('main.find_files_by_extensions', return_value=[]), \
         mock.patch('main.image_diapo_video_creator', return_value=False), \
         mock.patch('main.pdf_filigranor', return_value=False), \
+        mock.patch('main.pdf_assemblor', return_value=False), \
         mock.patch('func_global.print_system_info'), \
         mock.patch('func_global.get_git_version', return_value="git123"), \
         mock.patch('func_global.format_git_version', return_value="git123"), \
@@ -282,9 +296,9 @@ def test_main_invalid_choice(monkeypatch, capsys, choice):
 
 
 def test_main_quit(monkeypatch):
-    """Test that choosing option '14' exits the program."""
-    # Mock input for choice '14'
-    monkeypatch.setattr('builtins.input', lambda _: '14')
+    """Test that choosing option '12' exits the program."""
+    # Mock input for choice '12'
+    monkeypatch.setattr('builtins.input', lambda _: '12')
 
     # Mock python sys.exit to raise SystemExit
     with pytest.raises(SystemExit):
@@ -292,9 +306,9 @@ def test_main_quit(monkeypatch):
 
 
 def test_main_called(monkeypatch):
-    """Test that main runs without errors for choice '14' (quit)."""
-    # Mock input for choice '14'
-    monkeypatch.setattr("builtins.input", lambda _: "14")
+    """Test that main runs without errors for choice '12' (quit)."""
+    # Mock input for choice '12'
+    monkeypatch.setattr("builtins.input", lambda _: "12")
 
     # Mock others functions to avoid side effects
     with (

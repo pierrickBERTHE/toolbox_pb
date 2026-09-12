@@ -11,7 +11,7 @@ from unittest import mock
 sys.path.append(str(Path(__file__).resolve().parents[2] / "toolbox_pb"))
 
 # Imports local
-from pdf.main_pdf import build_filigranor_text, pdf_filigranor
+from pdf.main_pdf import build_filigranor_text, pdf_assemblor, pdf_filigranor
 
 
 # -----------------------------
@@ -104,6 +104,40 @@ def test_pdf_filigranor_returns_true_when_no_pdf(tmp_path):
 
     # Ensure no watermark generation was triggered
     watermark_mock.assert_not_called()
+
+
+def test_pdf_assemblor_merges_pdf_files_in_relative_path_order(tmp_path):
+    """The feature must pass all input PDFs to the merger in stable order."""
+    cfg = build_fake_cfg(tmp_path)
+    nested_input_dir = cfg.INPUT_DIR / "nested"
+    nested_input_dir.mkdir(parents=True)
+    cfg.OUTPUT_DIR.mkdir(parents=True)
+    (cfg.INPUT_DIR / "b.pdf").touch()
+    (cfg.INPUT_DIR / "a.pdf").touch()
+    (nested_input_dir / "c.pdf").touch()
+    (cfg.INPUT_DIR / "notes.txt").touch()
+
+    with mock.patch("pdf.main_pdf.func_pdf.merge_pdf_files") as merge_mock:
+        is_empty = pdf_assemblor(cfg)
+
+    assert is_empty is False
+    merge_mock.assert_called_once_with(
+        [cfg.INPUT_DIR / "a.pdf", cfg.INPUT_DIR / "b.pdf", nested_input_dir / "c.pdf"],
+        cfg.OUTPUT_DIR / "pdf_assemblage.pdf",
+    )
+
+
+def test_pdf_assemblor_returns_true_when_no_pdf(tmp_path):
+    """The feature must report an empty input directory without creating output."""
+    cfg = build_fake_cfg(tmp_path)
+    cfg.INPUT_DIR.mkdir(parents=True)
+    (cfg.INPUT_DIR / "notes.txt").touch()
+
+    with mock.patch("pdf.main_pdf.func_pdf.merge_pdf_files") as merge_mock:
+        is_empty = pdf_assemblor(cfg)
+
+    assert is_empty is True
+    merge_mock.assert_not_called()
 
 
 def test_pdf_filigranor_rejects_empty_watermark_text(tmp_path):
