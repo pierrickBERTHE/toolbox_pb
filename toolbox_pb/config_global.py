@@ -67,7 +67,7 @@ class AppConfig:
 # Regroupés en tête de la configuration pour être faciles à repérer.
 # -----------------------------
 LOG_TO_FILE = True
-ADD_CODEC_NAME_IN_OUTPUT = True
+ADD_CODEC_NAME_IN_OUTPUT = False
 ADD_WITHOUTBG_IN_NAME_IN_OUTPUT = False
 ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT = True
 IMAGE_REDUCTOR_JPEG_QUALITY = 95

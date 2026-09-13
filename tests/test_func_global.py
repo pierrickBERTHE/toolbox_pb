@@ -342,6 +342,19 @@ def test_consume_ffmpeg_progress_returns_empty_when_no_stdout():
     assert func_global.consume_ffmpeg_progress(proc, duration=10.0, desc="x") == []
 
 
+def test_build_processing_comment_increments_existing_count():
+    previous = "toolbox_pb | Traitements : 2 | Dernier traitement : video_encodor"
+
+    comment = func_global.build_processing_comment(
+        previous, "video_assemblor", "libx265", "aac"
+    )
+
+    assert "Traitements : 3" in comment
+    assert "Dernier traitement : video_assemblor" in comment
+    assert "Vidéo : libx265" in comment
+    assert "Audio : aac" in comment
+
+
 # ==========================================================
 # Tests convert_hhmmss_to_seconds
 # ==========================================================

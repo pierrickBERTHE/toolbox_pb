@@ -13,6 +13,7 @@ import time
 import json
 import subprocess
 import re
+import tempfile
 import numpy as np
 from pathlib import Path
 from collections import defaultdict
@@ -182,6 +183,91 @@ def is_processable_file(path: Path) -> bool:
     """Return whether a path is a regular file other than the Git placeholder."""
 
     return path.is_file() and path.name != ".gitkeep"
+
+
+def build_processing_comment(
+    previous_comment: str | None,
+    feature: str,
+    video_codec: str | None = None,
+    audio_codec: str | None = None,
+    image_codec: str | None = None,
+) -> str:
+    """Build the human-readable processing comment shown by Windows Explorer."""
+    match = re.search(r"Traitements\s*:\s*(\d+)", previous_comment or "")
+    processing_count = int(match.group(1)) + 1 if match else 1
+    fields = [
+        "toolbox_pb",
+        f"Traitements : {processing_count}",
+        f"Dernier traitement : {feature}",
+    ]
+    if video_codec:
+        fields.append(f"Vidéo : {video_codec}")
+    if audio_codec:
+        fields.append(f"Audio : {audio_codec}")
+    if image_codec:
+        fields.append(f"Image : {image_codec}")
+    return " | ".join(fields)
+
+
+def _read_video_comment(video_path: Path) -> str | None:
+    """Read the standard FFmpeg comment tag from a video file."""
+    command = [
+        "ffprobe", "-v", "error", "-show_entries", "format_tags=comment",
+        "-of", "json", str(video_path),
+    ]
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, check=True)
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        return None
+    return json.loads(result.stdout).get("format", {}).get("tags", {}).get("comment")
+
+
+def write_video_processing_comment(
+    video_path: Path,
+    feature: str,
+    video_codec: str | None = None,
+    audio_codec: str | None = None,
+) -> str | None:
+    """Embed an incremented standard comment tag in an output video.
+
+    FFmpeg remuxes the file without re-encoding, keeping the video and audio
+    streams intact while making the comment available to media property readers.
+    """
+    if not video_path.exists():
+        return None
+    comment = build_processing_comment(
+        _read_video_comment(video_path), feature, video_codec, audio_codec
+    )
+    with tempfile.NamedTemporaryFile(
+        suffix=video_path.suffix, dir=video_path.parent, delete=False
+    ) as temp_file:
+        temporary_path = Path(temp_file.name)
+    command = [
+        "ffmpeg", "-y", "-i", str(video_path), "-map", "0", "-c", "copy",
+        "-movflags", "use_metadata_tags", "-metadata", f"comment={comment}",
+        str(temporary_path),
+    ]
+    try:
+        subprocess.run(command, capture_output=True, text=True, check=True)
+        temporary_path.replace(video_path)
+    except (FileNotFoundError, subprocess.CalledProcessError, OSError) as exc:
+        temporary_path.unlink(missing_ok=True)
+        print(f"Commentaire de traitement non écrit : {video_path.name} ({exc})")
+        return None
+    return comment
+
+
+def build_video_processing_comment(
+    source_path: Path | None,
+    feature: str,
+    video_codec: str,
+    audio_codec: str,
+) -> str:
+    """Build the next video comment before the output file is created."""
+    previous_comment = _read_video_comment(source_path) if source_path else None
+    return build_processing_comment(
+        previous_comment, feature, video_codec, audio_codec
+    )
 
 
 def make_unique_path(path: Path) -> Path:
