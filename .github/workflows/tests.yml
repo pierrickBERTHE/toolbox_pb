@@ -1,0 +1,33 @@
+name: Tests unitaires
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  tests:
+    name: Tests unitaires
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v6
+
+      - name: Installer Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "poetry"
+
+      - name: Installer Poetry
+        run: pipx install poetry==2.0.1
+
+      - name: Installer les dépendances
+        run: poetry install --with dev
+
+      - name: Lancer les tests
+        run: poetry run pytest
