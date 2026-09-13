@@ -26,6 +26,26 @@ sys.path.append(str(Path(__file__).resolve().parents[1] / 'toolbox_pb'))
 import func_global
 
 
+def test_is_processable_file_excludes_gitkeep(tmp_path):
+    """The Git placeholder must be ignored by every shared file traversal."""
+    gitkeep = tmp_path / ".gitkeep"
+    ordinary_file = tmp_path / "document.txt"
+    gitkeep.touch()
+    ordinary_file.touch()
+
+    assert func_global.is_processable_file(gitkeep) is False
+    assert func_global.is_processable_file(ordinary_file) is True
+
+
+def test_summarize_files_excludes_gitkeep_from_output_summary(tmp_path, capsys):
+    """Output summaries must not count the Git placeholder as a real file."""
+    (tmp_path / ".gitkeep").touch()
+
+    func_global.summarize_files(tmp_path, label="OUTPUT")
+
+    assert "Total files : 0" in capsys.readouterr().out
+
+
 @pytest.mark.parametrize("codec", ["libx264", "libx265", "h264_amf", "hevc_amf"])
 def test_mobile_video_output_options_force_sdr_compatibility(codec):
     """Every supported encoder must explicitly target mobile-safe SDR output."""
