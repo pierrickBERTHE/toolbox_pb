@@ -50,7 +50,7 @@ def image_reductor(cfg: AppConfig, quality: int | None = None) -> bool:
 
     # ----------- LOOP THROUGH ALL FILES IN INPUT DIR -------------
     input_files = sorted(
-        (path for path in cfg.INPUT_DIR.rglob("*") if path.is_file()),
+        (path for path in cfg.INPUT_DIR.rglob("*") if func_glob.is_processable_file(path)),
         key=lambda path: str(path.relative_to(cfg.INPUT_DIR)).lower(),
     )
 
@@ -154,7 +154,7 @@ def image_withoutbg(cfg: AppConfig) -> bool:
         (
             path
             for path in cfg.INPUT_DIR.rglob("*")
-            if path.is_file()
+            if func_glob.is_processable_file(path)
             and path.suffix.lower() in cfg.INPUT_ACCEPTED_IMAGE_FILES
         ),
         key=lambda path: str(path.relative_to(cfg.INPUT_DIR)).lower(),
@@ -235,7 +235,7 @@ def image_defilor(cfg: AppConfig, extra_args: str | None = None) -> bool:
     for input_file in config["input_dir"].rglob('*'):
 
         # -------- IGNORE UNSUPPORTED FILES ---------
-        if not input_file.is_file():
+        if not func_glob.is_processable_file(input_file):
             continue
 
         # --- CREATE OUTPUT SUBDIR STRUCTURE BASED ON INPUT FILE PATH ---

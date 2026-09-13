@@ -28,6 +28,7 @@ from func_global import (
     consume_ffmpeg_progress,
     convert_hhmmss_to_seconds,
     get_mobile_video_output_options,
+    is_processable_file,
 )
 
 
@@ -78,7 +79,7 @@ def find_files_by_extensions(input_dir: Path, extensions: list[str]) -> list[Pat
     return sorted(
         (
             path for path in input_dir.rglob("*")
-            if path.is_file() and path.suffix.lower() in accepted_extensions
+            if is_processable_file(path) and path.suffix.lower() in accepted_extensions
         ),
         key=lambda path: str(path.relative_to(input_dir)).lower(),
     )
@@ -880,7 +881,7 @@ def resolve_video_sequence(
     # Case 2: no segments.csv → all videos
     sequence = []
     for video_path in sorted(input_dir.iterdir()):
-        if video_path.suffix.lower() in accepted_ext:
+        if is_processable_file(video_path) and video_path.suffix.lower() in accepted_ext:
             sequence.append({
                 "path": video_path,
                 "start": None,

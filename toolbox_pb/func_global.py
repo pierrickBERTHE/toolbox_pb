@@ -178,6 +178,12 @@ def format_bytes(size_bytes: int) -> str:
     return f"{size_bytes} octets"
 
 
+def is_processable_file(path: Path) -> bool:
+    """Return whether a path is a regular file other than the Git placeholder."""
+
+    return path.is_file() and path.name != ".gitkeep"
+
+
 def make_unique_path(path: Path) -> Path:
     """
     Return a unique file path by appending an incremental suffix (__1, __2, ...)
@@ -192,7 +198,7 @@ def make_unique_path(path: Path) -> Path:
     existing_names = {
         p.name
         for p in parent.rglob("*")
-        if p.is_file()
+        if is_processable_file(p)
     }
 
     # If the filename is not used anywhere, return it directly
@@ -263,7 +269,7 @@ def summarize_files(dir_path: Path, label: str) -> None:
         return
 
     # Recursively collect all files in the directory
-    files = [p for p in dir_path.rglob("*") if p.is_file()]
+    files = [p for p in dir_path.rglob("*") if is_processable_file(p)]
 
     # Initialize accumulators
     total_size = 0

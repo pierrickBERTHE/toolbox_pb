@@ -151,7 +151,7 @@ def video_assemblor(cfg: AppConfig) -> bool:
         # Vérifier s'il y a des fichiers vidéo dans le dossier d'entrée
         video_files = list(cfg.INPUT_DIR.rglob('*'))
         video_files = [
-            f for f in video_files if f.is_file() 
+            f for f in video_files if func_glob.is_processable_file(f)
             and f.suffix.lower() in cfg.INPUT_ACCEPTED_FILES
         ]
 
@@ -278,7 +278,7 @@ def video_audio_decalator(cfg: AppConfig) -> bool:
     for input_file in config["input_dir"].rglob('*'):
 
         # ------- IGNORE NON-VIDEO FILES AND DIRECTORIES -------
-        if not input_file.is_file() or input_file.suffix.lower() not in config["accepted_file"]:
+        if not func_glob.is_processable_file(input_file) or input_file.suffix.lower() not in config["accepted_file"]:
             continue
 
         # --- CREATE OUTPUT SUBDIR STRUCTURE BASED ON INPUT FILE PATH ---
@@ -328,7 +328,7 @@ def video_volume_adjust(cfg: AppConfig) -> bool:
     for input_file in config["input_dir"].rglob('*'):
 
         # ------- IGNORE NON-VIDEO FILES AND DIRECTORIES -------
-        if not input_file.is_file() or input_file.suffix.lower() not in config["accepted_file"]:
+        if not func_glob.is_processable_file(input_file) or input_file.suffix.lower() not in config["accepted_file"]:
             continue
 
         # create file output path
@@ -369,7 +369,7 @@ def video_srt_integrator(cfg: AppConfig) -> bool:
     for input_file in config["input_dir"].rglob('*'):
 
         # ------- IGNORE NON-VIDEO FILES AND DIRECTORIES -------
-        if not input_file.is_file() or input_file.suffix.lower() not in config["accepted_file"]:
+        if not func_glob.is_processable_file(input_file) or input_file.suffix.lower() not in config["accepted_file"]:
             continue
 
         # create file output path
