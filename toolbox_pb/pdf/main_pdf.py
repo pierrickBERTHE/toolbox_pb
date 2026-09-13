@@ -59,7 +59,7 @@ def pdf_filigranor(cfg: AppConfig, watermark_text: str | None = None) -> bool:
     for input_file in config["input_dir"].rglob("*"):
 
         # ------- IGNORE NON-PDF FILES AND DIRECTORIES -------
-        if not input_file.is_file() or input_file.suffix.lower() not in config["accepted_file"]:
+        if not func_glob.is_processable_file(input_file) or input_file.suffix.lower() not in config["accepted_file"]:
             continue
 
         # --- CREATE OUTPUT SUBDIR STRUCTURE BASED ON INPUT FILE PATH ---
@@ -98,7 +98,8 @@ def pdf_assemblor(cfg: AppConfig) -> bool:
         (
             path
             for path in cfg.INPUT_DIR.rglob("*")
-            if path.is_file() and path.suffix.lower() in cfg.INPUT_ACCEPTED_PDF_FILES
+            if func_glob.is_processable_file(path)
+            and path.suffix.lower() in cfg.INPUT_ACCEPTED_PDF_FILES
         ),
         key=lambda path: tuple(
             part.casefold() for part in path.relative_to(cfg.INPUT_DIR).parts

@@ -26,6 +26,7 @@ from image.main_image import (
     image_withoutbg,
 )
 from pdf.main_pdf import pdf_assemblor, pdf_filigranor
+from file.main_file import file_timeline_sorter
 from config_global import APP_CONFIG, AppConfig
 import func_global as func
 import reductor_workflow
@@ -88,10 +89,11 @@ def main(cfg : AppConfig):
     print("09. Image_withoutbg")
     print("10. PDF_filigranor")
     print("11. PDF_assemblor")
-    print("12. Quitter")
+    print("12. File_timeline_sorter")
+    print("13. Quitter")
 
     # Get user choice
-    choix = input("Sélectionnez une option (1-12) : ")
+    choix = input("Sélectionnez une option (1-13) : ")
     # choix = "5"
 
     # Default value if selected action does not return a folder-state flag.
@@ -157,6 +159,10 @@ def main(cfg : AppConfig):
             is_empty_folder = pdf_assemblor(cfg)
 
         case "12":
+            print("\nLancement du File_timeline_sorter...")
+            is_empty_folder = file_timeline_sorter(cfg)
+
+        case "13":
             print("Quitter l'application. Au revoir !")
             sys.exit(0)
 

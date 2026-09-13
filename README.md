@@ -18,6 +18,7 @@ Fonctionnalites actuellement disponibles dans le menu principal :
 - `Image_diapo_video_creator` : assemble toutes les photos du dossier d'entree dans une seule video avec une duree configurable par photo. Les images sont redimensionnees sans deformation, a leur orientation EXIF reelle, et leur ratio est conserve. Une piste audio unique du dossier d'entree peut etre ajoutee ; les noms des photos et leurs timings sont integres comme piste de sous-titres dans le MP4.
 - `PDF_filigranor` : ajoute a chaque PDF un filigrane textuel diagonal repete. Le menu demande le destinataire et ajoute automatiquement le prefixe configure `document exclusivement destine a`.
 - `PDF_assemblor` : fusionne tous les PDF du dossier d'entree (et de ses sous-dossiers) dans un unique fichier, dans l'ordre alphabetique de leurs chemins relatifs.
+- `File_timeline_sorter` : copie les fichiers du dossier d'entree vers le dossier de sortie avec leur date de derniere modification (`AAAA-MM-JJ_HH-MM-SS__nom-original.ext`) afin que le tri alphabetique corresponde a l'ordre chronologique. Les fichiers source restent intacts.
 
 ## Prerequis
 

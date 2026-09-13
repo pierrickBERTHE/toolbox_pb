@@ -34,4 +34,4 @@ git-cleanup.ps1
 /git-tools/*
 
 # Documentation
-/doc/*
+/docs/*
