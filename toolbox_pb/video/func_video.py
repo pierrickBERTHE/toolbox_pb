@@ -374,7 +374,9 @@ def count_cpu_threads() -> int:
 
 
 @measure_time
-def encode_full_video(input_path, output_path, codec_video, codec_audio):
+def encode_full_video(
+    input_path, output_path, codec_video, codec_audio, processing_comment=None
+):
     """
     Full video encoding with specified video and audio codecs.
     Preserves the image aspect ratio and video properties.
@@ -450,6 +452,8 @@ def encode_full_video(input_path, output_path, codec_video, codec_audio):
                 cmd.extend(["-ar", str(normalized_sample_rate)])
     
     # Output file
+    if processing_comment:
+        cmd.extend(["-metadata", f"comment={processing_comment}"])
     cmd.extend(["-y", str(output_path)])
     
     # Execute FFmpeg with progress bar
@@ -942,6 +946,7 @@ def write_video_file(
     codec_video: str,
     codec_audio: str,
     fps: int | None = None,
+    processing_comment: str | None = None,
 ):
     """
     Write the final video file with specified codecs.
@@ -957,6 +962,10 @@ def write_video_file(
         "logger": "bar",
     }
     write_options["ffmpeg_params"] = get_mobile_video_output_options(codec_video)
+    if processing_comment:
+        write_options["ffmpeg_params"].extend(
+            ["-metadata", f"comment={processing_comment}"]
+        )
     if fps is not None:
         write_options["fps"] = fps
 

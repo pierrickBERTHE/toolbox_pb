@@ -12,8 +12,20 @@ import json
 from pathlib import Path
 import subprocess
 import shlex
-from PIL import Image, ImageOps
-from func_global import consume_ffmpeg_progress, get_mobile_video_output_options
+from PIL import Image, ImageOps, PngImagePlugin
+from func_global import (
+    build_processing_comment,
+    consume_ffmpeg_progress,
+    get_mobile_video_output_options,
+)
+
+
+def _read_exif_comment(exif) -> str | None:
+    """Read the Windows Explorer XPComment value when present."""
+    value = exif.get(40092)
+    if isinstance(value, bytes):
+        return value.decode("utf-16le", errors="ignore").rstrip("\x00")
+    return value if isinstance(value, str) else None
 
 
 def load_background_remover():
@@ -112,6 +124,20 @@ def reduce_image_for_screen(
             # Remove the orientation tag (274) to avoid reapplying it on display
             exif.pop(274, None)
 
+            image_codec = (
+                f"JPEG qualité {quality}"
+                if output_format in {".jpg", ".jpeg"}
+                else "PNG compression sans perte"
+            )
+            previous_comment = (
+                _read_exif_comment(exif)
+                if output_format in {".jpg", ".jpeg"}
+                else image.info.get("Comment")
+            )
+            processing_comment = build_processing_comment(
+                previous_comment, "image_reductor", image_codec=image_codec
+            )
+
             save_kwargs = {}
 
             # If EXIF data exists, convert it to bytes and include it in the save parameters
@@ -134,9 +160,15 @@ def reduce_image_for_screen(
                     progressive=True,
                 )
             else:
+                png_info = PngImagePlugin.PngInfo()
+                png_info.add_text("Comment", processing_comment)
                 save_kwargs.update(
-                    format="PNG", optimize=True, compress_level=9
+                    format="PNG", optimize=True, compress_level=9, pnginfo=png_info
                 )
+
+            if output_format in {".jpg", ".jpeg"}:
+                exif[40092] = processing_comment.encode("utf-16le")
+                save_kwargs["exif"] = exif.tobytes()
 
             # Save the recompressed image to the temporary candidate path
             image.save(candidate_path, **save_kwargs)

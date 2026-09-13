@@ -8,13 +8,13 @@ Le projet fournit une interface console interactive qui lit les fichiers depuis 
 
 Fonctionnalites actuellement disponibles dans le menu principal :
 
-- `Video_encodor` : reencode chaque video du dossier d'entree avec les codecs configures. Une barre de progression, les comparaisons de taille et un bilan global sont affiches. Il ne copie pas les images : elles sont reservees a `Image_reductor`.
-- `Video_assemblor` : assemble plusieurs videos en un seul fichier. Si `data/segment/segments.csv` existe, il definit l'ordre des clips et leurs points de debut/fin ; sinon, les videos sont assemblees dans l'ordre des noms de fichiers.
+- `Video_encodor` : reencode chaque video du dossier d'entree avec les codecs configures. Une barre de progression, les comparaisons de taille et un bilan global sont affiches. Il ne copie pas les images : elles sont reservees a `Image_reductor`. Le MP4 de sortie contient un commentaire de suivi de traitement.
+- `Video_assemblor` : assemble plusieurs videos en un seul fichier. Si `data/segment/segments.csv` existe, il definit l'ordre des clips et leurs points de debut/fin ; sinon, les videos sont assemblees dans l'ordre des noms de fichiers. Le MP4 assemble contient un commentaire de suivi de traitement.
 - `Video_audio_decalator` : avance ou retarde la piste audio d'une video sans reencoder le flux video.
 - `Video_volume_adjust` : applique des variations de volume audio sur des plages temporelles definies dans `data/segment/boosts.csv`, sans reencoder le flux video.
 - `Video_srt_integrator` : integre `data/segment/sous_titre.srt` comme piste de sous-titres MP4 aux videos du dossier d'entree, sans reencoder l'audio ou la video.
 - `Image_defilor` : genere une video verticale defilante pour chaque image source et, pour les PDF, une video par image extraite de chaque page. La hauteur, la vitesse, le FPS, les temps d'arret et le codec sont parametrables.
-- `Image_reductor` : reduit les photos JPEG/PNG sans changer leur format ni leurs dimensions. Une barre de progression, la comparaison de poids globale et un bilan des images compressees, intactes et deja traitees sont affiches. Les JPEG sont reencodes en qualite 95, les PNG sont optimises sans perte ; orientation EXIF, profil colorimetrique et transparence sont conserves. Les images non allegeables et les documents non-video sont copies intacts ; les videos compatibles sont reservees a `Video_encodor`.
+- `Image_reductor` : reduit les photos JPEG/PNG sans changer leur format ni leurs dimensions. Une barre de progression, la comparaison de poids globale et un bilan des images compressees, intactes et deja traitees sont affiches. Les JPEG sont reencodes en qualite 95, les PNG sont optimises sans perte ; orientation EXIF, profil colorimetrique et transparence sont conserves. Les images non allegeables et les documents non-video sont copies intacts ; les videos compatibles sont reservees a `Video_encodor`. Les copies JPEG incluent un commentaire de suivi de traitement.
 - `Image_diapo_video_creator` : assemble toutes les photos du dossier d'entree dans une seule video avec une duree configurable par photo. Les images sont redimensionnees sans deformation, a leur orientation EXIF reelle, et leur ratio est conserve. Une piste audio unique du dossier d'entree peut etre ajoutee ; les noms des photos et leurs timings sont integres comme piste de sous-titres dans le MP4.
 - `PDF_filigranor` : ajoute a chaque PDF un filigrane textuel diagonal repete. Le menu demande le destinataire et ajoute automatiquement le prefixe configure `document exclusivement destine a`.
 - `PDF_assemblor` : fusionne tous les PDF du dossier d'entree (et de ses sous-dossiers) dans un unique fichier, dans l'ordre alphabetique de leurs chemins relatifs.
@@ -255,6 +255,30 @@ maniere recursive et conservent les sous-dossiers de `data/input` dans
   est oui apres un compte a rebours de 10 secondes ; entrer `n` ou `non` avant
   l'echeance annule ce second traitement. Le reducteur declenche ne demande pas
   a relancer le premier : aucune boucle ne peut se produire.
+
+### Commentaires de suivi dans les metadonnees
+
+Seules les fonctionnalites `Video_encodor`, `Video_assemblor` et
+`Image_reductor` inscrivent un commentaire de suivi dans le fichier genere.
+Les fichiers places dans `data/input` ne sont jamais modifies.
+
+Le commentaire suit ce format :
+
+```text
+toolbox_pb | Traitements : 2 | Dernier traitement : video_encodor | Vidéo : libx265 | Audio : aac
+```
+
+- `Traitements` est incremente lorsqu'un fichier deja porteur de ce commentaire
+  est utilise comme source par `Video_encodor` ou `Image_reductor`.
+- `Video_assemblor` produit un nouveau fichier assemble et initialise donc son
+  compteur a `1`.
+- Pour les MP4, le commentaire est ajoute pendant la creation initiale du
+  fichier par FFmpeg/MoviePy afin d'etre lisible dans la propriete
+  **Commentaires** de l'Explorateur Windows.
+- Pour les JPEG, la valeur est ecrite dans la metadonnee EXIF `XPComment`,
+  utilisee par la propriete **Commentaires** de l'Explorateur Windows. Les PNG
+  contiennent aussi un champ `Comment`, dont l'affichage depend du lecteur.
+- Les autres fonctionnalites ne modifient pas ce compteur.
 
 ### Noms de sortie
 

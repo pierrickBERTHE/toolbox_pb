@@ -78,22 +78,26 @@ def main(cfg : AppConfig):
 
     # Print the menu
     print("\nMenu principal : ")
+    print("\n-- VIDEO --")
     print("01. Vidéo_encodor")
     print("02. Vidéo_assemblor")
     print("03. Vidéo_audio_decalator")
     print("04. Vidéo_volume_adjust")
     print("05. Vidéo_srt_integrator")
+    print("\n-- IMAGE --")
     print("06. Image_defilor")
     print("07. Image_reductor")
     print("08. Image_diapo_video_creator")
     print("09. Image_withoutbg")
+    print("\n-- PDF --")
     print("10. PDF_filigranor")
     print("11. PDF_assemblor")
+    print("\n-- FILE --")
     print("12. File_timeline_sorter")
-    print("13. Quitter")
+    print("\n13. Quitter")
 
     # Get user choice
-    choix = input("Sélectionnez une option (1-13) : ")
+    choix = input("\nSélectionnez une option (1-13) : ")
     # choix = "5"
 
     # Default value if selected action does not return a folder-state flag.

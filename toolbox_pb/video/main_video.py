@@ -82,7 +82,10 @@ def video_encodor(cfg: AppConfig) -> bool:
                     input_path=input_file,
                     output_path=output_path,
                     codec_video=config["codec_v"],
-                    codec_audio=config["codec_a"]
+                    codec_audio=config["codec_a"],
+                    processing_comment=func_glob.build_video_processing_comment(
+                        input_file, "video_encodor", config["codec_v"], config["codec_a"]
+                    ),
                 )
             except (subprocess.CalledProcessError, RuntimeError, OSError) as exc:
                 failed_videos += 1
@@ -211,7 +214,10 @@ def video_assemblor(cfg: AppConfig) -> bool:
             final_clip=final_clip,
             output_path=output_path,
             codec_video=config['codec_v'],
-            codec_audio=config['codec_a']
+            codec_audio=config['codec_a'],
+            processing_comment=func_glob.build_video_processing_comment(
+                None, "video_assemblor", config["codec_v"], config["codec_a"]
+            ),
         )
         is_empty_folder = False
 
