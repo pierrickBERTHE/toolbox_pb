@@ -16,7 +16,8 @@ import os
 import csv
 import tempfile
 import re
-from datetime import date
+import warnings
+from datetime import date, datetime
 from typing import Iterable
 from dataclasses import dataclass
 from tqdm import tqdm
@@ -93,25 +94,228 @@ def get_image_size(image_path: Path) -> tuple[int, int]:
         return ImageOps.exif_transpose(image).size
 
 
-def fit_image_size_in_frame(
-    image_size: tuple[int, int], frame_size: tuple[int, int]
+def fit_visual_size_in_frame(
+    visual_size: tuple[int, int], frame_size: tuple[int, int]
 ) -> tuple[int, int]:
     """
     Return an even size that fills the full frame height.
-    The returned size preserves the input ratio. Every image occupies the
-    entire frame height, so no top or bottom padding is ever introduced.
+
+    The returned size preserves the input ratio. It is shared by the image
+    slideshow and video assemblor so every visual source occupies the entire
+    output-frame height without top or bottom padding.
     """
     # Validate input sizes
-    image_width, image_height = image_size
+    visual_width, visual_height = visual_size
     _, frame_height = frame_size
-    if image_width <= 0 or image_height <= 0:
-        raise ValueError("Les dimensions de l'image doivent être positives.")
+    if visual_width <= 0 or visual_height <= 0:
+        raise ValueError("Les dimensions du média doivent être positives.")
 
     # Calculate the scaled width to maintain aspect ratio
     scaled_height = frame_height
-    scaled_width = max(2, round(image_width * frame_height / image_height))
+    scaled_width = max(2, round(visual_width * frame_height / visual_height))
     scaled_width -= scaled_width % 2
     return scaled_width, scaled_height
+
+
+def fit_image_size_in_frame(
+    image_size: tuple[int, int], frame_size: tuple[int, int]
+) -> tuple[int, int]:
+    """Return the shared frame-filling size for an image source."""
+    return fit_visual_size_in_frame(image_size, frame_size)
+
+
+def get_video_frame_size(
+    clips: list[VideoFileClip], max_height: int | None = None,
+) -> tuple[int, int] | None:
+    """Return a common even frame size that gives every video full height.
+
+    The frame height is the tallest valid source height, optionally capped.
+    Its width is the widest clip after ratio-preserving scaling to that height.
+    Invalid or mocked clip sizes are ignored so callers can keep their clips
+    unchanged when no real dimensions are available.
+    """
+    sizes = []
+
+    # Loop through each clip to collect valid sizes
+    for clip in clips:
+        size = getattr(clip, "size", None)
+        if not isinstance(size, (tuple, list)) or len(size) != 2:
+            continue
+        width, height = size
+        if not isinstance(width, (int, float)) or not isinstance(height, (int, float)):
+            continue
+        if width <= 0 or height <= 0:
+            continue
+        sizes.append((int(width), int(height)))
+
+    # Return None if no valid sizes were found
+    if not sizes:
+        return None
+
+    # Determine the maximum frame height and adjust it based on max_height if provided
+    frame_height = max(height for _, height in sizes)
+    if max_height is not None:
+        if max_height <= 0:
+            raise ValueError("La hauteur maximale de trame doit être positive.")
+        frame_height = min(frame_height, max_height)
+    frame_height = max(2, frame_height - frame_height % 2)
+    frame_width = max(
+        fit_visual_size_in_frame(size, (0, frame_height))[0] for size in sizes
+    )
+    return frame_width, frame_height
+
+
+def normalize_video_clips_to_frame(
+    clips: list[VideoFileClip], max_height: int | None = None,
+) -> list[VideoFileClip]:
+    """Scale and center clips in one shared frame before concatenation.
+
+    Every clip is scaled to the shared frame height. Landscape clips therefore
+    use all vertical pixels, while portrait clips remain undistorted and are
+    centred with side padding when their scaled width is narrower.
+    """
+    # Determine the common frame size for all clips
+    frame_size = get_video_frame_size(clips, max_height=max_height)
+    if frame_size is None:
+        return clips
+
+    # Scale and center each clip in the shared frame size
+    normalized_clips = []
+    for clip in clips:
+        size = getattr(clip, "size", None)
+        if not isinstance(size, (tuple, list)) or len(size) != 2:
+            normalized_clips.append(clip)
+            continue
+        width, height = size
+        if not isinstance(width, (int, float)) or not isinstance(height, (int, float)):
+            normalized_clips.append(clip)
+            continue
+        scaled_size = fit_visual_size_in_frame((int(width), int(height)), frame_size)
+        normalized_clips.append(
+            clip.resized(new_size=scaled_size).with_background_color(
+                size=frame_size,
+                color=(0, 0, 0),
+                pos=("center", "center"),
+            )
+        )
+    return normalized_clips
+
+
+def get_video_output_fps(clips: list[VideoFileClip]) -> float | None:
+    """Return the highest valid source frame rate for a video assembly.
+
+    MoviePy can otherwise inherit the frame rate of an arbitrary input clip.
+    Writing an assembly at the highest source frame rate keeps later clips from
+    being sampled too sparsely, which may make them appear to play in slow
+    motion when sources use different frame rates.
+    """
+    fps_values = []
+    for clip in clips:
+        fps = getattr(clip, "fps", None)
+        if isinstance(fps, (int, float)) and fps > 0:
+            fps_values.append(float(fps))
+    return max(fps_values) if fps_values else None
+
+
+def normalize_video_clips_fps(
+    clips: list[VideoFileClip], output_fps: float | None = None,
+) -> tuple[list[VideoFileClip], float | None]:
+    """Give every assembly clip one output FPS without changing its duration.
+
+    ``with_fps`` only defines the sampling cadence used at export: frame times
+    and audio duration remain unchanged. This prevents a clip with a different
+    source cadence from being interpreted with the cadence of an earlier clip.
+    """
+    output_fps = output_fps or get_video_output_fps(clips)
+    if output_fps is None:
+        return clips, None
+    return [clip.with_fps(output_fps) for clip in clips], output_fps
+
+
+def get_video_stream_frame_rates(
+    video_path: Path
+) -> tuple[str | None, float | None, float | None]:
+    """
+    Return the declared (stream["r_frame_rate"]) and average FPS of the 
+    first video stream (stream["avg_frame_rate"]).
+    """
+    # Use ffprobe to get the frame rates of the video stream
+    command = [
+        "ffprobe", "-v", "error", "-select_streams", "v:0",
+        "-show_entries", "stream=r_frame_rate,avg_frame_rate", "-of", "json",
+        str(video_path),
+    ]
+    result = subprocess.run(command, capture_output=True, text=True, check=True)
+    streams = json.loads(result.stdout).get("streams", [])
+
+    # If no video streams are found, return None for all values
+    if not streams:
+        return None, None, None
+    stream = streams[0]
+
+    def as_fps(value: str | None) -> float | None:
+        """
+        Convert a frame rate string to a float FPS value, or None if invalid.
+        """
+        if not value or value == "0/0":
+            return None
+        numerator, denominator = value.split("/", maxsplit=1)
+        denominator_value = float(denominator)
+        return float(numerator) / denominator_value if denominator_value else None
+
+    # Return the declared frame rate, average frame rate, and their float equivalents
+    declared = stream.get("r_frame_rate")
+    return declared, as_fps(declared), as_fps(stream.get("avg_frame_rate"))
+
+
+def prepare_video_for_assembly(
+    video_path: Path,
+    temporary_dir: Path,
+    index: int,
+    codec_video: str,
+    codec_audio: str,
+) -> Path:
+    """Create a clean CFR intermediate only for inconsistent source timing.
+
+    Some phone files declare a high nominal frame rate (for example 120 FPS)
+    while their timestamped frames run at about 30 FPS. MoviePy can then read
+    video frames with a cadence that differs from audio. FFmpeg rewrites these
+    exceptional sources with their average FPS before MoviePy loads them.
+    """
+    # Check the declared (r_frame_rate) and average FPS (avg_frame_rate) 
+    # of the video stream
+    declared_rate, declared_fps, average_fps = get_video_stream_frame_rates(
+        video_path
+    )
+    if (
+        declared_fps is None
+        or average_fps is None
+        or declared_fps <= average_fps * 1.2
+    ):
+        return video_path
+
+    # Create a temporary output path for the normalized video
+    output_path = temporary_dir / f"normalized_{index:03d}.mp4"
+
+    # Build the FFmpeg command to normalize the video frame rate
+    command = [
+        "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+        "-i", str(video_path), "-map", "0:v:0", "-map", "0:a?",
+        "-vf", f"fps={average_fps:.8f}", "-fps_mode", "cfr",
+        "-c:v", codec_video, "-c:a", codec_audio,
+        "-metadata:s:v:0", "rotate=0", str(output_path),
+    ]
+
+    # display the concerned video which has a problem
+    print(
+        f"Cadence vidéo incohérente détectée pour {video_path.name} "
+        f"({declared_rate} déclaré, {average_fps:.2f} moyen) : normalisation.\n"
+    )
+
+    # run ffmpeg_command
+    _run_ffmpeg_silently(command)
+
+    return output_path
 
 
 def format_srt_timestamp(milliseconds: int) -> str:
@@ -145,9 +349,8 @@ def build_image_subtitle(image_path: Path, input_dir: Path) -> str:
         valid_year = match.group(1)
         break
 
-    # Remove the year and its adjacent month/day components when they form a
-    # numeric date. A partial year-month date is handled too. Keep every other
-    # number: it may be an age, an event number or meaningful filename text.
+    # Remove the first valid year and its associated date from the filename. 
+    # Other numbers are retained. The filename extension is never included.
     text = image_name
     if valid_year:
         date_separator = r"[-_/\s.]"
@@ -198,6 +401,248 @@ def write_image_diapo_srt(
             f"{image_name}\n"
         )
     output_path.write_text("\n".join(entries), encoding="utf-8")
+
+
+def extract_date_from_filename(media_path: Path) -> str | None:
+    """Return the first valid filename date formatted as DD/MM/YYYY.
+
+    Accepted forms are YYYY-MM-DD, DD-MM-YYYY and their compact YYYYMMDD or
+    DDMMYYYY equivalents. Separators may be spaces, underscores, dots or
+    hyphens. Invalid calendar dates are ignored.
+    """
+    # Validate input path and extract the stem (filename without extension)
+    name = media_path.stem
+
+    # Define regex patterns for matching date formats in the filename
+    patterns = (
+        (r"(?<!\d)(\d{4})[-_.\s]?(\d{1,2})[-_.\s]?(\d{1,2})(?!\d)", "ymd"),
+        (r"(?<!\d)(\d{1,2})[-_.\s]?(\d{1,2})[-_.\s]?(\d{4})(?!\d)", "dmy"),
+    )
+
+    # Loop through patterns and attempt to extract a valid date
+    for pattern, order in patterns:
+        for match in re.finditer(pattern, name):
+            values = [int(value) for value in match.groups()]
+            year, month, day = values if order == "ymd" else (
+                values[2], values[1], values[0]
+            )
+            try:
+                return datetime(year, month, day).strftime("%d/%m/%Y")
+            except ValueError:
+                continue
+    return None
+
+
+def write_video_assemblor_date_srt(
+    sequence: list[dict],
+    clips: list[VideoFileClip],
+    output_path: Path,
+    display_duration: float,
+) -> bool:
+    """Write one X second date cue at the start of every dated clip.
+
+    Timeline offsets always include the full duration of previous clips, even
+    when a filename has no valid date and therefore produces no subtitle cue.
+    """
+    # Validate input parameters
+    if len(sequence) != len(clips):
+        raise ValueError("La séquence et les clips doivent avoir la même longueur.")
+    if display_duration <= 0:
+        raise ValueError("La durée d'affichage des sous-titres doit être positive.")
+
+    # Initialize variables for subtitle entries and offset tracking
+    entries = []
+    offset_ms = 0
+
+    # Loop over each clip and its corresponding sequence item
+    for index, (item, clip) in enumerate(zip(sequence, clips), start=1):
+        duration = getattr(clip, "duration", None)
+        if not isinstance(duration, (int, float)) or duration <= 0:
+            raise ValueError("Chaque clip doit avoir une durée positive.")
+        date_text = extract_date_from_filename(item["path"])
+        duration_ms = round(duration * 1_000)
+
+        # If a valid date is found, create an SRT entry with the appropriate timing
+        if date_text:
+            end_ms = offset_ms + min(duration_ms, round(display_duration * 1_000))
+            entries.append(
+                f"{len(entries) + 1}\n"
+                f"{format_srt_timestamp(offset_ms)} --> {format_srt_timestamp(end_ms)}\n"
+                f"{date_text}\n"
+            )
+        offset_ms += duration_ms
+
+    # Write the collected subtitle entries to the output SRT file, or return False
+    if not entries:
+        return False
+
+    # Write the SRT entries to the output file, ensuring UTF-8 encoding
+    output_path.write_text("\n".join(entries), encoding="utf-8")
+
+    return True
+
+
+def parse_srt_cues(srt_content: str) -> list[tuple[int, int, str]]:
+    """Parse SRT content into ``(start_ms, end_ms, text)`` cues.
+
+    The parser deliberately retains multiline subtitle text while accepting
+    both SRT time separators (comma and dot). Extracted streams are normalised
+    by FFmpeg to SRT before this function is called.
+    """
+    def parse_timestamp(value: str) -> int:
+        """ Parse an SRT timestamp string into milliseconds. """
+        # Match the SRT timestamp format (HH:MM:SS,mmm or HH:MM:SS.mmm)
+        match = re.fullmatch(
+            r"(\d{1,2}):(\d{2}):(\d{2})[,.](\d{1,3})", value.strip()
+        )
+        if not match:
+            raise ValueError(f"Horodatage SRT invalide : {value!r}")
+        hours, minutes, seconds, milliseconds = match.groups()
+        return (
+            int(hours) * 3_600_000
+            + int(minutes) * 60_000
+            + int(seconds) * 1_000
+            + int(milliseconds.ljust(3, "0"))
+        )
+
+    cues = []
+    # Split the SRT content into blocks separated by empty lines and parse each block
+    for block in re.split(r"\n\s*\n", srt_content.replace("\r\n", "\n").strip()):
+        lines = [line.rstrip() for line in block.split("\n")]
+
+        # skip blocks that don't have at least 3 lines (index, timestamp, text)
+        if len(lines) < 3:
+            continue
+
+        # Skip the first line if it is a numeric index, then parse the timestamp and text
+        if lines[0].strip().isdigit():
+            lines = lines[1:]
+
+        # Skip blocks that don't have a valid timestamp line
+        if len(lines) < 2 or " --> " not in lines[0]:
+            continue
+
+        # Parse the start and end timestamps and the subtitle text
+        start_text, end_text = lines[0].split(" --> ", maxsplit=1)
+        end_text = end_text.split(maxsplit=1)[0]
+        text = "\n".join(lines[1:]).strip()
+        if not text:
+            continue
+    
+        # Parse the start and end timestamps and add the cue if valid
+        start_ms, end_ms = parse_timestamp(start_text), parse_timestamp(end_text)
+        if end_ms > start_ms:
+            cues.append((start_ms, end_ms, text))
+    return cues
+
+
+def get_video_subtitle_cues(
+    video_path: Path, temporary_dir: Path,
+) -> list[tuple[int, int, str]]:
+    """Extract every subtitle stream from a video as normalised SRT cues."""
+    # Use ffprobe to find all subtitle stream indexes in the video
+    probe_command = [
+        "ffprobe", "-v", "error", "-select_streams", "s",
+        "-show_entries", "stream=index", "-of", "json", str(video_path),
+    ]
+
+    # Run the ffprobe command and capture its output
+    probe = subprocess.run(
+        probe_command, capture_output=True, text=True, check=True,
+    )
+
+    # Extract the stream indexes from the ffprobe output
+    stream_indexes = [
+        stream["index"] for stream in json.loads(probe.stdout).get("streams", [])
+        if "index" in stream
+    ]
+
+    cues = []
+    # Loop through each subtitle stream index and extract it as SRT
+    for stream_number, stream_index in enumerate(stream_indexes):
+        srt_path = temporary_dir / f"subtitle_{stream_number}.srt"
+        extract_command = [
+            "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+            "-i", str(video_path), "-map", f"0:{stream_index}",
+            "-c:s", "srt", str(srt_path),
+        ]
+
+        # Run the ffmpeg command to extract the subtitle stream and parse the resulting SRT cues
+        _run_ffmpeg_silently(extract_command)
+
+        # Read the extracted SRT file and parse its cues, extending the list of cues
+        cues.extend(parse_srt_cues(srt_path.read_text(encoding="utf-8-sig")))
+    return cues
+
+
+def write_video_assemblor_input_subtitles_srt(
+    sequence: list[dict],
+    clips: list[VideoFileClip],
+    output_path: Path,
+    temporary_dir: Path,
+) -> bool:
+    """Keep input subtitles and shift them to the assembled video timeline.
+
+    Cues are clipped to a selected ``segments.csv`` range, then shifted by the
+    duration of all preceding assembled clips. Therefore an assembler output
+    can be passed to another assembler without losing subtitle timing.
+    """
+    # Validate input lengths
+    if len(sequence) != len(clips):
+        raise ValueError("La séquence et les clips doivent avoir la même longueur.")
+
+    # Initialize variables for subtitle entries and offset tracking
+    entries = []
+    offset_ms = 0
+    cached_cues: dict[Path, list[tuple[int, int, str]]] = {}
+
+    # Loop over each clip and its corresponding sequence item
+    for item, clip in zip(sequence, clips):
+        duration = getattr(clip, "duration", None)
+
+        # Validate that the clip has a positive duration
+        if not isinstance(duration, (int, float)) or duration <= 0:
+            raise ValueError("Chaque clip doit avoir une durée positive.")
+        video_path = item["path"]
+
+        # Cache subtitle cues for each unique video path to avoid redundant extraction
+        if video_path not in cached_cues:
+            source_dir = temporary_dir / f"source_{len(cached_cues):03d}"
+            source_dir.mkdir()
+            cached_cues[video_path] = get_video_subtitle_cues(video_path, source_dir)
+
+        # Calculate the start and end times of the source clip in milliseconds
+        source_start_ms = round(float(item.get("start") or 0) * 1_000)
+        source_end_ms = source_start_ms + round(duration * 1_000)
+        
+        # Loop through the cached subtitle cues and clip them to the source range
+        # Then shift them by the offset of all preceding clips
+        for start_ms, end_ms, text in cached_cues[video_path]:
+            clipped_start = max(start_ms, source_start_ms)
+            clipped_end = min(end_ms, source_end_ms)
+            if clipped_end > clipped_start:
+                entries.append((
+                    offset_ms + clipped_start - source_start_ms,
+                    offset_ms + clipped_end - source_start_ms,
+                    text,
+                ))
+
+        # round the duration to milliseconds and update the offset for the next clip
+        offset_ms += round(duration * 1_000)
+
+    # Write the collected subtitle entries to the output SRT file, sorted by start time
+    if not entries:
+        return False
+    entries.sort(key=lambda entry: (entry[0], entry[1], entry[2]))
+    output_path.write_text(
+        "\n\n".join(
+            f"{index}\n{format_srt_timestamp(start_ms)} --> "
+            f"{format_srt_timestamp(end_ms)}\n{text}"
+            for index, (start_ms, end_ms, text) in enumerate(entries, start=1)
+        ) + "\n",
+        encoding="utf-8",
+    )
+    return True
 
 
 def create_image_diapo_ffmpeg(
@@ -902,7 +1347,16 @@ def load_and_trim_clip(video_path: Path, start: float | None, end: float | None)
     """
     Load a clip and optionally trim it.
     """
-    clip = VideoFileClip(str(video_path))
+    # Suppress MoviePy warnings about subtitle streams, 
+    # which are not relevant for our processing
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message=r"Subtitle stream parsing is not supported by moviepy.*",
+            category=UserWarning,
+            module=r"moviepy\.video\.io\.ffmpeg_reader",
+        )
+        clip = VideoFileClip(str(video_path))
 
     # No trimming needed
     if start is None and end is None:
@@ -947,9 +1401,11 @@ def write_video_file(
     codec_audio: str,
     fps: int | None = None,
     processing_comment: str | None = None,
+    subtitles_path: Path | None = None,
+    subtitle_paths: list[Path] | None = None,
 ):
     """
-    Write the final video file with specified codecs.
+    Write the final video file with specified codecs and optional SRT streams.
     """
     # Find max threads available
     max_threads = count_cpu_threads()
@@ -962,17 +1418,39 @@ def write_video_file(
         "logger": "bar",
     }
     write_options["ffmpeg_params"] = get_mobile_video_output_options(codec_video)
-    if processing_comment:
+    all_subtitle_paths = list(subtitle_paths or [])
+    if subtitles_path is not None:
+        all_subtitle_paths.insert(0, subtitles_path)
+    if processing_comment and not all_subtitle_paths:
         write_options["ffmpeg_params"].extend(
             ["-metadata", f"comment={processing_comment}"]
         )
     if fps is not None:
         write_options["fps"] = fps
 
-    final_clip.write_videofile(
-        str(output_path),
-        **write_options,
-    )
+    if not all_subtitle_paths:
+        final_clip.write_videofile(str(output_path), **write_options)
+        return
+
+    # If there are subtitle streams, write the video to a temporary file first,
+    # then remux with FFmpeg to include subtitles
+    with tempfile.TemporaryDirectory(prefix="video_assemblor_") as temp_dir_name:
+        temporary_video = Path(temp_dir_name) / "video.mp4"
+        final_clip.write_videofile(str(temporary_video), **write_options)
+        command = [
+            "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+            "-i", str(temporary_video),
+        ]
+        for subtitle_path in all_subtitle_paths:
+            command.extend(["-i", str(subtitle_path)])
+        command.extend(["-map", "0:v:0", "-map", "0:a?"])
+        for input_index in range(1, len(all_subtitle_paths) + 1):
+            command.extend(["-map", f"{input_index}:0"])
+        command.extend(["-c:v", "copy", "-c:a", "copy", "-c:s", "mov_text"])
+        if processing_comment:
+            command.extend(["-metadata", f"comment={processing_comment}"])
+        command.append(str(output_path))
+        _run_ffmpeg_silently(command)
 
 
 def get_inputs_metadata(
