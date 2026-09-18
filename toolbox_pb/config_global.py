@@ -4,7 +4,7 @@ Fichier de configuration pour le projet toolbox_pb
 Auteur :
 Pierrick BERTHE
 mail : pierrick.berthe@gmx.fr
-Février 2026
+Septembre 2026
 """
 
 from dataclasses import dataclass, field
@@ -41,19 +41,22 @@ class AppConfig:
     OUTPUT_DIR: Path
     SEGMENT_DIR: Path
 
-    # Flags
-    LOG_TO_FILE: bool
-    ADD_CODEC_NAME_IN_OUTPUT: bool
-    PRINT_ALL_KEYS_IN_METADATA_SUMMARY: bool
-    ADD_WITHOUTBG_IN_NAME_IN_OUTPUT: bool = True
-    ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT: bool = False
+    # Flags — valeurs par défaut modifiables ici et uniquement ici
+    LOG_TO_FILE: bool = True
+    ADD_CODEC_NAME_IN_OUTPUT: bool = False
+    PRINT_ALL_KEYS_IN_METADATA_SUMMARY: bool = False
+    ADD_WITHOUTBG_IN_NAME_IN_OUTPUT: bool = False
+    ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT: bool = True
     IMAGE_REDUCTOR_JPEG_QUALITY: int = 95
     VIDEO_ASSEMBLOR_ADD_DATE_SUBTITLES: bool = True
+    SRT_DURATION_SECONDS: float = 10.0
 
     # Image slideshow
-    IMAGE_DIAPO_DURATION_SECONDS: float = 4.0
+    IMAGE_DIAPO_DURATION_SECONDS: float = 5.0
     IMAGE_DIAPO_FPS: int = 24
     IMAGE_DIAPO_MAX_HEIGHT: int = 2160
+
+    # Accepted files (placé après les flags pour respecter l'ordre du dataclass)
     INPUT_ACCEPTED_AUDIO_FILES: List[str] = field(
         default_factory=lambda: [".aac", ".flac", ".m4a", ".mp3", ".ogg", ".wav"]
     )
@@ -62,20 +65,9 @@ class AppConfig:
 # -----------------------------
 # CONSTANTES DE CONFIGURATION
 # -----------------------------
+# Constantes qui servent à en composer d'autres ou qui dépendent de l'exécution
 
-# -----------------------------
-# FLAGS UTILISATEUR — MODIFIER ICI SI BESOIN
-# Regroupés en tête de la configuration pour être faciles à repérer.
-# -----------------------------
-LOG_TO_FILE = True
-ADD_CODEC_NAME_IN_OUTPUT = False
-ADD_WITHOUTBG_IN_NAME_IN_OUTPUT = False
-ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT = True
-IMAGE_REDUCTOR_JPEG_QUALITY = 95
-VIDEO_ASSEMBLOR_ADD_DATE_SUBTITLES = True
-PRINT_ALL_KEYS_IN_METADATA_SUMMARY = False
-
-# paths
+# paths (dépendent de l'emplacement du fichier, calculés à l'exécution)
 ROOT = Path(__file__).resolve().parents[1]
 LOG_DIR = ROOT / "log"
 INPUT_DIR = ROOT / "data" / "input"
@@ -108,11 +100,6 @@ SUFFIX_OUTPUT = [
     SUFFIX_OUTPUT_VIDEO, SUFFIX_OUTPUT_IMAGE, SUFFIX_OUTPUT_PDF
 ]
 
-# Image slideshow
-IMAGE_DIAPO_DURATION_SECONDS = 5.0
-IMAGE_DIAPO_FPS = 24
-IMAGE_DIAPO_MAX_HEIGHT = 2160
-
 # Define a constant for the mandatory prefix in the watermark text for PDFs
 WATERMARK_PREFIX = "document exclusivement destiné à "
 
@@ -120,6 +107,8 @@ WATERMARK_PREFIX = "document exclusivement destiné à "
 # -----------------------------
 # INSTANCE UNIQUE DE CONFIGURATION
 # -----------------------------
+# Les flags et valeurs par défaut (LOG_TO_FILE, etc.) sont définis directement
+# dans la classe AppConfig au dessus.
 
 APP_CONFIG = AppConfig(
     # Accepted files
@@ -146,18 +135,4 @@ APP_CONFIG = AppConfig(
     INPUT_DIR=INPUT_DIR,
     OUTPUT_DIR=OUTPUT_DIR,
     SEGMENT_DIR=SEGMENT_DIR,
-
-    # Flags
-    LOG_TO_FILE=LOG_TO_FILE,
-    ADD_CODEC_NAME_IN_OUTPUT=ADD_CODEC_NAME_IN_OUTPUT,
-    PRINT_ALL_KEYS_IN_METADATA_SUMMARY=PRINT_ALL_KEYS_IN_METADATA_SUMMARY,
-    ADD_WITHOUTBG_IN_NAME_IN_OUTPUT=ADD_WITHOUTBG_IN_NAME_IN_OUTPUT,
-    ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT=ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT,
-    IMAGE_REDUCTOR_JPEG_QUALITY=IMAGE_REDUCTOR_JPEG_QUALITY,
-    VIDEO_ASSEMBLOR_ADD_DATE_SUBTITLES=VIDEO_ASSEMBLOR_ADD_DATE_SUBTITLES,
-
-    # Image slideshow
-    IMAGE_DIAPO_DURATION_SECONDS=IMAGE_DIAPO_DURATION_SECONDS,
-    IMAGE_DIAPO_FPS=IMAGE_DIAPO_FPS,
-    IMAGE_DIAPO_MAX_HEIGHT=IMAGE_DIAPO_MAX_HEIGHT,
 )
