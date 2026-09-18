@@ -254,7 +254,7 @@ def video_assemblor(cfg: AppConfig) -> bool:
                     sequence,
                     clips,
                     candidate_path,
-                    display_duration=cfg.IMAGE_DIAPO_DURATION_SECONDS
+                    display_duration=cfg.SRT_DURATION_SECONDS
                 ):
                     subtitle_paths.append(candidate_path)
                 else:
