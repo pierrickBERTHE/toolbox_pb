@@ -23,6 +23,7 @@ Test Coverage (functional tests):
 # general imports
 import sys
 from pathlib import Path
+from dataclasses import replace
 from unittest import mock
 import pytest
 
@@ -83,8 +84,38 @@ def fake_config(tmp_path):
 
         LOG_TO_FILE=False,
         ADD_CODEC_NAME_IN_OUTPUT=False,
-        PRINT_ALL_KEYS_IN_METADATA_SUMMARY=False
+        PRINT_ALL_KEYS_IN_METADATA_SUMMARY=False,
+        VIDEO_ASSEMBLOR_ADD_DATE_SUBTITLES=False,
     )
+
+
+@pytest.fixture(autouse=True)
+def mock_input_subtitle_retiming():
+    """Assembly unit tests do not need FFmpeg to inspect fictional videos."""
+    with mock.patch(
+        "video.main_video.func_vid.write_video_assemblor_input_subtitles_srt",
+        return_value=False,
+    ):
+        yield
+
+
+@pytest.fixture(autouse=True)
+def mock_frame_rate_normalization():
+    """
+    Assembly unit tests use empty placeholder files (``.touch()``), so any
+    real call to FFprobe/FFmpeg for FPS-consistency checks would fail. These
+    two helpers are patched to their pass-through / identity behaviour (the
+    behaviour they have when a source has no inconsistent timing), so tests
+    stay isolated from the filesystem and from FFmpeg.
+    """
+    with mock.patch(
+        "video.main_video.func_vid.prepare_video_for_assembly",
+        side_effect=lambda path, *args, **kwargs: path,
+    ) as m_prepare, mock.patch(
+        "video.main_video.func_vid.normalize_video_clips_fps",
+        side_effect=lambda clips, output_fps=None: (clips, output_fps),
+    ) as m_fps:
+        yield m_prepare, m_fps
 
 
 # -----------------------------
@@ -93,11 +124,20 @@ def fake_config(tmp_path):
 
 def test_video_assemblor_no_segments(fake_config):
     """Test assembly when no segments.csv exists."""
+    fake_config = replace(fake_config, VIDEO_ASSEMBLOR_ADD_DATE_SUBTITLES=True)
     with mock.patch("video.main_video.func_vid.resolve_video_sequence") as m_seq, \
         mock.patch("video.main_video.func_vid.load_and_trim_clip") as m_load, \
         mock.patch("video.main_video.func_vid.normalize_audio", side_effect=lambda x: x) as m_norm, \
+        mock.patch(
+            "video.main_video.func_vid.normalize_video_clips_to_frame",
+            side_effect=lambda clips, max_height: clips,
+        ) as m_frame, \
         mock.patch("video.main_video.func_vid.concatenate_videoclips") as m_concat, \
         mock.patch("video.main_video.func_vid.write_video_file") as m_write, \
+        mock.patch(
+            "video.main_video.func_vid.write_video_assemblor_date_srt",
+            return_value=True,
+        ) as m_dates, \
         mock.patch("video.main_video.func_vid.get_all_metadata", return_value={"format": {"size": 1000}}), \
         mock.patch("video.main_video.func_vid.print_metadata_diff_summary"), \
         mock.patch(
@@ -132,6 +172,11 @@ def test_video_assemblor_no_segments(fake_config):
         # Assertions
         m_seq.assert_called_once()
         assert m_load.call_count == 2
+        m_frame.assert_called_once_with(
+            [mock_clip, mock_clip], max_height=fake_config.IMAGE_DIAPO_MAX_HEIGHT
+        )
+        m_dates.assert_called_once()
+        assert m_write.call_args.kwargs["subtitle_paths"]
         m_concat.assert_called_once()
         m_write.assert_called_once()
         mock_clip.close.assert_called()
