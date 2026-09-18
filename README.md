@@ -7,17 +7,20 @@ Le projet fournit une interface console interactive qui lit les fichiers depuis 
 ## Fonctionnalites
 
 Fonctionnalites actuellement disponibles dans le menu principal :
-
+`-- VIDEO --`
 - `Video_encodor` : reencode chaque video du dossier d'entree avec les codecs configures. Une barre de progression, les comparaisons de taille et un bilan global sont affiches. Il ne copie pas les images : elles sont reservees a `Image_reductor`. Le MP4 de sortie contient un commentaire de suivi de traitement.
-- `Video_assemblor` : assemble plusieurs videos en un seul fichier. Si `data/segment/segments.csv` existe, il definit l'ordre des clips et leurs points de debut/fin ; sinon, les videos sont assemblees dans l'ordre des noms de fichiers. Le MP4 assemble contient un commentaire de suivi de traitement.
+- `Video_assemblor` : assemble plusieurs videos en un seul fichier. Si `data/segment/segments.csv` existe, il definit l'ordre des clips et leurs points de debut/fin ; sinon, les videos sont assemblees dans l'ordre des noms de fichiers. Chaque clip est redimensionne sans deformation pour remplir toute la hauteur de la trame commune ; les formats portrait et paysage peuvent donc etre assembles sans bandes en haut ou en bas. Les sous-titres deja integres aux sources sont conserves et leurs timings sont recalcules ; une piste de dates est ajoutee si le flag correspondant est active. Le MP4 assemble contient un commentaire de suivi de traitement.
 - `Video_audio_decalator` : avance ou retarde la piste audio d'une video sans reencoder le flux video.
 - `Video_volume_adjust` : applique des variations de volume audio sur des plages temporelles definies dans `data/segment/boosts.csv`, sans reencoder le flux video.
 - `Video_srt_integrator` : integre `data/segment/sous_titre.srt` comme piste de sous-titres MP4 aux videos du dossier d'entree, sans reencoder l'audio ou la video.
+`-- IMAGE --`
 - `Image_defilor` : genere une video verticale defilante pour chaque image source et, pour les PDF, une video par image extraite de chaque page. La hauteur, la vitesse, le FPS, les temps d'arret et le codec sont parametrables.
 - `Image_reductor` : reduit les photos JPEG/PNG sans changer leur format ni leurs dimensions. Une barre de progression, la comparaison de poids globale et un bilan des images compressees, intactes et deja traitees sont affiches. Les JPEG sont reencodes en qualite 95, les PNG sont optimises sans perte ; orientation EXIF, profil colorimetrique et transparence sont conserves. Les images non allegeables et les documents non-video sont copies intacts ; les videos compatibles sont reservees a `Video_encodor`. Les copies JPEG incluent un commentaire de suivi de traitement.
 - `Image_diapo_video_creator` : assemble toutes les photos du dossier d'entree dans une seule video avec une duree configurable par photo. Les images sont redimensionnees sans deformation, a leur orientation EXIF reelle, et leur ratio est conserve. Une piste audio unique du dossier d'entree peut etre ajoutee ; les noms des photos et leurs timings sont integres comme piste de sous-titres dans le MP4.
+`-- PDF --`
 - `PDF_filigranor` : ajoute a chaque PDF un filigrane textuel diagonal repete. Le menu demande le destinataire et ajoute automatiquement le prefixe configure `document exclusivement destine a`.
 - `PDF_assemblor` : fusionne tous les PDF du dossier d'entree (et de ses sous-dossiers) dans un unique fichier, dans l'ordre alphabetique de leurs chemins relatifs.
+`-- FILE --`
 - `File_timeline_sorter` : copie les fichiers du dossier d'entree vers le dossier de sortie avec leur date de derniere modification (`AAAA-MM-JJ_HH-MM-SS__nom-original.ext`) afin que le tri alphabetique corresponde a l'ordre chronologique. Les fichiers source restent intacts.
 
 ## Prerequis
@@ -116,18 +119,33 @@ TOOLBOX_IMAGE=MON_COMPTE/toolbox-pb:1.0.0
 ```text
 toolbox_pb/
 ├── toolbox_pb/
-│   ├── main.py
-│   ├── config_global.py
-│   ├── func_global.py
+│   ├── main.py                 # menu et routage des options 1 a 12
+│   ├── config_global.py        # chemins, extensions, codecs et flags
+│   ├── func_global.py          # fonctions communes a toute l'application
+│   ├── reductor_workflow.py    # enchainement Video_encodor / Image_reductor
 │   ├── video/
-│   └── image/
+│   │   ├── main_video.py       # options 1 a 5 et 8
+│   │   └── func_video.py       # traitements FFmpeg, MoviePy et SRT
+│   ├── image/
+│   │   ├── main_image.py       # options 6, 7 et 9
+│   │   └── func_image.py       # traitements et metadonnees image
+│   ├── pdf/
+│   │   ├── main_pdf.py         # options 10 et 11
+│   │   └── func_pdf.py         # filigrane et fusion PDF
+│   └── file/
+│       ├── main_file.py        # option 12
+│       └── func_file.py        # datation et copie des fichiers
 ├── data/
-│   ├── input/
-│   ├── output/
-│   └── segment/
-├── log/
-├── tests/
-└── image/
+│   ├── input/                  # fichiers sources a traiter
+│   ├── output/                 # fichiers generes (jamais relus comme entree)
+│   └── segment/                # fichiers de parametrage CSV et SRT
+├── docs/                       # documents et diagrammes explicatifs
+├── image/                      # icones et captures du projet
+├── log/                        # journal process_log.txt si LOG_TO_FILE=True
+├── tests/                      # tests unitaires pytest
+├── Dockerfile / compose.yaml   # execution dans Docker
+├── pyproject.toml              # dependances et configuration Poetry/pytest
+└── README.md
 ```
 
 ## Flux d'utilisation
@@ -141,6 +159,41 @@ toolbox_pb/
 Le projet conserve la structure des sous-dossiers de `data/input` vers `data/output` pour la plupart des traitements.
 
 ## Fichiers attendus
+
+### Regles communes
+
+- Deposez uniquement les sources dans `data/input` ; `data/output` est reserve
+  aux resultats et n'est jamais traite comme une entree.
+- Les sous-dossiers de `data/input` sont acceptes. Ils sont conserves dans
+  `data/output` lorsque la fonctionnalite produit un fichier par source.
+- Le fichier `.gitkeep`, les dossiers et les fichiers deja presents dans
+  `data/output` sont exclus de tous les traitements.
+- Extensions video acceptees : `.avi`, `.m4v`, `.mkv`, `.mod`, `.mov`, `.mp4`,
+  `.mpg`, `.mts`, `.vob`, `.webm`.
+- Extensions image acceptees : `.jpeg`, `.jpg`, `.png`. Extensions PDF :
+  `.pdf`. Extensions audio du diaporama : `.aac`, `.flac`, `.m4a`, `.mp3`,
+  `.ogg`, `.wav`.
+
+### Par fonctionnalite
+
+| Option | Fonctionnalite | Fichiers places dans `data/input` | Fichier supplementaire dans `data/segment` | Resultat dans `data/output` |
+| --- | --- | --- | --- | --- |
+| 1 | `Video_encodor` | Une ou plusieurs videos acceptees | Aucun | Une video reencodee par source, avec la structure des sous-dossiers conservee |
+| 2 | `Video_assemblor` | Une ou plusieurs videos acceptees | `segments.csv` facultatif | Un seul MP4 `assembled_v-<codec>_a-<codec>.mp4` |
+| 3 | `Video_audio_decalator` | Une ou plusieurs videos acceptees | Aucun : le decalage, positif ou negatif, est demande dans le terminal | Une video decalee par source |
+| 4 | `Video_volume_adjust` | Une ou plusieurs videos acceptees | `boosts.csv` requis | Une video ajustee par source |
+| 5 | `Video_srt_integrator` | Une ou plusieurs videos acceptees | `sous_titre.srt` requis | Une video avec piste de sous-titres par source |
+| 6 | `Image_defilor` | Images acceptees et/ou PDF | Aucun | Une video defilante par image ou page PDF |
+| 7 | `Image_reductor` | Images, et eventuellement autres fichiers a copier | Aucun | Images reduites et copies intactes des fichiers non-video |
+| 8 | `Image_diapo_video_creator` | Images acceptees ; un audio facultatif | Aucun | Un MP4 de diaporama avec piste de sous-titres |
+| 9 | `Image_withoutbg` | Images acceptees | Aucun | Une image sans arriere-plan par source |
+| 10 | `PDF_filigranor` | Un ou plusieurs PDF | Aucun ; le destinataire est demande au menu | Un PDF filigrane par source |
+| 11 | `PDF_assemblor` | Un ou plusieurs PDF | Aucun | Un seul PDF `pdf_assemblage.pdf` |
+| 12 | `File_timeline_sorter` | Tout fichier source sauf `.gitkeep` | Aucun | Une copie par fichier, prefixee par sa date de modification |
+
+`Video_assemblor` et `PDF_assemblor` classent leurs entrees par chemin relatif
+dans `data/input` lorsqu'aucun ordre explicite n'est fourni. Pour les autres
+fonctionnalites, l'ordre n'a d'importance que lorsqu'il est indique ci-dessous.
 
 ### `data/segment/segments.csv`
 
@@ -161,7 +214,14 @@ clip_02.mp4,00:00:00,00:00:08
 clip_01.mp4,00:00:20,00:00:30
 ```
 
-Si ce fichier n'existe pas, toutes les videos du dossier d'entree sont assemblees dans l'ordre.
+Ce fichier est facultatif. Chaque ligne choisit une video, son ordre et la
+plage a conserver. Un meme fichier peut etre present plusieurs fois. Les temps
+acceptent `HH:MM:SS`, `MM:SS` ou un nombre de secondes.
+
+Si ce fichier n'existe pas, toutes les videos de `data/input` et de ses
+sous-dossiers sont assemblees par ordre alphabetique de leur chemin relatif.
+Les sous-titres deja contenus dans les videos sont conserves et leurs timings
+sont recalcules dans la nouvelle video.
 
 ### `data/segment/boosts.csv`
 
@@ -183,6 +243,9 @@ start,end,gain_db
 
 La valeur `gain_db` est volontairement limitee a `+/- 20 dB`.
 
+Chaque ligne applique le gain indique entre `start` et `end`. Les temps
+acceptent le meme format que `segments.csv`.
+
 ### `data/segment/sous_titre.srt`
 
 Utilise par `Video_srt_integrator`.
@@ -198,6 +261,19 @@ Bonjour
 00:00:04,000 --> 00:00:06,000
 Sous-titre de demonstration
 ```
+
+Le meme fichier SRT est integre a chaque video source traitee par l'option 5.
+
+### Aucun fichier de parametrage requis
+
+- `Video_encodor`, `Video_audio_decalator`, `Image_reductor`,
+  `Image_withoutbg`, `PDF_filigranor`, `PDF_assemblor` et
+  `File_timeline_sorter` ne demandent aucun fichier dans `data/segment`.
+- `Image_defilor` se configure au lancement par les options affichees dans le
+  menu ; voir la section suivante pour les parametres disponibles.
+- `Image_diapo_video_creator` accepte un seul fichier audio facultatif dans
+  `data/input`, en plus des images. S'il y a plusieurs fichiers audio, il faut
+  n'en laisser qu'un pour obtenir un resultat non ambigu.
 
 ## Diaporama video (`Image_diapo_video_creator`)
 
@@ -327,6 +403,12 @@ Flags disponibles :
 - `IMAGE_REDUCTOR_JPEG_QUALITY` : règle la qualité JPEG du réducteur, de `0`
   à `100`
 - `PRINT_ALL_KEYS_IN_METADATA_SUMMARY` : affiche toutes les metadonnees FFprobe
+- `VIDEO_ASSEMBLOR_ADD_DATE_SUBTITLES` : ajoute une piste SRT de date au fichier
+  assemble. Chaque date trouvee dans le nom d'une video source est affichee au
+  debut de son clip pendant cinq secondes, au format `JJ/MM/AAAA`. Les pistes
+  de sous-titres deja presentes dans les videos sources sont aussi conservees,
+  recadrees si un segment est selectionne, puis decalees sur la nouvelle
+  chronologie de l'assemblage.
 
 ## Tests
 

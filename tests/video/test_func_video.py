@@ -45,7 +45,9 @@ from video.func_video import (
     apply_audio_boosts_ffmpeg,
     apply_video_srt_ffmpeg,
     build_image_subtitle,
+    extract_date_from_filename,
     create_image_diapo_ffmpeg,
+    fit_visual_size_in_frame,
     fit_image_size_in_frame,
     format_srt_timestamp,
     count_cpu_threads,
@@ -66,12 +68,19 @@ from video.func_video import (
     resolve_video_sequence,
     load_and_trim_clip,
     normalize_audio,
+    get_video_frame_size,
+    normalize_video_clips_to_frame,
+    get_video_output_fps,
+    normalize_video_clips_fps,
     write_video_file,
     get_inputs_metadata,
     sum_input_sizes,
     compute_size_reduction_from_inputs,
     shift_audio_no_reencode,
     write_image_diapo_srt,
+    write_video_assemblor_date_srt,
+    parse_srt_cues,
+    write_video_assemblor_input_subtitles_srt,
 )
 from func_global import Logger
 
@@ -850,6 +859,49 @@ def test_write_video_file_passes_explicit_fps_when_requested(tmp_path):
     assert input_clip.write_videofile.call_args.kwargs["fps"] == 24
 
 
+@patch("video.func_video._run_ffmpeg_silently")
+def test_write_video_file_muxes_optional_srt_stream(mock_ffmpeg, tmp_path):
+    """An optional SRT file is added as a mov_text stream in the final MP4."""
+    input_clip = MagicMock()
+    subtitles_path = tmp_path / "dates.srt"
+    subtitles_path.write_text("1\n00:00:00,000 --> 00:00:05,000\n01/01/2024\n")
+
+    with mock.patch("video.func_video.count_cpu_threads", return_value=4):
+        write_video_file(
+            final_clip=input_clip,
+            output_path=tmp_path / "out.mp4",
+            codec_video="libx265",
+            codec_audio="aac",
+            processing_comment="toolbox_pb | Traitements : 1",
+            subtitles_path=subtitles_path,
+        )
+
+    command = mock_ffmpeg.call_args.args[0]
+    assert command[command.index("-c:s") + 1] == "mov_text"
+    assert command[command.index("-metadata") + 1] == "comment=toolbox_pb | Traitements : 1"
+    assert command[-1] == str(tmp_path / "out.mp4")
+
+
+@patch("video.func_video._run_ffmpeg_silently")
+def test_write_video_file_muxes_multiple_srt_streams(mock_ffmpeg, tmp_path):
+    """Each generated SRT file becomes its own subtitle stream."""
+    input_clip = MagicMock()
+    subtitle_paths = [tmp_path / "preserved.srt", tmp_path / "dates.srt"]
+
+    with mock.patch("video.func_video.count_cpu_threads", return_value=4):
+        write_video_file(
+            final_clip=input_clip,
+            output_path=tmp_path / "out.mp4",
+            codec_video="libx265",
+            codec_audio="aac",
+            subtitle_paths=subtitle_paths,
+        )
+
+    command = mock_ffmpeg.call_args.args[0]
+    map_values = [command[index + 1] for index, value in enumerate(command) if value == "-map"]
+    assert map_values == ["0:v:0", "0:a?", "1:0", "2:0"]
+
+
 @patch("video.func_video.subprocess.run")
 @patch("video.func_video.subprocess.Popen")
 @patch("video.func_video.consume_ffmpeg_progress", return_value=[])
@@ -899,6 +951,57 @@ def test_fit_image_size_in_frame_fills_frame_height():
     assert fit_image_size_in_frame((3000, 4000), (1920, 1080)) == (810, 1080)
 
 
+def test_fit_visual_size_in_frame_is_shared_by_images_and_videos():
+    """The generic sizing helper preserves a visual source ratio at full height."""
+    assert fit_visual_size_in_frame((1920, 1080), (0, 1920)) == (3412, 1920)
+
+
+def test_get_video_frame_size_uses_full_height_and_widest_scaled_clip():
+    """Landscape and portrait clips receive one common full-height frame."""
+    landscape = MagicMock(size=(1920, 1080))
+    portrait = MagicMock(size=(1080, 1920))
+
+    assert get_video_frame_size([landscape, portrait]) == (3412, 1920)
+
+
+def test_normalize_video_clips_to_frame_scales_and_centers_each_clip():
+    """Every video clip fills the shared height and is centered in the frame."""
+    landscape = MagicMock(size=(1920, 1080))
+    portrait = MagicMock(size=(1080, 1920))
+    landscape_scaled = MagicMock()
+    portrait_scaled = MagicMock()
+    landscape.resized.return_value = landscape_scaled
+    portrait.resized.return_value = portrait_scaled
+
+    normalized = normalize_video_clips_to_frame([landscape, portrait])
+
+    landscape.resized.assert_called_once_with(new_size=(3412, 1920))
+    portrait.resized.assert_called_once_with(new_size=(1080, 1920))
+    landscape_scaled.with_background_color.assert_called_once_with(
+        size=(3412, 1920), color=(0, 0, 0), pos=("center", "center")
+    )
+    portrait_scaled.with_background_color.assert_called_once_with(
+        size=(3412, 1920), color=(0, 0, 0), pos=("center", "center")
+    )
+    assert len(normalized) == 2
+
+
+def test_normalize_video_clips_fps_uses_highest_source_fps():
+    """Mixed-FPS clips use one export cadence without changing duration."""
+    first = MagicMock(fps=25.0, duration=10.0)
+    second = MagicMock(fps=50.0, duration=12.0)
+
+    normalized, fps = normalize_video_clips_fps([first, second])
+
+    assert get_video_output_fps([first, second]) == 50.0
+    assert fps == 50.0
+    first.with_fps.assert_called_once_with(50.0)
+    second.with_fps.assert_called_once_with(50.0)
+    assert len(normalized) == 2
+    assert first.duration == 10.0
+    assert second.duration == 12.0
+
+
 def test_get_image_size_applies_exif_orientation(tmp_path):
     """A rotated JPEG is sized from its displayed orientation, not raw pixels."""
     image_path = tmp_path / "rotated.jpg"
@@ -923,6 +1026,54 @@ def test_write_image_diapo_srt_records_each_image_timing(tmp_path):
     assert output_path.read_text(encoding="utf-8") == (
         "1\n00:00:00,000 --> 00:00:02,500\nfirst\n\n"
         "2\n00:00:02,500 --> 00:00:05,000\nnested/second\n"
+    )
+
+
+@pytest.mark.parametrize(
+    ("filename", "expected"),
+    [
+        ("2024-07-03 vacances.mp4", "03/07/2024"),
+        ("04_12_2023 anniversaire.mov", "04/12/2023"),
+        ("20240105_video.mp4", "05/01/2024"),
+        ("2024-99-44 invalide.mp4", None),
+    ],
+)
+def test_extract_date_from_filename(filename, expected):
+    """Video filename dates are validated then displayed in French order."""
+    assert extract_date_from_filename(Path(filename)) == expected
+
+
+def test_parse_srt_cues_keeps_multiline_text_and_dot_separator():
+    """Input subtitle content is normalised without losing text."""
+    assert parse_srt_cues(
+        "1\n00:00:01.250 --> 00:00:03,500\nBonjour\nsur deux lignes\n"
+    ) == [(1250, 3500, "Bonjour\nsur deux lignes")]
+
+
+@patch("video.func_video.get_video_subtitle_cues")
+def test_input_subtitles_are_clipped_and_shifted_for_assembly(mock_cues, tmp_path):
+    """Existing cues keep the correct timing after trimming and concatenation."""
+    first = tmp_path / "first.mp4"
+    second = tmp_path / "second.mp4"
+    mock_cues.side_effect = [
+        [(1_000, 4_000, "premier"), (8_000, 12_000, "hors segment")],
+        [(0, 2_000, "second")],
+    ]
+    sequence = [
+        {"path": first, "start": 2.0, "end": 6.0},
+        {"path": second, "start": None, "end": None},
+    ]
+    clips = [MagicMock(duration=4.0), MagicMock(duration=6.0)]
+    output_path = tmp_path / "preserved.srt"
+    temporary_dir = tmp_path / "temporary"
+    temporary_dir.mkdir()
+
+    assert write_video_assemblor_input_subtitles_srt(
+        sequence, clips, output_path, temporary_dir
+    ) is True
+    assert output_path.read_text(encoding="utf-8") == (
+        "1\n00:00:00,000 --> 00:00:02,000\npremier\n\n"
+        "2\n00:00:04,000 --> 00:00:06,000\nsecond\n"
     )
 
 

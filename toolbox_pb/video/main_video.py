@@ -10,6 +10,8 @@ Décembre 2025
 # import custom librairies
 import filecmp
 import subprocess
+import tempfile
+from pathlib import Path
 from tqdm import tqdm
 from config_global import AppConfig
 import toolbox_pb.video.func_video as func_vid
@@ -192,39 +194,92 @@ def video_assemblor(cfg: AppConfig) -> bool:
             print(f"- {file}")
         print ()
 
+        # Rewrite only sources with contradictory FPS metadata before MoviePy
+        # reads them.
+        source_temp_dir = tempfile.TemporaryDirectory(
+            prefix="video_assembly_source_"
+        )
+        prepared_paths = [
+            func_vid.prepare_video_for_assembly(
+                item["path"],
+                Path(source_temp_dir.name),
+                index,
+                config["codec_v"],
+                config["codec_a"],
+            )
+            for index, item in enumerate(sequence)
+        ]
+
         # Load clips
-        clips = []
-        for item in sequence:
-            clips.append(
+        loaded_clips = []
+        for item, prepared_path in zip(sequence, prepared_paths):
+            loaded_clips.append(
                 func_vid.load_and_trim_clip(
-                    item["path"],
+                    prepared_path,
                     item["start"],
                     item["end"]
                 )
             )
 
-        # Audio safety
-        clips = func_vid.normalize_audio(clips)
+        # Audio safety, then give every clip the same full-height frame.
+        source_clips = func_vid.normalize_audio(loaded_clips)
+
+        # each source keeps its ratio, fills the full frame height and is centred.
+        clips = func_vid.normalize_video_clips_to_frame(
+            source_clips,
+            max_height=cfg.IMAGE_DIAPO_MAX_HEIGHT,
+        )
+
+        # Normalize FPS to the highest among all clips, to avoid MoviePy errors.
+        clips, output_fps = func_vid.normalize_video_clips_fps(clips)
 
         # Concatenate
         final_clip = func_vid.concatenate_videoclips(clips, method="compose")
 
-        # Write the final video file
-        func_vid.write_video_file(
-            final_clip=final_clip,
-            output_path=output_path,
-            codec_video=config['codec_v'],
-            codec_audio=config['codec_a'],
-            processing_comment=func_glob.build_video_processing_comment(
-                None, "video_assemblor", config["codec_v"], config["codec_a"]
-            ),
-        )
+        # Optionally create a temporary date subtitle file.
+        with tempfile.TemporaryDirectory(prefix="video_assemblor_") as temp_dir_name:
+            subtitle_paths = []
+            preserved_subtitles_path = Path(temp_dir_name) / "input_subtitles.srt"
+
+            # Write preserved input subtitles to a temporary SRT file if they exist.
+            if func_vid.write_video_assemblor_input_subtitles_srt(
+                sequence, source_clips, preserved_subtitles_path, Path(temp_dir_name)
+            ):
+                subtitle_paths.append(preserved_subtitles_path)
+
+            # if flag is set, create a temporary date subtitle file.
+            if cfg.VIDEO_ASSEMBLOR_ADD_DATE_SUBTITLES:
+                candidate_path = Path(temp_dir_name) / "dates.srt"
+                if func_vid.write_video_assemblor_date_srt(
+                    sequence,
+                    clips,
+                    candidate_path,
+                    display_duration=cfg.IMAGE_DIAPO_DURATION_SECONDS
+                ):
+                    subtitle_paths.append(candidate_path)
+                else:
+                    print("Aucune date valide trouvée dans les noms des vidéos.")
+
+            # Write the final video file, including preserved and date SRT streams.
+            func_vid.write_video_file(
+                final_clip=final_clip,
+                output_path=output_path,
+                codec_video=config['codec_v'],
+                codec_audio=config['codec_a'],
+                processing_comment=func_glob.build_video_processing_comment(
+                    None, "video_assemblor", config["codec_v"], config["codec_a"]
+                ),
+                subtitle_paths=subtitle_paths,
+                fps=output_fps,
+            )
         is_empty_folder = False
 
         # Cleanup
-        for clip in clips:
+        all_clips = [*loaded_clips, *source_clips, *clips]
+        for clip in {id(clip): clip for clip in all_clips}.values():
             clip.close()
         final_clip.close()
+        source_temp_dir.cleanup()
 
         # ------------- COMPARE METADATA BEFORE/AFTER -------------
         func_glob.print_step(2, "Comparaison des fichiers avant/après")
