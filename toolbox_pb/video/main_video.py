@@ -412,6 +412,47 @@ def video_volume_adjust(cfg: AppConfig) -> bool:
     return is_empty_folder
 
 
+def video_srt_extractor(cfg: AppConfig) -> bool:
+    """
+    Extract SRT subtitles from video files in the input directory.
+
+    Each video with an embedded subtitle stream is copied to the output
+    directory without that stream, and the subtitles are saved as a
+    standalone .srt file with the same name next to it. Videos without any
+    subtitle stream are skipped entirely (nothing written to output).
+    """
+    # Import configuration
+    config = func_glob.parse_config(cfg)
+
+    # ------------- LOOP THROUGH ALL FILES IN INPUT DIR -------------
+    is_empty_folder = True
+    for input_file in config["input_dir"].rglob('*'):
+
+        # ------- IGNORE NON-VIDEO FILES AND DIRECTORIES -------
+        if not func_glob.is_processable_file(input_file) or input_file.suffix.lower() not in config["accepted_file"]:
+            continue
+
+        # create file output paths (video + sidecar SRT)
+        stem_file = input_file.stem
+        output_path = (
+            config["output_dir"] / f"{stem_file}{config['suffix']}"
+        )
+        srt_output_path = config["output_dir"] / f"{stem_file}.srt"
+
+        # Check if already extracted
+        if output_path.exists():
+            print("Extraction des sous-titres déjà réalisée.")
+        else:
+            func_vid.extract_video_srt_ffmpeg(
+                input_video=input_file,
+                output_video=output_path,
+                srt_output_path=srt_output_path,
+            )
+        is_empty_folder = False
+
+    return is_empty_folder
+
+
 def video_srt_integrator(cfg: AppConfig) -> bool:
     """
     Integrate SRT subtitles into video files in the input directory.
