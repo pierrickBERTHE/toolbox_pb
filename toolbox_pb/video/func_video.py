@@ -1696,3 +1696,68 @@ def apply_video_srt_ffmpeg(
     except subprocess.CalledProcessError as exc:
         print(f"❌ Erreur lors de l'ajout des SRT : {output_video}")
         raise
+
+
+def extract_video_srt_ffmpeg(
+    input_video: str,
+    output_video: str,
+    srt_output_path: str,
+) -> None:
+    """
+    Extract an embedded subtitle stream from a video into a standalone SRT
+    file, and write a copy of the video without any subtitle stream.
+    Everything is remuxed without re-encoding video/audio. Videos without
+    any subtitle stream are left untouched: nothing is written to output.
+    """
+    # Detect whether the input video actually has a subtitle stream
+    probe_cmd = [
+        "ffprobe", "-v", "error", "-select_streams", "s",
+        "-show_entries", "stream=index", "-of", "csv=p=0",
+        str(input_video),
+    ]
+    try:
+        probe_result = subprocess.run(
+            probe_cmd, capture_output=True, text=True, check=True
+        )
+    except subprocess.CalledProcessError as exc:
+        print(f"⚠️ Impossible d'analyser les flux de {input_video} : {exc}")
+        raise
+
+    # No subtitle stream found: skip entirely, nothing written to output
+    if not probe_result.stdout.strip():
+        print(f"ℹ️ Aucun sous-titre à extraire : {input_video}\n")
+        return
+
+    # Build FFmpeg command with two outputs in a single pass:
+    # 1. the video re-muxed without its subtitle stream
+    # 2. the subtitle stream alone, converted to a standalone .srt file
+    cmd = [
+        "ffmpeg",
+        "-i", str(input_video),
+        "-map", "0:v",
+        "-map", "0:a?",
+        "-c", "copy",
+        "-y",
+        str(output_video),
+        "-map", "0:s:0",
+        "-c:s", "srt",
+        "-y",
+        str(srt_output_path),
+    ]
+
+    # Execute FFmpeg command and handle errors with detailed output
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+
+        if result.returncode != 0:
+            print(f"⚠️ FFmpeg stdout:\n{result.stdout}")
+            print(f"⚠️ FFmpeg stderr:\n{result.stderr}")
+            raise subprocess.CalledProcessError(result.returncode, cmd)
+
+        print(f"✅ Sous-titres extraits : {srt_output_path}")
+        print(f"✅ Vidéo sans sous-titres : {output_video}\n")
+
+    # Handle errors and print FFmpeg output for debugging
+    except subprocess.CalledProcessError as exc:
+        print(f"❌ Erreur lors de l'extraction des SRT : {output_video}")
+        raise

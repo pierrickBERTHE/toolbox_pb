@@ -15,6 +15,7 @@ from video.main_video import (
     video_encodor,
     video_assemblor,
     video_audio_decalator,
+    video_srt_extractor,
     video_volume_adjust,
     video_srt_integrator,
     image_diapo_video_creator,
@@ -84,21 +85,22 @@ def main(cfg : AppConfig):
     print("02. Vidéo_assemblor")
     print("03. Vidéo_audio_decalator")
     print("04. Vidéo_volume_adjust")
-    print("05. Vidéo_srt_integrator")
+    print("05. Vidéo_srt_extractor")
+    print("06. Vidéo_srt_integrator")
     print("\n-- IMAGE --")
-    print("06. Image_defilor")
-    print("07. Image_reductor")
-    print("08. Image_diapo_video_creator")
-    print("09. Image_withoutbg")
+    print("07. Image_defilor")
+    print("08. Image_reductor")
+    print("09. Image_diapo_video_creator")
+    print("10. Image_withoutbg")
     print("\n-- PDF --")
-    print("10. PDF_filigranor")
-    print("11. PDF_assemblor")
+    print("11. PDF_filigranor")
+    print("12. PDF_assemblor")
     print("\n-- FILE --")
-    print("12. File_timeline_sorter")
-    print("\n13. Quitter")
+    print("13. File_timeline_sorter")
+    print("\n14. Quitter")
 
     # Get user choice
-    choix = input("\nSélectionnez une option (1-13) : ")
+    choix = input("\nSélectionnez une option (1-14) : ")
     # choix = "5"
 
     # Default value if selected action does not return a folder-state flag.
@@ -128,14 +130,18 @@ def main(cfg : AppConfig):
             is_empty_folder = video_volume_adjust(cfg)
 
         case "5":
-            print("\nLancement du Vidéo_srt_integrator...")
-            is_empty_folder = video_srt_integrator(cfg)
+            print("\nLancement du video_srt_extractor...")
+            is_empty_folder = video_srt_extractor(cfg)
 
         case "6":
+            print("\nLancement du Video_srt_integrator...")
+            is_empty_folder = video_srt_integrator(cfg)
+
+        case "7":
             print("\nLancement du Image_defilor...")
             is_empty_folder = run_image_defilor_interactive(cfg)
 
-        case "7":
+        case "8":
             print("\nLancement du Image_reductor...")
             is_empty_folder = image_reductor(cfg)
             complementary_is_empty = reductor_workflow._run_complementary_reductor(
@@ -144,30 +150,30 @@ def main(cfg : AppConfig):
             if complementary_is_empty is not None:
                 is_empty_folder = is_empty_folder and complementary_is_empty
 
-        case "8":
+        case "9":
             print("\nLancement du Image_diapo_video_creator...")
             is_empty_folder = image_diapo_video_creator(cfg)
 
-        case "9":
+        case "10":
             print("\nLancement du Image_withoutbg...")
             is_empty_folder = image_withoutbg(cfg)
 
-        case "10":
+        case "11":
             print("\nLancement du PDF_filigranor...")
             watermark_recipient = input(
                 "\nEntrez le nom du destinataire du filigrane: "
             ).strip()
             is_empty_folder = pdf_filigranor(cfg, watermark_recipient)
 
-        case "11":
+        case "12":
             print("\nLancement du PDF_assemblor...")
             is_empty_folder = pdf_assemblor(cfg)
 
-        case "12":
+        case "13":
             print("\nLancement du File_timeline_sorter...")
             is_empty_folder = file_timeline_sorter(cfg)
 
-        case "13":
+        case "14":
             print("Quitter l'application. Au revoir !")
             sys.exit(0)
 

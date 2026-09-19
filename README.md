@@ -12,6 +12,7 @@ Fonctionnalites actuellement disponibles dans le menu principal :
 - `Video_assemblor` : assemble plusieurs videos en un seul fichier. Si `data/segment/segments.csv` existe, il definit l'ordre des clips et leurs points de debut/fin ; sinon, les videos sont assemblees dans l'ordre des noms de fichiers. Chaque clip est redimensionne sans deformation pour remplir toute la hauteur de la trame commune ; les formats portrait et paysage peuvent donc etre assembles sans bandes en haut ou en bas. Les sous-titres deja integres aux sources sont conserves et leurs timings sont recalcules ; une piste de dates est ajoutee si le flag correspondant est active. Le MP4 assemble contient un commentaire de suivi de traitement.
 - `Video_audio_decalator` : avance ou retarde la piste audio d'une video sans reencoder le flux video.
 - `Video_volume_adjust` : applique des variations de volume audio sur des plages temporelles definies dans `data/segment/boosts.csv`, sans reencoder le flux video.
+- `Video_srt_extractor` : extrait la piste de sous-titres deja integree a chaque video du dossier d'entree vers un fichier `.srt` independant place a cote de la video, et produit une copie de la video sans cette piste, sans reencoder l'audio ou la video. Les videos sans piste de sous-titres sont ignorees : rien n'est ecrit dans `data/output` pour elles.
 - `Video_srt_integrator` : integre `data/segment/sous_titre.srt` comme piste de sous-titres MP4 aux videos du dossier d'entree, sans reencoder l'audio ou la video.
 `-- IMAGE --`
 - `Image_defilor` : genere une video verticale defilante pour chaque image source et, pour les PDF, une video par image extraite de chaque page. La hauteur, la vitesse, le FPS, les temps d'arret et le codec sont parametrables.
@@ -119,21 +120,21 @@ TOOLBOX_IMAGE=MON_COMPTE/toolbox-pb:1.0.0
 ```text
 toolbox_pb/
 ├── toolbox_pb/
-│   ├── main.py                 # menu et routage des options 1 a 12
+│   ├── main.py                 # menu et routage des options 1 a 14
 │   ├── config_global.py        # chemins, extensions, codecs et flags
 │   ├── func_global.py          # fonctions communes a toute l'application
 │   ├── reductor_workflow.py    # enchainement Video_encodor / Image_reductor
 │   ├── video/
-│   │   ├── main_video.py       # options 1 a 5 et 8
+│   │   ├── main_video.py       # options 1 a 6 et 9
 │   │   └── func_video.py       # traitements FFmpeg, MoviePy et SRT
 │   ├── image/
-│   │   ├── main_image.py       # options 6, 7 et 9
+│   │   ├── main_image.py       # options 7, 8 et 10
 │   │   └── func_image.py       # traitements et metadonnees image
 │   ├── pdf/
-│   │   ├── main_pdf.py         # options 10 et 11
+│   │   ├── main_pdf.py         # options 11 et 12
 │   │   └── func_pdf.py         # filigrane et fusion PDF
 │   └── file/
-│       ├── main_file.py        # option 12
+│       ├── main_file.py        # option 13
 │       └── func_file.py        # datation et copie des fichiers
 ├── data/
 │   ├── input/                  # fichiers sources a traiter
@@ -182,14 +183,15 @@ Le projet conserve la structure des sous-dossiers de `data/input` vers `data/out
 | 2 | `Video_assemblor` | Une ou plusieurs videos acceptees | `segments.csv` facultatif | Un seul MP4 `assembled_v-<codec>_a-<codec>.mp4` |
 | 3 | `Video_audio_decalator` | Une ou plusieurs videos acceptees | Aucun : le decalage, positif ou negatif, est demande dans le terminal | Une video decalee par source |
 | 4 | `Video_volume_adjust` | Une ou plusieurs videos acceptees | `boosts.csv` requis | Une video ajustee par source |
-| 5 | `Video_srt_integrator` | Une ou plusieurs videos acceptees | `sous_titre.srt` requis | Une video avec piste de sous-titres par source |
-| 6 | `Image_defilor` | Images acceptees et/ou PDF | Aucun | Une video defilante par image ou page PDF |
-| 7 | `Image_reductor` | Images, et eventuellement autres fichiers a copier | Aucun | Images reduites et copies intactes des fichiers non-video |
-| 8 | `Image_diapo_video_creator` | Images acceptees ; un audio facultatif | Aucun | Un MP4 de diaporama avec piste de sous-titres |
-| 9 | `Image_withoutbg` | Images acceptees | Aucun | Une image sans arriere-plan par source |
-| 10 | `PDF_filigranor` | Un ou plusieurs PDF | Aucun ; le destinataire est demande au menu | Un PDF filigrane par source |
-| 11 | `PDF_assemblor` | Un ou plusieurs PDF | Aucun | Un seul PDF `pdf_assemblage.pdf` |
-| 12 | `File_timeline_sorter` | Tout fichier source sauf `.gitkeep` | Aucun | Une copie par fichier, prefixee par sa date de modification |
+| 5 | `Video_srt_extractor` | Une ou plusieurs videos acceptees | Aucun | Pour chaque video contenant une piste de sous-titres : un fichier `.srt` et une copie de la video sans cette piste. Les videos sans sous-titres sont ignorees : rien n'est ecrit |
+| 6 | `Video_srt_integrator` | Une ou plusieurs videos acceptees | `sous_titre.srt` requis | Une video avec piste de sous-titres par source |
+| 7 | `Image_defilor` | Images acceptees et/ou PDF | Aucun | Une video defilante par image ou page PDF |
+| 8 | `Image_reductor` | Images, et eventuellement autres fichiers a copier | Aucun | Images reduites et copies intactes des fichiers non-video |
+| 9 | `Image_diapo_video_creator` | Images acceptees ; un audio facultatif | Aucun | Un MP4 de diaporama avec piste de sous-titres |
+| 10 | `Image_withoutbg` | Images acceptees | Aucun | Une image sans arriere-plan par source |
+| 11 | `PDF_filigranor` | Un ou plusieurs PDF | Aucun ; le destinataire est demande au menu | Un PDF filigrane par source |
+| 12 | `PDF_assemblor` | Un ou plusieurs PDF | Aucun | Un seul PDF `pdf_assemblage.pdf` |
+| 13 | `File_timeline_sorter` | Tout fichier source sauf `.gitkeep` | Aucun | Une copie par fichier, prefixee par sa date de modification |
 
 `Video_assemblor` et `PDF_assemblor` classent leurs entrees par chemin relatif
 dans `data/input` lorsqu'aucun ordre explicite n'est fourni. Pour les autres
@@ -262,13 +264,15 @@ Bonjour
 Sous-titre de demonstration
 ```
 
-Le meme fichier SRT est integre a chaque video source traitee par l'option 5.
+Le meme fichier SRT est integre a chaque video source traitee par l'option 6.
 
 ### Aucun fichier de parametrage requis
 
-- `Video_encodor`, `Video_audio_decalator`, `Image_reductor`,
-  `Image_withoutbg`, `PDF_filigranor`, `PDF_assemblor` et
+- `Video_encodor`, `Video_audio_decalator`, `Video_srt_extractor`,
+  `Image_reductor`, `Image_withoutbg`, `PDF_filigranor`, `PDF_assemblor` et
   `File_timeline_sorter` ne demandent aucun fichier dans `data/segment`.
+  `Video_srt_extractor` lit directement la piste de sous-titres deja
+  presente dans chaque video source : aucun fichier externe n'est necessaire.
 - `Image_defilor` se configure au lancement par les options affichees dans le
   menu ; voir la section suivante pour les parametres disponibles.
 - `Image_diapo_video_creator` accepte un seul fichier audio facultatif dans
@@ -277,7 +281,7 @@ Le meme fichier SRT est integre a chaque video source traitee par l'option 5.
 
 ## Diaporama video (`Image_diapo_video_creator`)
 
-L'option `8` cree `image_diapo_video_v-<codec_video>_a-<codec_audio>.mp4` dans
+L'option `9` cree `image_diapo_video_v-<codec_video>_a-<codec_audio>.mp4` dans
 `data/output`.
 
 - Toutes les images `.jpeg`, `.jpg` et `.png` de `data/input` et de ses sous-dossiers sont prises en compte dans un ordre deterministe.
@@ -308,6 +312,22 @@ Exemple de saisie :
 --height 720 --speed 50 --fps 30 --hold-start 2 --hold-end 2 --codec libx264 --crf 20
 ```
 
+## Extraction et integration de sous-titres
+
+`Video_srt_extractor` (option `5`) et `Video_srt_integrator` (option `6`) sont
+symetriques et n'effectuent aucun reencodage audio/video (`-c copy`) : seul le
+flux de sous-titres est ajoute, retire ou converti.
+
+- `Video_srt_extractor` analyse chaque video avec `FFprobe`. Si aucune piste de
+  sous-titres n'est detectee, la video est entierement ignoree : aucun fichier
+  n'est ecrit dans `data/output` pour elle. Si une piste est detectee, la
+  premiere piste de sous-titres est extraite vers `<nom>.srt`, et une copie de
+  la video sans cette piste est ecrite a cote sous le meme nom.
+- `Video_srt_integrator` fait l'inverse : il ajoute `sous_titre.srt` comme
+  piste `mov_text` a chaque video du dossier d'entree.
+
+Ces deux options ne modifient jamais les fichiers de `data/input`.
+
 ## Reducteurs image et video
 
 Les options `Video_encodor` et `Image_reductor` traitent les fichiers de
@@ -336,25 +356,36 @@ maniere recursive et conservent les sous-dossiers de `data/input` dans
 
 Seules les fonctionnalites `Video_encodor`, `Video_assemblor` et
 `Image_reductor` inscrivent un commentaire de suivi dans le fichier genere.
-Les fichiers places dans `data/input` ne sont jamais modifies.
+`Video_srt_extractor` et `Video_srt_integrator` ne font que remuxer le flux de
+sous-titres (`-c copy`) et n'ajoutent pas de nouvelle ligne d'historique ; un
+commentaire deja present sur la video source est cependant conserve tel quel,
+puisque FFmpeg reporte les metadonnees globales du fichier d'entree par
+defaut lors d'un remux. Les fichiers places dans `data/input` ne sont jamais
+modifies.
 
-Le commentaire suit ce format :
+Le commentaire construit un historique multi-lignes, une ligne par
+traitement subi par le fichier :
 
 ```text
-toolbox_pb | Traitements : 2 | Dernier traitement : video_encodor | Vidéo : libx265 | Audio : aac
+toolbox_pb | 
+traitement n°1 : video_assemblor | Vidéo : libx265 | Audio : aac
+traitement n°2 : video_encodor | Vidéo : libx265 | Audio : aac
 ```
 
-- `Traitements` est incremente lorsqu'un fichier deja porteur de ce commentaire
-  est utilise comme source par `Video_encodor` ou `Image_reductor`.
-- `Video_assemblor` produit un nouveau fichier assemble et initialise donc son
-  compteur a `1`.
+- Une nouvelle ligne `traitement n°N : ...` est ajoutee lorsqu'un fichier deja
+  porteur de ce commentaire est utilise comme source par `Video_encodor` ou
+  `Image_reductor` ; `N` reprend le dernier numero trouve dans l'historique,
+  incremente de un.
+- `Video_assemblor` lit l'historique du fichier source pour la comparaison de
+  metadonnees mais initialise toujours le sien a `traitement n°1`, puisque le
+  fichier assemble regroupe plusieurs sources distinctes.
 - Pour les MP4, le commentaire est ajoute pendant la creation initiale du
   fichier par FFmpeg/MoviePy afin d'etre lisible dans la propriete
   **Commentaires** de l'Explorateur Windows.
 - Pour les JPEG, la valeur est ecrite dans la metadonnee EXIF `XPComment`,
   utilisee par la propriete **Commentaires** de l'Explorateur Windows. Les PNG
   contiennent aussi un champ `Comment`, dont l'affichage depend du lecteur.
-- Les autres fonctionnalites ne modifient pas ce compteur.
+- Les autres fonctionnalites ne modifient pas cet historique.
 
 ### Noms de sortie
 
