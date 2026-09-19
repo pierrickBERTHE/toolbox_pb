@@ -192,21 +192,34 @@ def build_processing_comment(
     audio_codec: str | None = None,
     image_codec: str | None = None,
 ) -> str:
-    """Build the human-readable processing comment shown by Windows Explorer."""
-    match = re.search(r"Traitements\s*:\s*(\d+)", previous_comment or "")
-    processing_count = int(match.group(1)) + 1 if match else 1
-    fields = [
-        "toolbox_pb",
-        f"Traitements : {processing_count}",
-        f"Dernier traitement : {feature}",
+    """Build the human-readable processing history shown by Windows Explorer."""
+    previous_comment = previous_comment or ""
+    lines = previous_comment.splitlines()
+
+    # keep only lines that match the expected format for processing history
+    history_lines = [
+        line for line in lines if re.match(r"\s*n_\d+\s*:", line)
     ]
+
+    # Number the next processing step based on the last one found in the history
+    last_number = 0
+    if history_lines:
+        match = re.search(r"n_(\d+)", history_lines[-1])
+        if match:
+            last_number = int(match.group(1))
+    processing_count = last_number + 1
+
+    # Build the new line for the current processing step
+    fields = [f"n_{processing_count} : {feature}"]
     if video_codec:
-        fields.append(f"Vidéo : {video_codec}")
+        fields.append(f"V : {video_codec}")
     if audio_codec:
-        fields.append(f"Audio : {audio_codec}")
+        fields.append(f"A : {audio_codec}")
     if image_codec:
-        fields.append(f"Image : {image_codec}")
-    return " | ".join(fields)
+        fields.append(f"I : {image_codec}")
+    new_line = " | ".join(fields)
+
+    return "\n".join(["toolbox_pb :", *history_lines, new_line])
 
 
 def _read_video_comment(video_path: Path) -> str | None:

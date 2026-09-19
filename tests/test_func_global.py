@@ -343,16 +343,26 @@ def test_consume_ffmpeg_progress_returns_empty_when_no_stdout():
 
 
 def test_build_processing_comment_increments_existing_count():
-    previous = "toolbox_pb | Traitements : 2 | Dernier traitement : video_encodor"
+    previous = (
+        "toolbox_pb : \n"
+        "n_1 : video_assemblor | V : libx264 | A : aac\n"
+        "n_2 : video_encodor | V : libx264 | A : aac"
+    )
 
     comment = func_global.build_processing_comment(
         previous, "video_assemblor", "libx265", "aac"
     )
 
-    assert "Traitements : 3" in comment
-    assert "Dernier traitement : video_assemblor" in comment
-    assert "Vidéo : libx265" in comment
-    assert "Audio : aac" in comment
+    # L'historique précédent doit être conservé tel quel
+    assert "n_1 : video_assemblor | V : libx264 | A : aac" in comment
+    assert "n_2 : video_encodor | V : libx264 | A : aac" in comment
+
+    # Une nouvelle ligne doit être ajoutée avec le numéro incrémenté
+    assert "n_3 : video_assemblor | V : libx265 | A : aac" in comment
+
+    # L'entête doit rester présente une seule fois
+    assert comment.startswith("toolbox_pb :")
+    assert comment.count("toolbox_pb") == 1
 
 
 # ==========================================================
