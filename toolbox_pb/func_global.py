@@ -22,6 +22,11 @@ from tqdm import tqdm
 # Import specialized libraries
 import PIL
 import moviepy
+import onnxruntime
+import huggingface_hub
+import withoutbg
+import pypdf
+import reportlab
 
 # Import custom librairies
 from toolbox_pb.config_global import AppConfig
@@ -86,22 +91,43 @@ def format_git_version(version_str):
 
 def print_system_info():
     """
-    Print Python and library versions.
+    Affiche les versions de Python, des librairies principales
+    et des outils externes utilisés par la toolbox.
     """
-    print("\nInterpréteur python :")
-    print("Python            : " + sys.version + "\n")
-    print("Version des librairies utilisées :")
-    print(f"MoviePy           : {moviepy.__version__}")
-    print("Numpy             : " + np.__version__)
-    print("Pillow            : " + PIL.__version__)
+
+    print("\n=== ENVIRONNEMENT ===")
+
+    print(f"Python          : {sys.version.split()[0]}")
+
+    print("\n=== LIBRAIRIES ===")
+
+    print(f"HuggingFace Hub : {huggingface_hub.__version__}")
+    print(f"MoviePy         : {moviepy.__version__}")
+    print(f"NumPy           : {np.__version__}")
+    print(f"ONNX Runtime    : {onnxruntime.__version__}")
+    print(f"Pillow          : {PIL.__version__}")
+    print(f"Pypdf           : {pypdf.__version__}")
+    print(f"ReportLab       : {reportlab.Version}")
+    print(f"Withoutbg       : {withoutbg.__version__}")
+
+    print("\n=== OUTILS EXTERNES ===")
+
     try:
         ffmpeg_version = subprocess.check_output(
             ["ffmpeg", "-version"],
-            stderr=subprocess.STDOUT
-        ).decode().split('\n')[0]
-        print(f"FFmpeg version    : {ffmpeg_version}")
-    except Exception:
-        print("FFmpeg version    : non disponible")
+            stderr=subprocess.STDOUT,
+            text=True,
+        ).splitlines()[0]
+
+        print(f"FFmpeg          : {ffmpeg_version}")
+
+    except FileNotFoundError:
+        print("FFmpeg          : non disponible")
+
+    except subprocess.CalledProcessError:
+        print("FFmpeg          : erreur lors de la détection")
+
+    print("========================\n")
 
 
 def print_config_flags(config, flag_names: list[str]):
