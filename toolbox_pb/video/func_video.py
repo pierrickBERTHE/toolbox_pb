@@ -6,13 +6,21 @@ Pierrick BERTHE
 mail : pierrick.berthe@gmx.fr
 Décembre 2025
 """
+import os
+import shutil
+
+# Force MoviePy/imageio-ffmpeg to use the system ffmpeg binary (v8.0.1)
+
+system_ffmpeg = shutil.which("ffmpeg")
+if system_ffmpeg:
+    os.environ["IMAGEIO_FFMPEG_EXE"] = system_ffmpeg
+
 # Imports standard
-from moviepy import VideoFileClip, concatenate_videoclips
+from moviepy import VideoFileClip
 from pathlib import Path
 from PIL import Image, ImageOps
 import json
 import subprocess
-import os
 import csv
 import tempfile
 import re
@@ -35,9 +43,21 @@ from func_global import (
 
 @dataclass
 class AudioBoost:
+    ''' 
+    Represents an audio boost operation with start time, end time, and gain in dB.
+    '''
     start: float
     end: float
     gain_db: float
+
+
+@dataclass
+class DurationOnlyClip:
+    """
+    Minimal stand-in exposing only `.duration`. Used by the subtitle timing
+    helpers once the real FFmpeg-rendered clip has already been closed.
+    """
+    duration: float
 
 
 AAC_SUPPORTED_SAMPLE_RATES = (
@@ -122,114 +142,6 @@ def fit_image_size_in_frame(
 ) -> tuple[int, int]:
     """Return the shared frame-filling size for an image source."""
     return fit_visual_size_in_frame(image_size, frame_size)
-
-
-def get_video_frame_size(
-    clips: list[VideoFileClip], max_height: int | None = None,
-) -> tuple[int, int] | None:
-    """Return a common even frame size that gives every video full height.
-
-    The frame height is the tallest valid source height, optionally capped.
-    Its width is the widest clip after ratio-preserving scaling to that height.
-    Invalid or mocked clip sizes are ignored so callers can keep their clips
-    unchanged when no real dimensions are available.
-    """
-    sizes = []
-
-    # Loop through each clip to collect valid sizes
-    for clip in clips:
-        size = getattr(clip, "size", None)
-        if not isinstance(size, (tuple, list)) or len(size) != 2:
-            continue
-        width, height = size
-        if not isinstance(width, (int, float)) or not isinstance(height, (int, float)):
-            continue
-        if width <= 0 or height <= 0:
-            continue
-        sizes.append((int(width), int(height)))
-
-    # Return None if no valid sizes were found
-    if not sizes:
-        return None
-
-    # Determine the maximum frame height and adjust it based on max_height if provided
-    frame_height = max(height for _, height in sizes)
-    if max_height is not None:
-        if max_height <= 0:
-            raise ValueError("La hauteur maximale de trame doit être positive.")
-        frame_height = min(frame_height, max_height)
-    frame_height = max(2, frame_height - frame_height % 2)
-    frame_width = max(
-        fit_visual_size_in_frame(size, (0, frame_height))[0] for size in sizes
-    )
-    return frame_width, frame_height
-
-
-def normalize_video_clips_to_frame(
-    clips: list[VideoFileClip], max_height: int | None = None,
-) -> list[VideoFileClip]:
-    """Scale and center clips in one shared frame before concatenation.
-
-    Every clip is scaled to the shared frame height. Landscape clips therefore
-    use all vertical pixels, while portrait clips remain undistorted and are
-    centred with side padding when their scaled width is narrower.
-    """
-    # Determine the common frame size for all clips
-    frame_size = get_video_frame_size(clips, max_height=max_height)
-    if frame_size is None:
-        return clips
-
-    # Scale and center each clip in the shared frame size
-    normalized_clips = []
-    for clip in clips:
-        size = getattr(clip, "size", None)
-        if not isinstance(size, (tuple, list)) or len(size) != 2:
-            normalized_clips.append(clip)
-            continue
-        width, height = size
-        if not isinstance(width, (int, float)) or not isinstance(height, (int, float)):
-            normalized_clips.append(clip)
-            continue
-        scaled_size = fit_visual_size_in_frame((int(width), int(height)), frame_size)
-        normalized_clips.append(
-            clip.resized(new_size=scaled_size).with_background_color(
-                size=frame_size,
-                color=(0, 0, 0),
-                pos=("center", "center"),
-            )
-        )
-    return normalized_clips
-
-
-def get_video_output_fps(clips: list[VideoFileClip]) -> float | None:
-    """Return the highest valid source frame rate for a video assembly.
-
-    MoviePy can otherwise inherit the frame rate of an arbitrary input clip.
-    Writing an assembly at the highest source frame rate keeps later clips from
-    being sampled too sparsely, which may make them appear to play in slow
-    motion when sources use different frame rates.
-    """
-    fps_values = []
-    for clip in clips:
-        fps = getattr(clip, "fps", None)
-        if isinstance(fps, (int, float)) and fps > 0:
-            fps_values.append(float(fps))
-    return max(fps_values) if fps_values else None
-
-
-def normalize_video_clips_fps(
-    clips: list[VideoFileClip], output_fps: float | None = None,
-) -> tuple[list[VideoFileClip], float | None]:
-    """Give every assembly clip one output FPS without changing its duration.
-
-    ``with_fps`` only defines the sampling cadence used at export: frame times
-    and audio duration remain unchanged. This prevents a clip with a different
-    source cadence from being interpreted with the cadence of an earlier clip.
-    """
-    output_fps = output_fps or get_video_output_fps(clips)
-    if output_fps is None:
-        return clips, None
-    return [clip.with_fps(output_fps) for clip in clips], output_fps
 
 
 def get_video_stream_frame_rates(
@@ -1343,116 +1255,6 @@ def resolve_video_sequence(
     return sequence
 
 
-def load_and_trim_clip(video_path: Path, start: float | None, end: float | None) -> VideoFileClip:
-    """
-    Load a clip and optionally trim it.
-    """
-    # Suppress MoviePy warnings about subtitle streams, 
-    # which are not relevant for our processing
-    with warnings.catch_warnings():
-        warnings.filterwarnings(
-            "ignore",
-            message=r"Subtitle stream parsing is not supported by moviepy.*",
-            category=UserWarning,
-            module=r"moviepy\.video\.io\.ffmpeg_reader",
-        )
-        clip = VideoFileClip(str(video_path))
-
-    # No trimming needed
-    if start is None and end is None:
-        return clip
-
-    # Validate and apply trimming
-    start = float(start or 0)
-    duration = clip.duration
-    end = float(end) if end is not None else duration
-
-    # Validate boundaries
-    if start < 0 or end <= start or end > duration:
-        clip.close()
-        raise ValueError(
-            f"Invalid segment [{start}, {end}] for {video_path.name}"
-            f"(duration={duration})"
-        )
-
-    return clip.subclipped(start, end)
-
-
-def normalize_audio(clips: list[VideoFileClip]) -> list[VideoFileClip]:
-    """
-    Ensure all clips have a valid audio track or none.
-    """
-    clean_clips = []
-
-    # Remove audio from clips if not present
-    for clip in clips:
-        if clip.audio is None or clip.audio.reader is None:
-            clip = clip.without_audio()
-        clean_clips.append(clip)
-
-    return clean_clips
-
-
-@measure_time
-def write_video_file(
-    final_clip: VideoFileClip,
-    output_path: Path,
-    codec_video: str,
-    codec_audio: str,
-    fps: int | None = None,
-    processing_comment: str | None = None,
-    subtitles_path: Path | None = None,
-    subtitle_paths: list[Path] | None = None,
-):
-    """
-    Write the final video file with specified codecs and optional SRT streams.
-    """
-    # Find max threads available
-    max_threads = count_cpu_threads()
-
-    # Write the final video file
-    write_options = {
-        "codec": codec_video,
-        "audio_codec": codec_audio,
-        "threads": max_threads,
-        "logger": "bar",
-    }
-    write_options["ffmpeg_params"] = get_mobile_video_output_options(codec_video)
-    all_subtitle_paths = list(subtitle_paths or [])
-    if subtitles_path is not None:
-        all_subtitle_paths.insert(0, subtitles_path)
-    if processing_comment and not all_subtitle_paths:
-        write_options["ffmpeg_params"].extend(
-            ["-metadata", f"comment={processing_comment}"]
-        )
-    if fps is not None:
-        write_options["fps"] = fps
-
-    if not all_subtitle_paths:
-        final_clip.write_videofile(str(output_path), **write_options)
-        return
-
-    # If there are subtitle streams, write the video to a temporary file first,
-    # then remux with FFmpeg to include subtitles
-    with tempfile.TemporaryDirectory(prefix="video_assemblor_") as temp_dir_name:
-        temporary_video = Path(temp_dir_name) / "video.mp4"
-        final_clip.write_videofile(str(temporary_video), **write_options)
-        command = [
-            "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
-            "-i", str(temporary_video),
-        ]
-        for subtitle_path in all_subtitle_paths:
-            command.extend(["-i", str(subtitle_path)])
-        command.extend(["-map", "0:v:0", "-map", "0:a?"])
-        for input_index in range(1, len(all_subtitle_paths) + 1):
-            command.extend(["-map", f"{input_index}:0"])
-        command.extend(["-c:v", "copy", "-c:a", "copy", "-c:s", "mov_text"])
-        if processing_comment:
-            command.extend(["-metadata", f"comment={processing_comment}"])
-        command.append(str(output_path))
-        _run_ffmpeg_silently(command)
-
-
 def get_inputs_metadata(
     sequence: Iterable[dict],
     get_metadata_fn
@@ -1761,3 +1563,372 @@ def extract_video_srt_ffmpeg(
     except subprocess.CalledProcessError as exc:
         print(f"❌ Erreur lors de l'extraction des SRT : {output_video}")
         raise
+
+def probe_video_dimensions(video_path: Path) -> tuple[int, int] | None:
+    """
+    Return (width, height) of the first video stream via FFprobe only.
+    Never opens a MoviePy reader, so calling it does not consume memory.
+    """
+    command = [
+        "ffprobe", "-v", "error", "-select_streams", "v:0",
+        "-show_entries", "stream=width,height", "-of", "json",
+        str(video_path),
+    ]
+    result = subprocess.run(command, capture_output=True, text=True, check=True)
+    streams = json.loads(result.stdout).get("streams", [])
+    if not streams:
+        return None
+    width = streams[0].get("width")
+    height = streams[0].get("height")
+    if not width or not height:
+        return None
+    return int(width), int(height)
+
+
+def probe_video_duration(video_path: Path) -> float:
+    """
+    Return the container duration in seconds via FFprobe.
+    """
+    command = [
+        "ffprobe", "-v", "error", "-show_entries", "format=duration",
+        "-of", "json", str(video_path),
+    ]
+    result = subprocess.run(command, capture_output=True, text=True, check=True)
+    duration = json.loads(result.stdout).get("format", {}).get("duration")
+    return float(duration) if duration else 0.0
+
+
+def probe_has_audio_stream(video_path: Path) -> bool:
+    """
+    Return whether the video file has at least one audio stream.
+    """
+    command = [
+        "ffprobe", "-v", "error", "-select_streams", "a",
+        "-show_entries", "stream=index", "-of", "csv=p=0",
+        str(video_path),
+    ]
+    result = subprocess.run(command, capture_output=True, text=True, check=True)
+    return bool(result.stdout.strip())
+
+
+def probe_video_rotation(video_path: Path) -> int:
+    """
+    Return the video stream's rotation in degrees (0, 90, 180 or 270).
+    Checks both the modern side_data display matrix and the legacy
+    'rotate' metadata tag, since sources may use either.
+    """
+    # Modern rotation: the side_data display matrix (newer cameras and phones).
+    command = [
+        "ffprobe", "-v", "error", "-select_streams", "v:0",
+        "-show_entries", "stream_side_data=rotation",
+        "-of", "default=nw=1:nk=1", str(video_path),
+    ]
+    result = subprocess.run(command, capture_output=True, text=True, check=True)
+    rotation_text = result.stdout.strip()
+    
+    # If the side_data rotation is present, use it. Otherwise, fall back to the legacy 'rotate' tag.
+    if rotation_text:
+        rotation = int(float(rotation_text)) % 360
+        return rotation
+
+    # Legacy rotation: a plain "rotate" metadata tag (older cameras and
+    # phones, e.g. the Fujifilm recordings noted in this module's header).
+    command = [
+        "ffprobe", "-v", "error", "-select_streams", "v:0",
+        "-show_entries", "stream_tags=rotate",
+        "-of", "default=nw=1:nk=1", str(video_path),
+    ]
+    result = subprocess.run(command, capture_output=True, text=True, check=True)
+    legacy_rotate = result.stdout.strip()
+
+    # If the legacy rotate tag is present, use it. Otherwise, assume no rotation.
+    if legacy_rotate:
+        rotation = int(legacy_rotate) % 360
+        return rotation
+
+    # If neither method yields a rotation, assume 0 degrees.
+    return 0
+
+
+def probe_video_display_dimensions(video_path: Path) -> tuple[int, int] | None:
+    """
+    Return (width, height) as actually displayed once rotation is applied,
+    matching what FFmpeg's default autorotate decoding renders. Raw
+    coded dimensions alone are wrong for a portrait phone video stored
+    as landscape pixels with a 90°/270° rotation tag.
+    """
+    # Probe the raw coded dimensions first
+    dimensions = probe_video_dimensions(video_path)
+
+    # If no video stream is found, return None
+    if dimensions is None:
+        return None
+    width, height = dimensions
+
+    # apply rotation to determine the actual display dimensions
+    rotation = probe_video_rotation(video_path)
+
+    # if the video is rotated 90 or 270 degrees, swap width and height
+    if rotation in (90, 270):
+        return height, width
+    return width, height
+
+
+def get_video_frame_size_from_paths(
+    paths: list[Path], max_height: int | None = None,
+) -> tuple[int, int] | None:
+    """
+    Compute the output frame size (width, height) that can fit all input
+    videos, respecting their aspect ratios and the optional maximum height.
+    """
+    # Compute the display dimensions of each video in the list
+    sizes = [probe_video_display_dimensions(p) for p in paths]
+    sizes = [s for s in sizes if s]
+    if not sizes:
+        return None
+
+    # Compute the maximum height among all videos, optionally constrained by max_height
+    frame_height = max(h for _, h in sizes)
+    if max_height is not None:
+        frame_height = min(frame_height, max_height)
+    frame_height = max(2, frame_height - frame_height % 2)
+
+    # Compute the maximum width needed to fit all videos into the chosen frame height
+    frame_width = max(
+        fit_visual_size_in_frame(s, (0, frame_height))[0] for s in sizes
+    )
+    return frame_width, frame_height
+
+
+def get_video_output_fps_from_paths(paths: list[Path]) -> float | None:
+    """
+    Same result as get_video_output_fps, but probes files with FFprobe
+    only, so no MoviePy reader is ever opened for this step.
+    """
+    fps_values = []
+    for path in paths:
+        _, _, average_fps = get_video_stream_frame_rates(path)
+        if average_fps:
+            fps_values.append(average_fps)
+    return max(fps_values) if fps_values else None
+
+
+def compute_trim_duration(
+    video_path: Path, start: float | None, end: float | None
+) -> float:
+    """
+    Return the duration in seconds of the [start, end] slice of a video.
+    """
+    source_duration = probe_video_duration(video_path)
+    trim_start = float(start or 0)
+    if end is not None:
+        return float(end) - trim_start
+    return source_duration - trim_start
+
+
+def build_rotation_filter(rotation: int) -> str | None:
+    """
+    Return the FFmpeg transpose filter chain that corrects a given
+    clockwise display rotation (0, 90, 180 or 270 degrees), or None
+    when no rotation is needed.
+    """
+    if rotation == 90:
+        return "transpose=2"
+    if rotation == 180:
+        return "transpose=1,transpose=1"
+    if rotation == 270:
+        return "transpose=1"
+    return None
+
+
+def probe_stream_durations(video_path: Path) -> tuple[float | None, float | None]:
+    """
+    Return (video_duration, audio_duration) in seconds for the first video
+    and audio streams, read independently via FFprobe. Some sources (in
+    particular Android/Pixel camera recordings) capture audio on a hardware
+    clock that runs at a very slightly different rate than the declared
+    sample rate: the video and audio stream durations of the SAME source
+    file can then differ by a small but constant ratio, which otherwise
+    accumulates into audible drift as more of the source is used.
+    """
+    command = [
+        "ffprobe", "-v", "error",
+        "-show_entries", "stream=codec_type,duration",
+        "-of", "json", str(video_path),
+    ]
+    result = subprocess.run(command, capture_output=True, text=True, check=True)
+    streams = json.loads(result.stdout).get("streams", [])
+    video_duration = None
+    audio_duration = None
+    for stream in streams:
+        duration = stream.get("duration")
+        if duration is None:
+            continue
+        if stream.get("codec_type") == "video" and video_duration is None:
+            video_duration = float(duration)
+        elif stream.get("codec_type") == "audio" and audio_duration is None:
+            audio_duration = float(duration)
+    return video_duration, audio_duration
+
+
+def compute_audio_drift_correction(video_path: Path) -> float | None:
+    """
+    Return the atempo factor that stretches this source's audio to match
+    its own video stream duration, or None when no correction is needed
+    or measurable. A factor > 1 speeds audio up (audio was too slow / too
+    long versus video); a factor < 1 slows it down.
+    """
+    # Probe the video and audio stream durations
+    video_duration, audio_duration = probe_stream_durations(video_path)
+
+    # If either duration is missing, we cannot compute a correction
+    if not video_duration or not audio_duration:
+        return None
+
+    # Compute the ratio of audio duration to video duration
+    ratio = audio_duration / video_duration
+
+    # If the ratio is very close to 1, no correction is needed
+    if abs(ratio - 1.0) < 0.0005:
+        return None
+
+    # If the ratio is outside of [0.5, 2.0], return None (error case)
+    if not (0.5 <= ratio <= 2.0):
+        return None
+
+    return ratio
+
+
+def render_normalized_source_clip(
+    prepared_path: Path,
+    start: float | None,
+    end: float | None,
+    frame_size: tuple[int, int],
+    output_fps: float,
+    codec_video: str,
+    codec_audio: str,
+    output_path: Path,
+) -> float:
+    """
+    Trim, rotate, scale/pad and re-encode exactly one source clip with a
+    direct FFmpeg command, then report its resulting duration.
+
+    Rotation is applied explicitly via -noautorotate + transpose, instead
+    of relying on FFmpeg's implicit autorotate, whose support varies by
+    build and silently produces a squashed/stretched picture when absent.
+    """
+    # Compute the start time and duration for trimming
+    trim_start = float(start or 0)
+    trim_duration = compute_trim_duration(prepared_path, start, end)
+
+    # Probe the source video for its rotation and display dimensions
+    rotation = probe_video_rotation(prepared_path)
+    source_size = probe_video_display_dimensions(prepared_path) or frame_size
+
+    # Compute the scaled size that fits within the target frame while preserving aspect ratio
+    scaled_width, scaled_height = fit_visual_size_in_frame(source_size, frame_size)
+    width, height = frame_size
+    
+    # Build the FFmpeg filter chain for rotation, scaling, padding, and frame rate adjustment
+    rotation_filter = build_rotation_filter(rotation)
+    filters = []
+    if rotation_filter:
+        filters.append(rotation_filter)
+    filters.append(f"scale={scaled_width}:{scaled_height}")
+    filters.append(f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black")
+    filters.append("setsar=1")
+    filters.append(f"fps={output_fps}")
+    video_filter = ",".join(filters)
+
+    # Build the FFmpeg command to process the video clip
+    command = [
+        "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+        "-noautorotate",
+        "-i", str(prepared_path),
+        "-ss", str(trim_start), "-t", str(trim_duration),
+        "-vf", video_filter,
+        "-fps_mode", "cfr",
+        "-c:v", codec_video,
+        *get_mobile_video_output_options(codec_video),
+    ]
+
+    # if the source has an audio stream, compute drift correction and apply audio filters
+    if probe_has_audio_stream(prepared_path):
+        drift_ratio = compute_audio_drift_correction(prepared_path)
+        audio_filters = []
+        if drift_ratio is not None:
+            audio_filters.append(f"atempo={drift_ratio:.6f}")
+        audio_filters.append("aresample=async=1:first_pts=0")
+        command.extend([
+            "-c:a", codec_audio,
+            "-ar", "48000", # Force 48kHz stereo for mobile compatibility
+            "-ac", "2",
+            "-af", ",".join(audio_filters),
+        ])
+    else:
+        command.append("-an")
+
+    # cut the output to the shorter of its audio/video streams to prevent drift
+    command.extend([
+        "-shortest",
+        "-metadata:s:v:0", "rotate=0",
+        "-progress", "pipe:1", str(output_path),
+    ])
+
+    # Run the FFmpeg command with progress reporting
+    _run_ffmpeg_with_progress(command, trim_duration, desc=prepared_path.name)
+    return probe_video_duration(output_path)
+
+
+def concat_normalized_clips_ffmpeg(
+    intermediate_paths: list[Path],
+    subtitle_paths: list[Path],
+    output_path: Path,
+    processing_comment: str | None,
+) -> None:
+    """
+    Join pre-normalized, same-codec intermediate clips with a pure stream
+    copy (FFmpeg concat demuxer), then remux subtitles if any.
+
+    This step never decodes a single frame, so it never loads more than
+    one source into memory.
+    """
+    with tempfile.TemporaryDirectory(prefix="video_assembly_concat_") as temp_dir_name:
+        # Build the FFmpeg concat demuxer input list
+        concat_file = Path(temp_dir_name) / "concat.txt"
+        concat_file.write_text(
+            "".join(
+                f"file '{path.as_posix().replace("'", "'\\''")}'\n"
+                for path in intermediate_paths
+            ),
+            encoding="utf-8",
+        )
+        concatenated_path = Path(temp_dir_name) / "concatenated.mp4"
+        _run_ffmpeg_silently([
+            "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+            "-f", "concat", "-safe", "0", "-i", str(concat_file),
+            "-c", "copy", str(concatenated_path),
+        ])
+
+        # No subtitles or comment to add: the concat result is the output
+        if not subtitle_paths and not processing_comment:
+            shutil.copy2(concatenated_path, output_path)
+            return
+
+        # Remux subtitle streams and the processing comment, stream copy
+        cmd = [
+            "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+            "-i", str(concatenated_path),
+        ]
+        for subtitle_path in subtitle_paths:
+            cmd.extend(["-i", str(subtitle_path)])
+        cmd.extend(["-map", "0:v:0", "-map", "0:a?"])
+        for input_index in range(1, len(subtitle_paths) + 1):
+            cmd.extend(["-map", f"{input_index}:0"])
+        cmd.extend(["-c:v", "copy", "-c:a", "copy"])
+        if subtitle_paths:
+            cmd.extend(["-c:s", "mov_text"])
+        if processing_comment:
+            cmd.extend(["-metadata", f"comment={processing_comment}"])
+        cmd.append(str(output_path))
+        _run_ffmpeg_silently(cmd)
