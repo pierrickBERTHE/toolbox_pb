@@ -29,6 +29,7 @@ def _copy_unchanged_file(input_path: Path, output_path: Path) -> None:
     shutil.copy2(input_path, output_path)
 
 
+@func_glob.measure_time
 def image_reductor(cfg: AppConfig, quality: int | None = None) -> bool:
     """
     Reduce eligible photos for screen use while retaining their pixels.
@@ -145,6 +146,7 @@ def image_reductor(cfg: AppConfig, quality: int | None = None) -> bool:
     return is_empty_folder
 
 
+@func_glob.measure_time
 def image_withoutbg(cfg: AppConfig) -> bool:
     """
     Create transparent PNG copies of all supported input images locally.
@@ -215,6 +217,7 @@ def _defilor_height_is_explicit(extra_args: str | None) -> bool:
     )
 
 
+@func_glob.measure_time
 def image_defilor(cfg: AppConfig, extra_args: str | None = None) -> bool:
     """
     Main function to generate scrolling videos from images in a directory.
@@ -315,6 +318,7 @@ def _generate_defilor_video(
     )
 
 
+@func_glob.measure_time
 def run_image_defilor_interactive(cfg: AppConfig) -> bool:
     """
     Interactive wrapper for image_defilor with user input for extra parameters.

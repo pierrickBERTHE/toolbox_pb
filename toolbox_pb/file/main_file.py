@@ -5,6 +5,7 @@ import toolbox_pb.file.func_file as func_file
 import func_global as func_glob
 
 
+@func_glob.measure_time
 def file_timeline_sorter(cfg: AppConfig) -> bool:
     """Copy input files with modification-date prefixes for chronological sorting."""
 

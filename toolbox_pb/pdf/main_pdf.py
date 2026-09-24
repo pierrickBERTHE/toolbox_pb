@@ -30,6 +30,7 @@ def build_filigranor_text(destination_text: str) -> str:
     return f"{WATERMARK_PREFIX}{destination_text}"
 
 
+@func_glob.measure_time
 def pdf_filigranor(cfg: AppConfig, watermark_text: str | None = None) -> bool:
     """
     Add a repeated diagonal text watermark to every PDF in the input directory.
@@ -90,6 +91,7 @@ def pdf_filigranor(cfg: AppConfig, watermark_text: str | None = None) -> bool:
     return is_empty_folder
 
 
+@func_glob.measure_time
 def pdf_assemblor(cfg: AppConfig) -> bool:
     """Merge all PDFs from the input tree into one PDF in filename order."""
 
