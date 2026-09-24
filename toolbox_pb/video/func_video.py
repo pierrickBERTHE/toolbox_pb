@@ -16,7 +16,7 @@ if system_ffmpeg:
     os.environ["IMAGEIO_FFMPEG_EXE"] = system_ffmpeg
 
 # Imports standard
-from moviepy import VideoFileClip, concatenate_videoclips
+from moviepy import VideoFileClip
 from pathlib import Path
 from PIL import Image, ImageOps
 import json
@@ -142,114 +142,6 @@ def fit_image_size_in_frame(
 ) -> tuple[int, int]:
     """Return the shared frame-filling size for an image source."""
     return fit_visual_size_in_frame(image_size, frame_size)
-
-
-def get_video_frame_size(
-    clips: list[VideoFileClip], max_height: int | None = None,
-) -> tuple[int, int] | None:
-    """Return a common even frame size that gives every video full height.
-
-    The frame height is the tallest valid source height, optionally capped.
-    Its width is the widest clip after ratio-preserving scaling to that height.
-    Invalid or mocked clip sizes are ignored so callers can keep their clips
-    unchanged when no real dimensions are available.
-    """
-    sizes = []
-
-    # Loop through each clip to collect valid sizes
-    for clip in clips:
-        size = getattr(clip, "size", None)
-        if not isinstance(size, (tuple, list)) or len(size) != 2:
-            continue
-        width, height = size
-        if not isinstance(width, (int, float)) or not isinstance(height, (int, float)):
-            continue
-        if width <= 0 or height <= 0:
-            continue
-        sizes.append((int(width), int(height)))
-
-    # Return None if no valid sizes were found
-    if not sizes:
-        return None
-
-    # Determine the maximum frame height and adjust it based on max_height if provided
-    frame_height = max(height for _, height in sizes)
-    if max_height is not None:
-        if max_height <= 0:
-            raise ValueError("La hauteur maximale de trame doit être positive.")
-        frame_height = min(frame_height, max_height)
-    frame_height = max(2, frame_height - frame_height % 2)
-    frame_width = max(
-        fit_visual_size_in_frame(size, (0, frame_height))[0] for size in sizes
-    )
-    return frame_width, frame_height
-
-
-def normalize_video_clips_to_frame(
-    clips: list[VideoFileClip], max_height: int | None = None,
-) -> list[VideoFileClip]:
-    """Scale and center clips in one shared frame before concatenation.
-
-    Every clip is scaled to the shared frame height. Landscape clips therefore
-    use all vertical pixels, while portrait clips remain undistorted and are
-    centred with side padding when their scaled width is narrower.
-    """
-    # Determine the common frame size for all clips
-    frame_size = get_video_frame_size(clips, max_height=max_height)
-    if frame_size is None:
-        return clips
-
-    # Scale and center each clip in the shared frame size
-    normalized_clips = []
-    for clip in clips:
-        size = getattr(clip, "size", None)
-        if not isinstance(size, (tuple, list)) or len(size) != 2:
-            normalized_clips.append(clip)
-            continue
-        width, height = size
-        if not isinstance(width, (int, float)) or not isinstance(height, (int, float)):
-            normalized_clips.append(clip)
-            continue
-        scaled_size = fit_visual_size_in_frame((int(width), int(height)), frame_size)
-        normalized_clips.append(
-            clip.resized(new_size=scaled_size).with_background_color(
-                size=frame_size,
-                color=(0, 0, 0),
-                pos=("center", "center"),
-            )
-        )
-    return normalized_clips
-
-
-def get_video_output_fps(clips: list[VideoFileClip]) -> float | None:
-    """Return the highest valid source frame rate for a video assembly.
-
-    MoviePy can otherwise inherit the frame rate of an arbitrary input clip.
-    Writing an assembly at the highest source frame rate keeps later clips from
-    being sampled too sparsely, which may make them appear to play in slow
-    motion when sources use different frame rates.
-    """
-    fps_values = []
-    for clip in clips:
-        fps = getattr(clip, "fps", None)
-        if isinstance(fps, (int, float)) and fps > 0:
-            fps_values.append(float(fps))
-    return max(fps_values) if fps_values else None
-
-
-def normalize_video_clips_fps(
-    clips: list[VideoFileClip], output_fps: float | None = None,
-) -> tuple[list[VideoFileClip], float | None]:
-    """Give every assembly clip one output FPS without changing its duration.
-
-    ``with_fps`` only defines the sampling cadence used at export: frame times
-    and audio duration remain unchanged. This prevents a clip with a different
-    source cadence from being interpreted with the cadence of an earlier clip.
-    """
-    output_fps = output_fps or get_video_output_fps(clips)
-    if output_fps is None:
-        return clips, None
-    return [clip.with_fps(output_fps) for clip in clips], output_fps
 
 
 def get_video_stream_frame_rates(
@@ -1363,116 +1255,6 @@ def resolve_video_sequence(
     return sequence
 
 
-def load_and_trim_clip(video_path: Path, start: float | None, end: float | None) -> VideoFileClip:
-    """
-    Load a clip and optionally trim it.
-    """
-    # Suppress MoviePy warnings about subtitle streams, 
-    # which are not relevant for our processing
-    with warnings.catch_warnings():
-        warnings.filterwarnings(
-            "ignore",
-            message=r"Subtitle stream parsing is not supported by moviepy.*",
-            category=UserWarning,
-            module=r"moviepy\.video\.io\.ffmpeg_reader",
-        )
-        clip = VideoFileClip(str(video_path))
-
-    # No trimming needed
-    if start is None and end is None:
-        return clip
-
-    # Validate and apply trimming
-    start = float(start or 0)
-    duration = clip.duration
-    end = float(end) if end is not None else duration
-
-    # Validate boundaries
-    if start < 0 or end <= start or end > duration:
-        clip.close()
-        raise ValueError(
-            f"Invalid segment [{start}, {end}] for {video_path.name}"
-            f"(duration={duration})"
-        )
-
-    return clip.subclipped(start, end)
-
-
-def normalize_audio(clips: list[VideoFileClip]) -> list[VideoFileClip]:
-    """
-    Ensure all clips have a valid audio track or none.
-    """
-    clean_clips = []
-
-    # Remove audio from clips if not present
-    for clip in clips:
-        if clip.audio is None or clip.audio.reader is None:
-            clip = clip.without_audio()
-        clean_clips.append(clip)
-
-    return clean_clips
-
-
-@measure_time
-def write_video_file(
-    final_clip: VideoFileClip,
-    output_path: Path,
-    codec_video: str,
-    codec_audio: str,
-    fps: int | None = None,
-    processing_comment: str | None = None,
-    subtitles_path: Path | None = None,
-    subtitle_paths: list[Path] | None = None,
-):
-    """
-    Write the final video file with specified codecs and optional SRT streams.
-    """
-    # Find max threads available
-    max_threads = count_cpu_threads()
-
-    # Write the final video file
-    write_options = {
-        "codec": codec_video,
-        "audio_codec": codec_audio,
-        "threads": max_threads,
-        "logger": "bar",
-    }
-    write_options["ffmpeg_params"] = get_mobile_video_output_options(codec_video)
-    all_subtitle_paths = list(subtitle_paths or [])
-    if subtitles_path is not None:
-        all_subtitle_paths.insert(0, subtitles_path)
-    if processing_comment and not all_subtitle_paths:
-        write_options["ffmpeg_params"].extend(
-            ["-metadata", f"comment={processing_comment}"]
-        )
-    if fps is not None:
-        write_options["fps"] = fps
-
-    if not all_subtitle_paths:
-        final_clip.write_videofile(str(output_path), **write_options)
-        return
-
-    # If there are subtitle streams, write the video to a temporary file first,
-    # then remux with FFmpeg to include subtitles
-    with tempfile.TemporaryDirectory(prefix="video_assemblor_") as temp_dir_name:
-        temporary_video = Path(temp_dir_name) / "video.mp4"
-        final_clip.write_videofile(str(temporary_video), **write_options)
-        command = [
-            "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
-            "-i", str(temporary_video),
-        ]
-        for subtitle_path in all_subtitle_paths:
-            command.extend(["-i", str(subtitle_path)])
-        command.extend(["-map", "0:v:0", "-map", "0:a?"])
-        for input_index in range(1, len(all_subtitle_paths) + 1):
-            command.extend(["-map", f"{input_index}:0"])
-        command.extend(["-c:v", "copy", "-c:a", "copy", "-c:s", "mov_text"])
-        if processing_comment:
-            command.extend(["-metadata", f"comment={processing_comment}"])
-        command.append(str(output_path))
-        _run_ffmpeg_silently(command)
-
-
 def get_inputs_metadata(
     sequence: Iterable[dict],
     get_metadata_fn
@@ -1896,8 +1678,8 @@ def get_video_frame_size_from_paths(
     paths: list[Path], max_height: int | None = None,
 ) -> tuple[int, int] | None:
     """
-    Same result as get_video_frame_size, but probes files with FFprobe
-    only, so no MoviePy reader is ever opened for this step.
+    Compute the output frame size (width, height) that can fit all input
+    videos, respecting their aspect ratios and the optional maximum height.
     """
     # Compute the display dimensions of each video in the list
     sizes = [probe_video_display_dimensions(p) for p in paths]
