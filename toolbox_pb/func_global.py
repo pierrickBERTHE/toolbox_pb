@@ -103,7 +103,7 @@ def print_system_info():
 
     print(f"HuggingFace Hub : {huggingface_hub.__version__}")
     print(f"MoviePy         : {moviepy.__version__}")
-    print(f"NumPy           : {np.__version__}")
+    print(f"Numpy           : {np.__version__}")
     print(f"ONNX Runtime    : {onnxruntime.__version__}")
     print(f"Pillow          : {PIL.__version__}")
     print(f"Pypdf           : {pypdf.__version__}")
@@ -121,11 +121,9 @@ def print_system_info():
 
         print(f"FFmpeg          : {ffmpeg_version}")
 
-    except FileNotFoundError:
-        print("FFmpeg          : non disponible")
-
-    except subprocess.CalledProcessError:
-        print("FFmpeg          : erreur lors de la détection")
+    except Exception:
+        # This diagnostic must never prevent the toolbox from starting.
+        print("FFmpeg version    : non disponible")
 
     print("========================\n")
 
