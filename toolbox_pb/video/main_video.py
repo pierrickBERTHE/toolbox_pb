@@ -160,7 +160,7 @@ def video_assemblor(cfg: AppConfig) -> bool:
         video_files = list(cfg.INPUT_DIR.rglob('*'))
         video_files = [
             f for f in video_files if func_glob.is_processable_file(f)
-            and f.suffix.lower() in cfg.INPUT_ACCEPTED_FILES
+            and f.suffix.lower() in cfg.INPUT_ACCEPTED_VIDEO_FILES
         ]
 
         # If no video files found, return early with is_empty_folder = True
@@ -183,7 +183,7 @@ def video_assemblor(cfg: AppConfig) -> bool:
         # Resolve which videos to process and in which order
         sequence = func_vid.resolve_video_sequence(
             input_dir=cfg.INPUT_DIR,
-            accepted_ext=cfg.INPUT_ACCEPTED_FILES,
+            accepted_ext=cfg.INPUT_ACCEPTED_VIDEO_FILES,
             segments=segments
         )
 
