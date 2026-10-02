@@ -23,6 +23,7 @@ Fonctionnalites actuellement disponibles dans le menu principal :
 - `PDF_assemblor` : fusionne tous les PDF du dossier d'entree (et de ses sous-dossiers) dans un unique fichier, dans l'ordre alphabetique de leurs chemins relatifs.
 `-- FILE --`
 - `File_timeline_sorter` : copie les fichiers du dossier d'entree vers le dossier de sortie avec leur date de derniere modification (`AAAA-MM-JJ_HH-MM-SS__nom-original.ext`) afin que le tri alphabetique corresponde a l'ordre chronologique. Les fichiers source restent intacts.
+- `File_str_remover` : copie les fichiers du dossier d'entree vers le dossier de sortie en supprimant la chaîne demandée de leurs noms. Les fichiers source restent intacts.
 
 ## Prerequis
 
@@ -192,6 +193,7 @@ Le projet conserve la structure des sous-dossiers de `data/input` vers `data/out
 | 11 | `PDF_filigranor` | Un ou plusieurs PDF | Aucun ; le destinataire est demande au menu | Un PDF filigrane par source |
 | 12 | `PDF_assemblor` | Un ou plusieurs PDF | Aucun | Un seul PDF `pdf_assemblage.pdf` |
 | 13 | `File_timeline_sorter` | Tout fichier source sauf `.gitkeep` | Aucun | Une copie par fichier, prefixee par sa date de modification |
+| 14 | `File_str_remover` | Tout fichier source sauf `.gitkeep` | La chaîne à supprimer, demandée au menu | Une copie par fichier avec la chaîne retirée du nom |
 
 `Video_assemblor` et `PDF_assemblor` classent leurs entrees par chemin relatif
 dans `data/input` lorsqu'aucun ordre explicite n'est fourni. Pour les autres
@@ -270,7 +272,7 @@ Le meme fichier SRT est integre a chaque video source traitee par l'option 6.
 
 - `Video_encodor`, `Video_audio_decalator`, `Video_srt_extractor`,
   `Image_reductor`, `Image_withoutbg`, `PDF_filigranor`, `PDF_assemblor` et
-  `File_timeline_sorter` ne demandent aucun fichier dans `data/segment`.
+  `File_timeline_sorter` et `File_str_remover` ne demandent aucun fichier dans `data/segment`.
   `Video_srt_extractor` lit directement la piste de sous-titres deja
   presente dans chaque video source : aucun fichier externe n'est necessaire.
 - `Image_defilor` se configure au lancement par les options affichees dans le
