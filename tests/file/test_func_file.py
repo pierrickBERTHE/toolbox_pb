@@ -64,3 +64,27 @@ def test_is_timeline_filename_recognizes_only_valid_prefixes():
     """Already redated files must be distinguishable from ordinary filenames."""
     assert func_file.is_timeline_filename("2026-09-12_08-30-05__photo.jpg")
     assert not func_file.is_timeline_filename("photo_2026-09-12.jpg")
+
+
+def test_remove_string_from_filename_removes_every_occurrence():
+    """The requested string is removed everywhere in the filename."""
+    assert (
+        func_file.remove_string_from_filename(
+            "photo_compressed_90_compressed_90.jpg", "_compressed_90"
+        )
+        == "photo.jpg"
+    )
+
+
+def test_copy_file_for_string_removal_skips_an_existing_destination(tmp_path):
+    """A renamed destination must not be overwritten."""
+    input_path = tmp_path / "photo_compressed_90.jpg"
+    output_path = tmp_path / "output" / "photo.jpg"
+    input_path.write_text("source", encoding="utf-8")
+    output_path.parent.mkdir()
+    output_path.write_text("existing", encoding="utf-8")
+
+    copied = func_file.copy_file_for_string_removal(input_path, output_path)
+
+    assert copied is False
+    assert output_path.read_text(encoding="utf-8") == "existing"
