@@ -42,3 +42,46 @@ def file_timeline_sorter(cfg: AppConfig) -> bool:
 
     print(f"{copied_files} fichier(s) redaté(s).")
     return False
+
+
+@func_glob.measure_time
+def file_str_remover(cfg: AppConfig, string_to_remove: str) -> bool:
+    """Copy input files after removing a string from each filename."""
+
+    # Get all processable files in the input directory and its subdirectories
+    input_files = sorted(
+        (
+            path
+            for path in cfg.INPUT_DIR.rglob("*")
+            if func_glob.is_processable_file(path)
+        ),
+        key=lambda path: str(path.relative_to(cfg.INPUT_DIR)).casefold(),
+    )
+
+    # If no files were found, return True
+    if not input_files:
+        return True
+
+    # Process each file and copy it to the output directory with the
+    # specified string removed from the filename
+    copied_files = 0
+    for input_path in input_files:
+        relative_path = input_path.relative_to(cfg.INPUT_DIR)
+        output_path = (
+            cfg.OUTPUT_DIR
+            / relative_path.parent
+            / func_file.remove_string_from_filename(
+                input_path.name, string_to_remove
+            )
+        )
+
+        # Copy the file to the output directory if it hasn't been copied already
+        if func_file.copy_file_for_string_removal(input_path, output_path):
+            print(f"Nom modifié : {input_path.name} -> {output_path.name}")
+            copied_files += 1
+        else:
+            print(f"Suppression déjà réalisée : {input_path.name}")
+
+    # Print the number of files that were renamed
+    print(f"{copied_files} fichier(s) renommé(s).")
+    return False

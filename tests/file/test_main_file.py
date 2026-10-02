@@ -8,7 +8,7 @@ import sys
 
 sys.path.append(str(Path(__file__).resolve().parents[2] / "toolbox_pb"))
 
-from file.main_file import file_timeline_sorter
+from file.main_file import file_str_remover, file_timeline_sorter
 
 
 def test_file_timeline_sorter_copies_files_from_their_modification_dates(tmp_path):
@@ -63,6 +63,38 @@ def test_file_timeline_sorter_ignores_gitkeep_in_input(tmp_path):
     cfg = SimpleNamespace(INPUT_DIR=input_dir, OUTPUT_DIR=output_dir)
 
     is_empty = file_timeline_sorter(cfg)
+
+    assert is_empty is True
+    assert not output_dir.exists()
+
+
+def test_file_str_remover_copies_renamed_files_and_preserves_subdirectories(tmp_path):
+    """String removal must copy files without changing the source tree."""
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    nested_dir = input_dir / "nested"
+    nested_dir.mkdir(parents=True)
+    source_path = nested_dir / "photo_compressed_90.jpg"
+    source_path.write_text("source", encoding="utf-8")
+    cfg = SimpleNamespace(INPUT_DIR=input_dir, OUTPUT_DIR=output_dir)
+
+    is_empty = file_str_remover(cfg, "_compressed_90")
+
+    assert is_empty is False
+    assert source_path.is_file()
+    assert source_path.read_text(encoding="utf-8") == "source"
+    assert (output_dir / "nested" / "photo.jpg").read_text(encoding="utf-8") == "source"
+
+
+def test_file_str_remover_ignores_gitkeep_in_input(tmp_path):
+    """Git placeholders must not trigger the string-removal workflow."""
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    input_dir.mkdir()
+    (input_dir / ".gitkeep").touch()
+    cfg = SimpleNamespace(INPUT_DIR=input_dir, OUTPUT_DIR=output_dir)
+
+    is_empty = file_str_remover(cfg, "_compressed_90")
 
     assert is_empty is True
     assert not output_dir.exists()

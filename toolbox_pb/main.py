@@ -27,7 +27,7 @@ from image.main_image import (
     image_withoutbg,
 )
 from pdf.main_pdf import pdf_assemblor, pdf_filigranor
-from file.main_file import file_timeline_sorter
+from file.main_file import file_str_remover, file_timeline_sorter
 from config_global import APP_CONFIG, AppConfig
 import func_global as func
 import reductor_workflow
@@ -97,10 +97,11 @@ def main(cfg : AppConfig):
     print("12. PDF_assemblor")
     print("\n-- FILE --")
     print("13. File_timeline_sorter")
-    print("\n14. Quitter")
+    print("14. File_str_remover")
+    print("\n15. Quitter")
 
     # Get user choice
-    choix = input("\nSélectionnez une option (1-14) : ")
+    choix = input("\nSélectionnez une option (1-15) : ")
     # choix = "5"
 
     # Default value if selected action does not return a folder-state flag.
@@ -174,6 +175,16 @@ def main(cfg : AppConfig):
             is_empty_folder = file_timeline_sorter(cfg)
 
         case "14":
+            print("\nLancement du File_str_remover...")
+            string_to_remove = input(
+                "\nEntrez la chaîne à supprimer des noms de fichiers : "
+            )
+            if not string_to_remove:
+                print("La chaîne à supprimer ne peut pas être vide.")
+                return
+            is_empty_folder = file_str_remover(cfg, string_to_remove)
+
+        case "15":
             print("Quitter l'application. Au revoir !")
             sys.exit(0)
 

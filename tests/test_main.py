@@ -12,9 +12,9 @@ Test Coverage:
     - Audio Decalator: Tests that menu choice '3' correctly invokes the audio decalator
     - Volume Adjust: Tests that menu choice '4' correctly invokes volume adjustment
     - SRT Extractor: Tests that menu choice '5' correctly invokes the SRT extractor
-    - Other Tools: Tests that menu choices '6-13' display correct launch messages
+    - Other Tools: Tests that menu choices '6-14' display correct launch messages
     - Invalid Input: Tests that invalid menu choices trigger an error message
-    - Exit Handler: Tests that menu choice '14' properly exits the application
+    - Exit Handler: Tests that menu choice '15' properly exits the application
     - Main Flow: Tests that the application runs without errors through the menu system
 """
 # general imports
@@ -256,6 +256,22 @@ def test_main_file_timeline_sorter_called(monkeypatch):
     mock_sorter.assert_called_once_with(APP_CONFIG)
 
 
+def test_main_file_str_remover_called(monkeypatch):
+    """Test that choosing option '14' calls file_str_remover."""
+    answers = iter(["14", "_compressed_90"])
+    monkeypatch.setattr("builtins.input", lambda _: next(answers))
+
+    with mock.patch("main.file_str_remover", return_value=False) as mock_remover, \
+        mock.patch("func_global.get_git_version", return_value="git123"), \
+        mock.patch("func_global.format_git_version", return_value="git123"), \
+        mock.patch("func_global.print_system_info"), \
+        mock.patch("func_global.print_config_flags"), \
+        mock.patch("func_global.summarize_files"):
+        main.main(APP_CONFIG)
+
+    mock_remover.assert_called_once_with(APP_CONFIG, "_compressed_90")
+
+
 # Decorator to parametrize other valid choices
 @pytest.mark.parametrize("choice,msg", [
     ("5", "video_srt_extractor"),
@@ -267,6 +283,7 @@ def test_main_file_timeline_sorter_called(monkeypatch):
     ("11", "PDF_filigranor"),
     ("12", "PDF_assemblor"),
     ("13", "File_timeline_sorter"),
+    ("14", "File_str_remover"),
 ])
 def test_other_menu_choices(monkeypatch, capsys, choice, msg):
     """Test that other menu choices print the correct launch message."""
@@ -287,6 +304,7 @@ def test_other_menu_choices(monkeypatch, capsys, choice, msg):
         mock.patch('main.pdf_filigranor', return_value=False), \
         mock.patch('main.pdf_assemblor', return_value=False), \
         mock.patch('main.file_timeline_sorter', return_value=False), \
+        mock.patch('main.file_str_remover', return_value=False), \
         mock.patch('func_global.print_system_info'), \
         mock.patch('func_global.get_git_version', return_value="git123"), \
         mock.patch('func_global.format_git_version', return_value="git123"), \
@@ -301,7 +319,7 @@ def test_other_menu_choices(monkeypatch, capsys, choice, msg):
         assert msg in captured.out
 
 
-# Decorator to parametrize invalid choices (not in 1-14)
+# Decorator to parametrize invalid choices (not in 1-15)
 @pytest.mark.parametrize("choice", ["invalid", "", "0", "19", "-1", "abc"])
 def test_main_invalid_choice(monkeypatch, capsys, choice):
     """Test that invalid choices are handled properly.
@@ -331,9 +349,9 @@ def test_main_invalid_choice(monkeypatch, capsys, choice):
 
 
 def test_main_quit(monkeypatch):
-    """Test that choosing option '14' exits the program."""
-    # Mock input for choice '14'
-    monkeypatch.setattr('builtins.input', lambda _: '14')
+    """Test that choosing option '15' exits the program."""
+    # Mock input for choice '15'
+    monkeypatch.setattr('builtins.input', lambda _: '15')
 
     # Mock python sys.exit to raise SystemExit
     with pytest.raises(SystemExit):
@@ -341,9 +359,9 @@ def test_main_quit(monkeypatch):
 
 
 def test_main_called(monkeypatch):
-    """Test that main runs without errors for choice '14' (quit)."""
-    # Mock input for choice '14'
-    monkeypatch.setattr("builtins.input", lambda _: "14")
+    """Test that main runs without errors for choice '15' (quit)."""
+    # Mock input for choice '15'
+    monkeypatch.setattr("builtins.input", lambda _: "15")
 
     # Mock others functions to avoid side effects
     with (

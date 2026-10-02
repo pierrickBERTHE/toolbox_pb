@@ -38,3 +38,20 @@ def copy_file_for_timeline(input_path: Path, output_path: Path) -> bool:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(input_path, output_path)
     return True
+
+
+def remove_string_from_filename(filename: str, string_to_remove: str) -> str:
+    """Return a filename with every occurrence of a string removed."""
+
+    return filename.replace(string_to_remove, "")
+
+
+def copy_file_for_string_removal(input_path: Path, output_path: Path) -> bool:
+    """Copy one renamed file unless its destination already exists."""
+
+    if output_path.exists():
+        return False
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(input_path, output_path)
+    return True
