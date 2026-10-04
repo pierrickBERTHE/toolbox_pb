@@ -361,6 +361,7 @@ def test_image_withoutbg_mirrors_subdirectories_and_skips_existing(tmp_path):
         source,
         cfg.OUTPUT_DIR / "nested" / "photo_WithoutBG.png",
         mock.sentinel.remover,
+        processing_comment="toolbox_pb :\nn_1 : image_withoutbg",
     )
 
 

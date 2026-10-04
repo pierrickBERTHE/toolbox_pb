@@ -187,7 +187,14 @@ def image_withoutbg(cfg: AppConfig) -> bool:
 
         # Attempt to remove the background from the image and handle errors
         try:
-            func_ima.remove_image_background(input_file, output_path, remover)
+            func_ima.remove_image_background(
+                input_file,
+                output_path,
+                remover,
+                processing_comment=func_ima.build_image_processing_comment(
+                    input_file, "image_withoutbg"
+                ),
+            )
         except (OSError, RuntimeError, ValueError):
             failed += 1
             continue
@@ -315,6 +322,9 @@ def _generate_defilor_video(
         hold_end=params.hold_end,
         codec=params.codec,
         crf=params.crf,
+        processing_comment=func_ima.build_image_processing_comment(
+            input_file, "image_defilor", image_codec=params.codec
+        ),
     )
 
 

@@ -108,6 +108,7 @@ def test_image_diapo_creates_ordered_video_with_audio(slideshow_config):
         frame_size=(2844, 1600),
         codec_video="libx265",
         codec_audio="aac",
+            processing_comment="toolbox_pb :\nn_1 : image_diapo_video_creator | I : libx265",
     )
 
 

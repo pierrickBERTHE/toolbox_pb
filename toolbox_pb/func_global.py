@@ -220,17 +220,17 @@ def build_processing_comment(
     previous_comment = previous_comment or ""
     lines = previous_comment.splitlines()
 
-    # keep only lines that match the expected format for processing history
+    # Keep complete history, including notes entered manually.
     history_lines = [
-        line for line in lines if re.match(r"\s*n_\d+\s*:", line)
+        line for line in lines if line.strip().casefold() != "toolbox_pb :"
     ]
 
     # Number the next processing step based on the last one found in the history
     last_number = 0
-    if history_lines:
-        match = re.search(r"n_(\d+)", history_lines[-1])
+    for line in history_lines:
+        match = re.search(r"\bn_(\d+)\s*:", line)
         if match:
-            last_number = int(match.group(1))
+            last_number = max(last_number, int(match.group(1)))
     processing_count = last_number + 1
 
     # Build the new line for the current processing step
@@ -297,8 +297,8 @@ def write_video_processing_comment(
 def build_video_processing_comment(
     source_path: Path | None,
     feature: str,
-    video_codec: str,
-    audio_codec: str,
+    video_codec: str | None = None,
+    audio_codec: str | None = None,
 ) -> str:
     """Build the next video comment before the output file is created."""
     previous_comment = _read_video_comment(source_path) if source_path else None

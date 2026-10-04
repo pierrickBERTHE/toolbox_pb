@@ -28,6 +28,25 @@ def _read_exif_comment(exif) -> str | None:
     return value if isinstance(value, str) else None
 
 
+def build_image_processing_comment(
+    input_path: Path,
+    feature: str,
+    image_codec: str | None = None,
+) -> str:
+    """Build the next processing comment from an image's existing metadata."""
+    try:
+        with Image.open(input_path) as image:
+            exif = image.getexif()
+            previous_comment = (
+                _read_exif_comment(exif)
+                if input_path.suffix.lower() in {".jpg", ".jpeg"}
+                else image.info.get("Comment")
+            )
+    except OSError:
+        previous_comment = None
+    return build_processing_comment(previous_comment, feature, image_codec=image_codec)
+
+
 def load_background_remover():
     """
     Load the local withoutBG model used for background removal.
@@ -48,6 +67,7 @@ def remove_image_background(
     input_path: Path,
     output_path: Path,
     remover,
+    processing_comment: str | None = None,
 ) -> None:
     """
     Remove an image background and save the transparent result as PNG.
@@ -64,7 +84,12 @@ def remove_image_background(
     # Use the withoutBG model to remove the background and save the result
     try:
         result = remover.remove_background(str(input_path))
-        result.save(output_path, format="PNG")
+        if processing_comment:
+            png_info = PngImagePlugin.PngInfo()
+            png_info.add_text("Comment", processing_comment)
+            result.save(output_path, format="PNG", pnginfo=png_info)
+        else:
+            result.save(output_path, format="PNG")
 
     # Handle errors
     except (OSError, ValueError, RuntimeError) as exc:
@@ -384,6 +409,7 @@ def generate_image_defilor(
     hold_end: float,
     codec: str,
     crf: int,
+    processing_comment: str | None = None,
 ) -> None:
     """
     Generate a smooth vertical scrolling video from a single image.
@@ -445,8 +471,10 @@ def generate_image_defilor(
         "-crf",
         str(crf),
         *get_mobile_video_output_options(codec),
-        str(output_path),
     ]
+    if processing_comment:
+        cmd.extend(["-metadata", f"comment={processing_comment}"])
+    cmd.append(str(output_path))
 
     # Run the command and parse progress, with error handling and messages.
     try:

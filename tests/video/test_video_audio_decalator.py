@@ -65,6 +65,7 @@ def test_processes_video_file(fake_config):
         input_video=input_file,
         output_video=output_path,
         delay=0.5,
+            processing_comment="toolbox_pb :\nn_1 : video_audio_decalator | Décalage audio : +0.5 s",
     )
     assert result is False
 
@@ -141,4 +142,5 @@ def test_negative_delay(fake_config):
         input_video=input_file,
         output_video=output_path,
         delay=-0.5,
+            processing_comment="toolbox_pb :\nn_1 : video_audio_decalator | Décalage audio : -0.5 s",
     )

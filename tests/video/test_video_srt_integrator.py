@@ -120,6 +120,7 @@ def test_processes_video_when_output_not_exists(fake_config):
         input_video=input_video,
         output_video=expected_output,
         srt_path=srt_file,
+            processing_comment="toolbox_pb :\nn_1 : video_srt_integrator",
     )
 
 
@@ -168,4 +169,5 @@ def test_processes_only_missing_outputs_in_mixed_case(fake_config):
         input_video=v2,
         output_video=fake_config.OUTPUT_DIR / "b.mp4",
         srt_path=srt_file,
+            processing_comment="toolbox_pb :\nn_1 : video_srt_integrator",
     )
