@@ -8,7 +8,7 @@ import sys
 
 sys.path.append(str(Path(__file__).resolve().parents[2] / "toolbox_pb"))
 
-from file.main_file import file_str_remover, file_timeline_sorter
+from file.main_file import folder_date_renammer, file_str_remover, file_timeline_sorter
 
 
 def test_file_timeline_sorter_copies_files_from_their_modification_dates(tmp_path):
@@ -98,3 +98,34 @@ def test_file_str_remover_ignores_gitkeep_in_input(tmp_path):
 
     assert is_empty is True
     assert not output_dir.exists()
+
+
+def test_folder_date_renammer_copies_direct_input_folders_with_renamed_dates(tmp_path):
+    input_dir = tmp_path / "input"
+    input_dir.mkdir()
+    source_folder = input_dir / "9 mai 2013 - Meeting d'Aubagne (800m+1500m)"
+    nested_folder = source_folder / "17 octobre 2010 - Ne pas renommer"
+    nested_folder.mkdir(parents=True)
+    (input_dir / "unrelated folder").mkdir()
+    output_dir = tmp_path / "output"
+    cfg = SimpleNamespace(INPUT_DIR=input_dir, OUTPUT_DIR=output_dir)
+
+    is_empty = folder_date_renammer(cfg)
+
+    renamed_folder = input_dir / "130509-Meeting d'Aubagne (800m+1500m)"
+    assert is_empty is False
+    assert source_folder.is_dir()
+    assert nested_folder.is_dir()
+    assert not renamed_folder.exists()
+    copied_folder = output_dir / renamed_folder.name
+    assert (copied_folder / nested_folder.name).is_dir()
+    assert (input_dir / "unrelated folder").is_dir()
+    assert (output_dir / "unrelated folder").is_dir()
+
+
+def test_folder_date_renammer_returns_true_without_direct_folders(tmp_path):
+    input_dir = tmp_path / "input"
+    input_dir.mkdir()
+    cfg = SimpleNamespace(INPUT_DIR=input_dir, OUTPUT_DIR=tmp_path / "output")
+
+    assert folder_date_renammer(cfg) is True

@@ -27,7 +27,7 @@ from image.main_image import (
     image_withoutbg,
 )
 from pdf.main_pdf import pdf_assemblor, pdf_filigranor
-from file.main_file import file_str_remover, file_timeline_sorter
+from file.main_file import file_str_remover, file_timeline_sorter, folder_date_renammer
 from config_global import APP_CONFIG, AppConfig
 import func_global as func
 import reductor_workflow
@@ -98,10 +98,11 @@ def main(cfg : AppConfig):
     print("\n-- FILE --")
     print("13. File_timeline_sorter")
     print("14. File_str_remover")
-    print("\n15. Quitter")
+    print("15. Folder_date_renammer")
+    print("\n16. Quitter")
 
     # Get user choice
-    choix = input("\nSélectionnez une option (1-15) : ")
+    choix = input("\nSélectionnez une option (1-16) : ")
     # choix = "5"
 
     # Default value if selected action does not return a folder-state flag.
@@ -185,6 +186,10 @@ def main(cfg : AppConfig):
             is_empty_folder = file_str_remover(cfg, string_to_remove)
 
         case "15":
+            print("\nLancement du Folder_date_renammer...")
+            is_empty_folder = folder_date_renammer(cfg)
+
+        case "16":
             print("Quitter l'application. Au revoir !")
             sys.exit(0)
 

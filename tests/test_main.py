@@ -272,6 +272,21 @@ def test_main_file_str_remover_called(monkeypatch):
     mock_remover.assert_called_once_with(APP_CONFIG, "_compressed_90")
 
 
+def test_main_folder_date_renammer_called(monkeypatch):
+    """Test that choosing option '15' calls folder_date_renammer."""
+    monkeypatch.setattr("builtins.input", lambda _: "15")
+
+    with mock.patch("main.folder_date_renammer", return_value=False) as mock_renammer, \
+        mock.patch("func_global.get_git_version", return_value="git123"), \
+        mock.patch("func_global.format_git_version", return_value="git123"), \
+        mock.patch("func_global.print_system_info"), \
+        mock.patch("func_global.print_config_flags"), \
+        mock.patch("func_global.summarize_files"):
+        main.main(APP_CONFIG)
+
+    mock_renammer.assert_called_once_with(APP_CONFIG)
+
+
 # Decorator to parametrize other valid choices
 @pytest.mark.parametrize("choice,msg", [
     ("5", "video_srt_extractor"),
@@ -284,6 +299,7 @@ def test_main_file_str_remover_called(monkeypatch):
     ("12", "PDF_assemblor"),
     ("13", "File_timeline_sorter"),
     ("14", "File_str_remover"),
+    ("15", "Folder_date_renammer"),
 ])
 def test_other_menu_choices(monkeypatch, capsys, choice, msg):
     """Test that other menu choices print the correct launch message."""
@@ -305,6 +321,7 @@ def test_other_menu_choices(monkeypatch, capsys, choice, msg):
         mock.patch('main.pdf_assemblor', return_value=False), \
         mock.patch('main.file_timeline_sorter', return_value=False), \
         mock.patch('main.file_str_remover', return_value=False), \
+        mock.patch('main.folder_date_renammer', return_value=False), \
         mock.patch('func_global.print_system_info'), \
         mock.patch('func_global.get_git_version', return_value="git123"), \
         mock.patch('func_global.format_git_version', return_value="git123"), \
@@ -319,7 +336,7 @@ def test_other_menu_choices(monkeypatch, capsys, choice, msg):
         assert msg in captured.out
 
 
-# Decorator to parametrize invalid choices (not in 1-15)
+# Decorator to parametrize invalid choices (not in 1-16)
 @pytest.mark.parametrize("choice", ["invalid", "", "0", "19", "-1", "abc"])
 def test_main_invalid_choice(monkeypatch, capsys, choice):
     """Test that invalid choices are handled properly.
@@ -349,9 +366,9 @@ def test_main_invalid_choice(monkeypatch, capsys, choice):
 
 
 def test_main_quit(monkeypatch):
-    """Test that choosing option '15' exits the program."""
-    # Mock input for choice '15'
-    monkeypatch.setattr('builtins.input', lambda _: '15')
+    """Test that choosing option '16' exits the program."""
+    # Mock input for choice '16'
+    monkeypatch.setattr('builtins.input', lambda _: '16')
 
     # Mock python sys.exit to raise SystemExit
     with pytest.raises(SystemExit):
@@ -359,9 +376,9 @@ def test_main_quit(monkeypatch):
 
 
 def test_main_called(monkeypatch):
-    """Test that main runs without errors for choice '15' (quit)."""
-    # Mock input for choice '15'
-    monkeypatch.setattr("builtins.input", lambda _: "15")
+    """Test that main runs without errors for choice '16' (quit)."""
+    # Mock input for choice '16'
+    monkeypatch.setattr("builtins.input", lambda _: "16")
 
     # Mock others functions to avoid side effects
     with (

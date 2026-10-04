@@ -85,3 +85,34 @@ def file_str_remover(cfg: AppConfig, string_to_remove: str) -> bool:
     # Print the number of files that were renamed
     print(f"{copied_files} fichier(s) renommé(s).")
     return False
+
+
+@func_glob.measure_time
+def folder_date_renammer(cfg: AppConfig) -> bool:
+    """Copy direct input folders and date-rename their copies in the output."""
+
+    # Get all direct subfolders in the input directory
+    input_folders = sorted(
+        (path for path in cfg.INPUT_DIR.iterdir() if path.is_dir()),
+        key=lambda path: path.name.casefold(),
+    )
+    if not input_folders:
+        return True
+
+    # Process each folder and copy it to the output directory with a date prefix
+    copied_folders = 0
+    for folder_path in input_folders:
+        new_name = func_file.build_dated_folder_name(folder_path.name) or folder_path.name
+        output_path = cfg.OUTPUT_DIR / new_name
+
+        if func_file.copy_folder(folder_path, output_path):
+            if new_name == folder_path.name:
+                print(f"Dossier copié sans modification : {folder_path.name}")
+            else:
+                print(f"Dossier copié et renommé : {folder_path.name} -> {new_name}")
+            copied_folders += 1
+        else:
+            print(f"Dossier ignoré (destination existante) : {folder_path.name}")
+
+    print(f"{copied_folders} dossier(s) copié(s).")
+    return False
