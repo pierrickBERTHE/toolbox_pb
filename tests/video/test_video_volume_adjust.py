@@ -104,6 +104,7 @@ def test_processes_video_when_output_not_exists(fake_config):
         input_video=input_video,
         output_video=expected_output,
         csv_path=boosts_csv,
+            processing_comment="toolbox_pb :\nn_1 : video_volume_adjust | Gain audio : +3 dB",
     )
 
 
@@ -145,4 +146,23 @@ def test_processes_only_missing_outputs_in_mixed_case(fake_config):
         input_video=v2,
         output_video=fake_config.OUTPUT_DIR / "b.mp4",
         csv_path=boosts_csv,
+            processing_comment="toolbox_pb :\nn_1 : video_volume_adjust | Gain audio : +3 dB",
+    )
+
+
+def test_multiple_audio_boosts_do_not_list_individual_gain_values(fake_config):
+    """A multi-segment adjustment is recorded without an ambiguous gain value."""
+    boosts_csv = fake_config.SEGMENT_DIR / "boosts.csv"
+    boosts_csv.write_text(
+        "start,end,gain_db\n00:00:01,00:00:03,3\n00:00:04,00:00:06,-2\n",
+        encoding="utf-8",
+    )
+    input_video = fake_config.INPUT_DIR / "clip.mp4"
+    input_video.touch()
+
+    with mock.patch("video.main_video.func_vid.apply_audio_boosts_ffmpeg") as boost_mock:
+        assert video_volume_adjust(fake_config) is False
+
+    assert boost_mock.call_args.kwargs["processing_comment"] == (
+        "toolbox_pb :\nn_1 : video_volume_adjust"
     )
