@@ -156,7 +156,7 @@ def _run_complementary_reductor(
     # If image reduction was selected first, look for videos to process next.
     if primary_reductor == "image":
         files = find_files(cfg.INPUT_DIR, cfg.INPUT_ACCEPTED_VIDEO_FILES)
-        tool_name, runner = "Video_reductor", video_runner
+        tool_name, runner = "Video_encodor", video_runner
 
     else:
         # Video reduction was selected first, so search for compatible images.

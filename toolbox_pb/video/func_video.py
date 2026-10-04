@@ -567,6 +567,7 @@ def create_image_diapo_ffmpeg(
     frame_size: tuple[int, int],
     codec_video: str,
     codec_audio: str,
+    processing_comment: str | None = None,
 ) -> None:
     """
     Create a slideshow through one temporary video segment per image.
@@ -663,9 +664,10 @@ def create_image_diapo_ffmpeg(
             "-map", f"{subtitle_input_index}:s:0",
             "-c:s", "mov_text",
         ])
-        command.extend([
-            "-c:v", "copy", "-t", str(total_duration), str(output_path),
-        ])
+        command.extend(["-c:v", "copy", "-t", str(total_duration)])
+        if processing_comment:
+            command.extend(["-metadata", f"comment={processing_comment}"])
+        command.append(str(output_path))
 
         # Run FFmpeg command to concatenate segments and add audio/subtitles
         _run_ffmpeg_silently(command)
@@ -1353,7 +1355,12 @@ def compute_size_reduction_from_inputs(
     }
 
 
-def shift_audio_no_reencode(input_video: str, output_video: str, delay: float):
+def shift_audio_no_reencode(
+    input_video: str,
+    output_video: str,
+    delay: float,
+    processing_comment: str | None = None,
+):
     """
     Shift audio without re-encoding using FFmpeg.
     delay > 0 : audio is delayed (starts later)
@@ -1391,6 +1398,9 @@ def shift_audio_no_reencode(input_video: str, output_video: str, delay: float):
             output_video
         ]
 
+    if processing_comment:
+        cmd[-1:-1] = ["-metadata", f"comment={processing_comment}"]
+
     # Execute FFmpeg command
     subprocess.run(cmd, check=True)
 
@@ -1424,6 +1434,7 @@ def apply_audio_boosts_ffmpeg(
     input_video: str,
     output_video: str,
     csv_path: str,
+    processing_comment: str | None = None,
 ) -> None:
     """
     Modify the audio of a video by applying gain boosts to specified segments
@@ -1457,6 +1468,8 @@ def apply_audio_boosts_ffmpeg(
         "-c:v", "copy",
         str(output_video),
     ]
+    if processing_comment:
+        cmd[-1:-1] = ["-metadata", f"comment={processing_comment}"]
     subprocess.run(cmd, check=True)
 
 
@@ -1464,6 +1477,7 @@ def apply_video_srt_ffmpeg(
     input_video: str,
     output_video: str,
     srt_path: str,
+    processing_comment: str | None = None,
 ) -> None:
     """
     Add SRT subtitles to a video as an optional stream without re-encoding.
@@ -1480,8 +1494,10 @@ def apply_video_srt_ffmpeg(
         "-map", "0",
         "-map", "1",
         "-y",
-        str(output_video),
     ]
+    if processing_comment:
+        cmd.extend(["-metadata", f"comment={processing_comment}"])
+    cmd.append(str(output_video))
     
     # Execute FFmpeg command and handle errors with detailed output
     try:
@@ -1504,6 +1520,7 @@ def extract_video_srt_ffmpeg(
     input_video: str,
     output_video: str,
     srt_output_path: str,
+    processing_comment: str | None = None,
 ) -> None:
     """
     Extract an embedded subtitle stream from a video into a standalone SRT
@@ -1540,12 +1557,16 @@ def extract_video_srt_ffmpeg(
         "-map", "0:a?",
         "-c", "copy",
         "-y",
+    ]
+    if processing_comment:
+        cmd.extend(["-metadata", f"comment={processing_comment}"])
+    cmd.extend([
         str(output_video),
         "-map", "0:s:0",
         "-c:s", "srt",
         "-y",
         str(srt_output_path),
-    ]
+    ])
 
     # Execute FFmpeg command and handle errors with detailed output
     try:

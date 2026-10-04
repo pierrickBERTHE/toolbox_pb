@@ -15,6 +15,7 @@ from pathlib import Path
 from tqdm import tqdm
 from config_global import AppConfig
 import toolbox_pb.video.func_video as func_vid
+import toolbox_pb.image.func_image as func_ima
 import func_global as func_glob
 
 
@@ -291,7 +292,7 @@ def video_assemblor(cfg: AppConfig) -> bool:
                     subtitle_paths,
                     output_path,
                     func_glob.build_video_processing_comment(
-                        None,
+                        sequence[0]["path"],
                         "video_assemblor",
                         config["codec_v"],
                         config["codec_a"]
@@ -381,10 +382,14 @@ def video_audio_decalator(cfg: AppConfig) -> bool:
             print("Décalage déjà réalisé.")
         else:
             func_vid.shift_audio_no_reencode(
-            input_video= input_file,
-            output_video= output_path,
-            delay=delay
-        )
+                input_video=input_file,
+                output_video=output_path,
+                delay=delay,
+                processing_comment=func_glob.build_video_processing_comment(
+                    input_file,
+                    f"video_audio_decalator | Décalage audio : {delay:+g} s",
+                ),
+            )
         is_empty_folder = False
 
     return is_empty_folder
@@ -404,6 +409,11 @@ def video_volume_adjust(cfg: AppConfig) -> bool:
     if not segments_csv.exists():
         print(f"⚠️ Fichier de segments introuvable : {segments_csv}")
         return True
+
+    boosts = func_vid.load_boost_csv(segments_csv)
+    volume_feature = "video_volume_adjust"
+    if len(boosts) == 1:
+        volume_feature += f" | Gain audio : {boosts[0].gain_db:+g} dB"
 
     # ------------- LOOP THROUGH ALL FILES IN INPUT DIR -------------
     is_empty_folder = True
@@ -427,6 +437,10 @@ def video_volume_adjust(cfg: AppConfig) -> bool:
                 input_video=input_file,
                 output_video=output_path,
                 csv_path=segments_csv,
+                processing_comment=func_glob.build_video_processing_comment(
+                    input_file,
+                    volume_feature,
+                ),
             )
         is_empty_folder = False
 
@@ -469,6 +483,10 @@ def video_srt_extractor(cfg: AppConfig) -> bool:
                 input_video=input_file,
                 output_video=output_path,
                 srt_output_path=srt_output_path,
+                processing_comment=func_glob.build_video_processing_comment(
+                    input_file,
+                    "video_srt_extractor",
+                ),
             )
         is_empty_folder = False
 
@@ -511,6 +529,10 @@ def video_srt_integrator(cfg: AppConfig) -> bool:
                 input_video=input_file,
                 output_video=output_path,
                 srt_path=segments_csv,
+                processing_comment=func_glob.build_video_processing_comment(
+                    input_file,
+                    "video_srt_integrator",
+                ),
             )
         is_empty_folder = False
 
@@ -591,6 +613,11 @@ def image_diapo_video_creator(cfg: AppConfig) -> bool:
         frame_size=(frame_width, frame_height),
         codec_video=cfg.CODEC_VIDEO,
         codec_audio=cfg.CODEC_AUDIO,
+        processing_comment=func_ima.build_image_processing_comment(
+            image_files[0],
+            "image_diapo_video_creator",
+            image_codec=cfg.CODEC_VIDEO,
+        ),
     )
 
     return False
