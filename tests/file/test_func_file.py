@@ -88,3 +88,57 @@ def test_copy_file_for_string_removal_skips_an_existing_destination(tmp_path):
 
     assert copied is False
     assert output_path.read_text(encoding="utf-8") == "existing"
+
+
+def test_build_dated_folder_name_converts_a_french_date_prefix():
+    assert (
+        func_file.build_dated_folder_name(
+            "17 octobre 2010 - Triathlon du Cap sicié CD (1500m, 43kms, 10kms)"
+        )
+        == "101017-Triathlon du Cap sicié CD (1500m, 43kms, 10kms)"
+    )
+
+
+def test_build_dated_folder_name_accepts_first_day_written_as_1er():
+    assert (
+        func_file.build_dated_folder_name("1er mai 2011 - Course")
+        == "110501-Course"
+    )
+
+
+def test_build_dated_folder_name_accepts_missing_accents_and_one_typo():
+    assert (
+        func_file.build_dated_folder_name("25 fevrer 2010 - Triathlon")
+        == "100225-Triathlon"
+    )
+    assert (
+        func_file.build_dated_folder_name("9 aoutt 2013 - Meeting")
+        == "130809-Meeting"
+    )
+
+
+def test_build_dated_folder_name_rejects_invalid_or_unknown_dates():
+    assert func_file.build_dated_folder_name("31 avril 2013 - Impossible") is None
+    assert func_file.build_dated_folder_name("9 inconnu 2013 - Meeting") is None
+
+
+def test_copy_folder_does_not_overwrite_an_existing_destination(tmp_path):
+    source = tmp_path / "9 mai 2013 - Meeting"
+    destination = tmp_path / "130509-Meeting"
+    source.mkdir()
+    destination.mkdir()
+
+    assert func_file.copy_folder(source, destination) is False
+    assert source.is_dir()
+
+
+def test_copy_folder_preserves_the_source_tree(tmp_path):
+    source = tmp_path / "source"
+    destination = tmp_path / "output" / "destination"
+    nested_file = source / "nested" / "result.txt"
+    nested_file.parent.mkdir(parents=True)
+    nested_file.write_text("content", encoding="utf-8")
+
+    assert func_file.copy_folder(source, destination) is True
+    assert nested_file.read_text(encoding="utf-8") == "content"
+    assert (destination / "nested" / "result.txt").read_text(encoding="utf-8") == "content"
