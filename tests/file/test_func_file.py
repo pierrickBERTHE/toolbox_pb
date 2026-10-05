@@ -99,6 +99,15 @@ def test_build_dated_folder_name_converts_a_french_date_prefix():
     )
 
 
+def test_build_dated_folder_name_moves_a_date_at_the_end_to_the_prefix():
+    assert (
+        func_file.build_dated_folder_name(
+            "Match Fruit des Fondus Vs. Les clichés d'Eyguières - 8 avril 2017"
+        )
+        == "170408-Match Fruit des Fondus Vs. Les clichés d'Eyguières"
+    )
+
+
 def test_build_dated_folder_name_accepts_first_day_written_as_1er():
     assert (
         func_file.build_dated_folder_name("1er mai 2011 - Course")

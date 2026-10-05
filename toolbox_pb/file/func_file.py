@@ -10,10 +10,10 @@ import unicodedata
 # Regex to match the timeline-sort prefix of a filename.
 _TIMELINE_PREFIX = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}__")
 
-# Regex to match a French date prefix in a folder name, e.g. "1er janvier 2023 - Title".
-_FRENCH_DATE_PREFIX = re.compile(
-    r"^\s*(?P<day>1er|\d{1,2})\s+(?P<month>[^\W\d_]+)\s+"
-    r"(?P<year>\d{4})\s+-\s+(?P<title>.+?)\s*$",
+# Regex to match a French date anywhere in a folder name, e.g. "Title - 1er janvier 2023".
+_FRENCH_DATE = re.compile(
+    r"(?<!\w)(?P<day>1er|\d{1,2})\s+(?P<month>[^\W\d_]+)\s+"
+    r"(?P<year>\d{4})(?!\w)",
     re.IGNORECASE | re.UNICODE,
 )
 
@@ -138,14 +138,15 @@ def get_french_month_number(month: str) -> int | None:
 
 
 def build_dated_folder_name(folder_name: str) -> str | None:
-    """Build a ``YYMMDD-title`` folder name from a French date prefix.
+    """Build a ``YYMMDD-title`` folder name from a French date anywhere in it.
 
-    ``None`` is returned for names without a valid leading date or whose month
-    cannot be safely recognised.
+    The matched date is removed from the title and inserted as the prefix.
+    ``None`` is returned for names without a valid date or whose month cannot
+    be safely recognised.
     """
 
-    # Match the folder name against the French date prefix regex.
-    match = _FRENCH_DATE_PREFIX.match(folder_name)
+    # Match the first French date in the folder name.
+    match = _FRENCH_DATE.search(folder_name)
     if match is None:
         return None
 
@@ -165,7 +166,14 @@ def build_dated_folder_name(folder_name: str) -> str | None:
     except ValueError:
         return None
 
-    return f"{parsed_date:%y%m%d}-{match.group('title')}"
+    # Remove a date wherever it occurs. Separators left at either edge are
+    # dropped, while repeated separators in a middle position collapse to one.
+    title = folder_name[:match.start()] + folder_name[match.end():]
+    title = re.sub(r"\s{2,}", " ", title)
+    title = re.sub(r"(?:\s*[-–—]\s*){2,}", " - ", title)
+    title = title.strip(" \t-–—")
+
+    return f"{parsed_date:%y%m%d}-{title}"
 
 
 def copy_folder(input_path: Path, output_path: Path) -> bool:
