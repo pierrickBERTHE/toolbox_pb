@@ -21,7 +21,6 @@ from tqdm import tqdm
 
 # Import specialized libraries
 import PIL
-import moviepy
 import onnxruntime
 import huggingface_hub
 import withoutbg
@@ -102,7 +101,6 @@ def print_system_info():
     print("\n=== LIBRAIRIES ===")
 
     print(f"HuggingFace Hub : {huggingface_hub.__version__}")
-    print(f"MoviePy         : {moviepy.__version__}")
     print(f"Numpy           : {np.__version__}")
     print(f"ONNX Runtime    : {onnxruntime.__version__}")
     print(f"Pillow          : {PIL.__version__}")

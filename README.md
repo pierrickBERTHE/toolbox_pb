@@ -129,7 +129,7 @@ toolbox_pb/
 │   ├── reductor_workflow.py    # enchainement Video_encodor / Image_reductor
 │   ├── video/
 │   │   ├── main_video.py       # options 1 a 8 et 11
-│   │   └── func_video.py       # traitements FFmpeg, MoviePy et SRT
+│   │   └── func_video.py       # traitements FFmpeg et SRT
 │   ├── image/
 │   │   ├── main_image.py       # options 9, 10 et 12
 │   │   └── func_image.py       # traitements et metadonnees image
@@ -415,7 +415,7 @@ traitement n°2 : video_encodor | Vidéo : libx265 | Audio : aac
   metadonnees mais initialise toujours le sien a `traitement n°1`, puisque le
   fichier assemble regroupe plusieurs sources distinctes.
 - Pour les MP4, le commentaire est ajoute pendant la creation initiale du
-  fichier par FFmpeg/MoviePy afin d'etre lisible dans la propriete
+  fichier par FFmpeg afin d'etre lisible dans la propriete
   **Commentaires** de l'Explorateur Windows.
 - Pour les JPEG, la valeur est ecrite dans la metadonnee EXIF `XPComment`,
   utilisee par la propriete **Commentaires** de l'Explorateur Windows. Les PNG

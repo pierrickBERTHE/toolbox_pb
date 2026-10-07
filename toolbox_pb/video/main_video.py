@@ -271,12 +271,12 @@ def video_assemblor(cfg: AppConfig) -> bool:
             for index, item in enumerate(sequence)
         ]
 
-        # Probe shared frame size and target FPS via FFprobe only, no MoviePy load
+        # Probe shared frame size and target FPS via FFprobe only
         frame_size = func_vid.get_video_frame_size_from_paths(
             prepared_paths, max_height=cfg.IMAGE_DIAPO_MAX_HEIGHT
         )
 
-        # Probe shared output FPS via FFprobe only, no MoviePy load
+        # Probe shared output FPS via FFprobe only
         output_fps = func_vid.get_video_output_fps_from_paths(prepared_paths)
 
         normalized_paths = []

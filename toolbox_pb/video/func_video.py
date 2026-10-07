@@ -6,17 +6,8 @@ Pierrick BERTHE
 mail : pierrick.berthe@gmx.fr
 Décembre 2025
 """
-import os
-import shutil
-
-# Force MoviePy/imageio-ffmpeg to use the system ffmpeg binary (v8.0.1)
-
-system_ffmpeg = shutil.which("ffmpeg")
-if system_ffmpeg:
-    os.environ["IMAGEIO_FFMPEG_EXE"] = system_ffmpeg
-
 # Imports standard
-from moviepy import VideoFileClip
+import os
 from pathlib import Path
 from PIL import Image, ImageOps
 import json
@@ -24,10 +15,9 @@ import subprocess
 import csv
 import tempfile
 import re
-import warnings
 from collections import Counter
 from datetime import date, datetime
-from typing import Iterable
+from typing import Iterable, Protocol
 from dataclasses import dataclass
 from tqdm import tqdm
 
@@ -40,6 +30,12 @@ from func_global import (
     get_mobile_video_output_options,
     is_processable_file,
 )
+
+
+class DurationClip(Protocol):
+    """Minimal interface required for a clip in subtitle timeline helpers."""
+
+    duration: float
 
 
 @dataclass
@@ -191,9 +187,9 @@ def prepare_video_for_assembly(
     """Create a clean CFR intermediate only for inconsistent source timing.
 
     Some phone files declare a high nominal frame rate (for example 120 FPS)
-    while their timestamped frames run at about 30 FPS. MoviePy can then read
+    while their timestamped frames run at about 30 FPS. FFmpeg rewrites these
     video frames with a cadence that differs from audio. FFmpeg rewrites these
-    exceptional sources with their average FPS before MoviePy loads them.
+    exceptional sources with their average FPS before they are assembled.
     """
     # Check the declared (r_frame_rate) and average FPS (avg_frame_rate) 
     # of the video stream
@@ -348,7 +344,7 @@ def extract_date_from_filename(media_path: Path) -> str | None:
 
 def write_video_assemblor_date_srt(
     sequence: list[dict],
-    clips: list[VideoFileClip],
+    clips: list[DurationClip],
     output_path: Path,
     display_duration: float,
 ) -> bool:
@@ -713,7 +709,7 @@ def get_video_subtitle_cues(
 
 def write_video_assemblor_input_subtitles_srt(
     sequence: list[dict],
-    clips: list[VideoFileClip],
+    clips: list[DurationClip],
     output_path: Path,
     temporary_dir: Path,
 ) -> bool:
@@ -1812,7 +1808,7 @@ def extract_video_srt_ffmpeg(
 def probe_video_dimensions(video_path: Path) -> tuple[int, int] | None:
     """
     Return (width, height) of the first video stream via FFprobe only.
-    Never opens a MoviePy reader, so calling it does not consume memory.
+    It only probes stream metadata, so calling it does not decode video frames.
     """
     command = [
         "ffprobe", "-v", "error", "-select_streams", "v:0",
@@ -1948,7 +1944,7 @@ def get_video_frame_size_from_paths(
 def get_video_output_fps_from_paths(paths: list[Path]) -> float | None:
     """
     Same result as get_video_output_fps, but probes files with FFprobe
-    only, so no MoviePy reader is ever opened for this step.
+    only.
     """
     fps_values = []
     for path in paths:
