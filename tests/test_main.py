@@ -107,6 +107,7 @@ def test_main_video_srt_extractor_called(monkeypatch):
     monkeypatch.setattr('builtins.input', lambda _: '5')
 
     with mock.patch('main.video_srt_extractor', autospec=True) as mock_extractor, \
+        mock.patch('main.find_files_by_extensions', return_value=[]), \
         mock.patch('func_global.get_git_version', return_value="git123"), \
         mock.patch('func_global.format_git_version', return_value="git123"), \
         mock.patch('func_global.print_system_info'), \
@@ -117,9 +118,50 @@ def test_main_video_srt_extractor_called(monkeypatch):
         mock_extractor.assert_called_once_with(APP_CONFIG)
 
 
+def test_main_srt_extractor_offers_date_filtering(monkeypatch, tmp_path):
+    """Option 5 offers option 7 for the SRT files it has just extracted."""
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    input_dir.mkdir()
+    output_dir.mkdir()
+    video_path = input_dir / "family.mp4"
+    extracted_srt = output_dir / "family.srt"
+    video_path.touch()
+    extracted_srt.touch()
+    cfg = mock.Mock(wraps=APP_CONFIG)
+    cfg.INPUT_DIR = input_dir
+    cfg.OUTPUT_DIR = output_dir
+    cfg.INPUT_ACCEPTED_VIDEO_FILES = [".mp4"]
+    cfg.LOG_TO_FILE = False
+    monkeypatch.setattr('builtins.input', lambda _: '5')
+
+    with mock.patch('main.video_srt_extractor', return_value=False), \
+        mock.patch('main.find_files_by_extensions', return_value=[video_path]), \
+        mock.patch(
+            'reductor_workflow._ask_to_run_complementary_reductor',
+            return_value=True,
+        ) as mock_confirmation, \
+        mock.patch('main.video_srt_date_filtrator', return_value=False) as mock_filter, \
+        mock.patch('func_global.get_git_version', return_value="git123"), \
+        mock.patch('func_global.format_git_version', return_value="git123"), \
+        mock.patch('func_global.print_system_info'), \
+        mock.patch('func_global.print_config_flags'), \
+        mock.patch('func_global.summarize_files'):
+
+        main.main(cfg)
+
+    mock_confirmation.assert_called_once_with("Vidéo_srt_date_filtrator")
+    mock_filter.assert_called_once_with(
+        cfg,
+        source_files=[extracted_srt],
+        output_dir=output_dir,
+        overwrite=True,
+    )
+
+
 def test_main_image_diapo_video_creator_called(monkeypatch):
-    """Test that choosing option '9' calls the image slideshow creator."""
-    monkeypatch.setattr('builtins.input', lambda _: '9')
+    """Test that choosing option '11' calls the image slideshow creator."""
+    monkeypatch.setattr('builtins.input', lambda _: '11')
 
     with mock.patch('main.image_diapo_video_creator', return_value=False) as mock_diapo, \
         mock.patch('func_global.get_git_version', return_value="git123"), \
@@ -134,8 +176,8 @@ def test_main_image_diapo_video_creator_called(monkeypatch):
 
 
 def test_main_image_reductor_called(monkeypatch):
-    """Test that choosing option '8' calls image_reductor."""
-    monkeypatch.setattr("builtins.input", lambda _: "8")
+    """Test that choosing option '10' calls image_reductor."""
+    monkeypatch.setattr("builtins.input", lambda _: "10")
 
     with mock.patch("main.image_reductor", return_value=False) as mock_reductor, \
         mock.patch("main.find_files_by_extensions", return_value=[]), \
@@ -152,7 +194,7 @@ def test_main_image_reductor_called(monkeypatch):
 @pytest.mark.parametrize(
     ("choice", "primary", "secondary", "extensions"),
     [
-        ("8", "image_reductor", "video_encodor", [".mp4"]),
+        ("10", "image_reductor", "video_encodor", [".mp4"]),
         ("1", "video_encodor", "image_reductor", [".jpg"]),
     ],
 )
@@ -180,7 +222,7 @@ def test_main_offers_and_runs_complementary_reductor(
 
 def test_main_does_not_offer_complementary_reductor_without_matching_files(monkeypatch):
     """No extra prompt should appear when the other file type is absent."""
-    monkeypatch.setattr("builtins.input", lambda _: "8")
+    monkeypatch.setattr("builtins.input", lambda _: "10")
 
     with mock.patch("main.image_reductor", return_value=False), \
         mock.patch("main.video_encodor", return_value=False) as video_mock, \
@@ -196,8 +238,8 @@ def test_main_does_not_offer_complementary_reductor_without_matching_files(monke
 
 
 def test_main_image_withoutbg_called(monkeypatch):
-    """Test that choosing option '10' calls image_withoutbg."""
-    monkeypatch.setattr("builtins.input", lambda _: "10")
+    """Test that choosing option '12' calls image_withoutbg."""
+    monkeypatch.setattr("builtins.input", lambda _: "12")
 
     with mock.patch("main.image_withoutbg", return_value=False) as mock_withoutbg, \
         mock.patch("func_global.get_git_version", return_value="git123"), \
@@ -211,8 +253,8 @@ def test_main_image_withoutbg_called(monkeypatch):
 
 
 def test_main_pdf_filigranor_called(monkeypatch):
-    """Test that choosing option '11' calls pdf_filigranor."""
-    answers = iter(['11', 'Destinataire'])
+    """Test that choosing option '13' calls pdf_filigranor."""
+    answers = iter(['13', 'Destinataire'])
     monkeypatch.setattr('builtins.input', lambda _: next(answers))
 
     with mock.patch('main.pdf_filigranor', autospec=True) as mock_pdf, \
@@ -227,8 +269,8 @@ def test_main_pdf_filigranor_called(monkeypatch):
 
 
 def test_main_pdf_assemblor_called(monkeypatch):
-    """Test that choosing option '12' calls pdf_assemblor."""
-    monkeypatch.setattr("builtins.input", lambda _: "12")
+    """Test that choosing option '14' calls pdf_assemblor."""
+    monkeypatch.setattr("builtins.input", lambda _: "14")
 
     with mock.patch("main.pdf_assemblor", return_value=False) as mock_pdf, \
         mock.patch("func_global.get_git_version", return_value="git123"), \
@@ -242,8 +284,8 @@ def test_main_pdf_assemblor_called(monkeypatch):
 
 
 def test_main_file_timeline_sorter_called(monkeypatch):
-    """Test that choosing option '13' calls file_timeline_sorter."""
-    monkeypatch.setattr("builtins.input", lambda _: "13")
+    """Test that choosing option '15' calls file_timeline_sorter."""
+    monkeypatch.setattr("builtins.input", lambda _: "15")
 
     with mock.patch("main.file_timeline_sorter", return_value=False) as mock_sorter, \
         mock.patch("func_global.get_git_version", return_value="git123"), \
@@ -257,8 +299,8 @@ def test_main_file_timeline_sorter_called(monkeypatch):
 
 
 def test_main_file_str_remover_called(monkeypatch):
-    """Test that choosing option '14' calls file_str_remover."""
-    answers = iter(["14", "_compressed_90"])
+    """Test that choosing option '16' calls file_str_remover."""
+    answers = iter(["16", "_compressed_90"])
     monkeypatch.setattr("builtins.input", lambda _: next(answers))
 
     with mock.patch("main.file_str_remover", return_value=False) as mock_remover, \
@@ -273,8 +315,8 @@ def test_main_file_str_remover_called(monkeypatch):
 
 
 def test_main_folder_date_renammer_called(monkeypatch):
-    """Test that choosing option '15' calls folder_date_renammer."""
-    monkeypatch.setattr("builtins.input", lambda _: "15")
+    """Test that choosing option '17' calls folder_date_renammer."""
+    monkeypatch.setattr("builtins.input", lambda _: "17")
 
     with mock.patch("main.folder_date_renammer", return_value=False) as mock_renammer, \
         mock.patch("func_global.get_git_version", return_value="git123"), \
@@ -291,15 +333,17 @@ def test_main_folder_date_renammer_called(monkeypatch):
 @pytest.mark.parametrize("choice,msg", [
     ("5", "video_srt_extractor"),
     ("6", "Video_srt_integrator"),
-    ("7", "Image_defilor"),
-    ("8", "Image_reductor"),
-    ("9", "Image_diapo_video_creator"),
-    ("10", "Image_withoutbg"),
-    ("11", "PDF_filigranor"),
-    ("12", "PDF_assemblor"),
-    ("13", "File_timeline_sorter"),
-    ("14", "File_str_remover"),
-    ("15", "Folder_date_renammer"),
+    ("7", "Vidéo_srt_date_filtrator"),
+    ("8", "Vidéo_ass_hard_integrator"),
+    ("9", "Image_defilor"),
+    ("10", "Image_reductor"),
+    ("11", "Image_diapo_video_creator"),
+    ("12", "Image_withoutbg"),
+    ("13", "PDF_filigranor"),
+    ("14", "PDF_assemblor"),
+    ("15", "File_timeline_sorter"),
+    ("16", "File_str_remover"),
+    ("17", "Folder_date_renammer"),
 ])
 def test_other_menu_choices(monkeypatch, capsys, choice, msg):
     """Test that other menu choices print the correct launch message."""
@@ -312,6 +356,8 @@ def test_other_menu_choices(monkeypatch, capsys, choice, msg):
     with mock.patch('main.video_encodor', return_value=False), \
         mock.patch('main.video_srt_extractor', return_value=False), \
         mock.patch('main.video_srt_integrator', return_value=False), \
+        mock.patch('main.video_srt_date_filtrator', return_value=False), \
+        mock.patch('main.video_ass_hard_integrator', return_value=False), \
         mock.patch('main.run_image_defilor_interactive'), \
         mock.patch('main.image_reductor', return_value=False), \
         mock.patch('main.image_withoutbg', return_value=False), \
@@ -366,9 +412,8 @@ def test_main_invalid_choice(monkeypatch, capsys, choice):
 
 
 def test_main_quit(monkeypatch):
-    """Test that choosing option '16' exits the program."""
-    # Mock input for choice '16'
-    monkeypatch.setattr('builtins.input', lambda _: '16')
+    """Test that choosing option '18' exits the program."""
+    monkeypatch.setattr('builtins.input', lambda _: '18')
 
     # Mock python sys.exit to raise SystemExit
     with pytest.raises(SystemExit):
@@ -376,9 +421,8 @@ def test_main_quit(monkeypatch):
 
 
 def test_main_called(monkeypatch):
-    """Test that main runs without errors for choice '16' (quit)."""
-    # Mock input for choice '16'
-    monkeypatch.setattr("builtins.input", lambda _: "16")
+    """Test that main runs without errors for choice '18' (quit)."""
+    monkeypatch.setattr("builtins.input", lambda _: "18")
 
     # Mock others functions to avoid side effects
     with (

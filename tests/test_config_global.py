@@ -100,6 +100,7 @@ def test_flags_are_booleans():
     assert 0 <= APP_CONFIG.IMAGE_REDUCTOR_JPEG_QUALITY <= 100
     assert isinstance(APP_CONFIG.ADD_WITHOUTBG_IN_NAME_IN_OUTPUT, bool)
     assert isinstance(APP_CONFIG.PRINT_ALL_KEYS_IN_METADATA_SUMMARY, bool)
+    assert isinstance(APP_CONFIG.VIDEO_ASSEMBLOR_EXTRACT_AND_FILTER_DATES, bool)
 
 
 # -----------------------------
