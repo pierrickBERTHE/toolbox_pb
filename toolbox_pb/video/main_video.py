@@ -30,6 +30,62 @@ def _is_unchanged_input_copy(input_path, output_path) -> bool:
     return filecmp.cmp(input_path, output_path, shallow=False)
 
 
+def _extract_and_filter_assembled_srt(assembled_video: Path) -> None:
+    """Extract, de-duplicate and save the first subtitle stream of an assembly."""
+    # launch the extraction of SRT subtitles if the flag is set
+    print(
+        "\n✅ VIDEO_ASSEMBLOR_EXTRACT_AND_FILTER_DATES activé : "
+        "extraction puis filtrage des sous-titres."
+    )
+    with tempfile.TemporaryDirectory(prefix="video_assemblor_srt_") as temp_name:
+        temp_dir = Path(temp_name)
+        extracted_video = temp_dir / assembled_video.name
+        extracted_srt = temp_dir / f"{assembled_video.stem}.srt"
+
+        print("Lancement du Vidéo_srt_extractor après l'assemblage...")
+        func_vid.extract_video_srt_ffmpeg(
+            input_video=assembled_video,
+            output_video=extracted_video,
+            srt_output_path=extracted_srt,
+            processing_comment=func_glob.build_video_processing_comment(
+                assembled_video,
+                "video_srt_extractor | video_srt_date_filtrator",
+            ),
+        )
+        if not extracted_srt.exists() or not extracted_video.exists():
+            print("⚠️ Aucune piste de sous-titres n'a pu être extraite.")
+            return
+
+        # launch the filtering of SRT subtitles
+        print("Lancement du Vidéo_srt_date_filtrator après l'extraction...")
+        subtitles = func_vid.parse_srt_cues(
+            extracted_srt.read_text(encoding="utf-8-sig")
+        )
+        
+        # print statistics before and after filtering
+        func_vid.print_srt_date_statistics(
+            "Avant filtrage", func_vid.get_srt_date_statistics(subtitles)
+        )
+        func_vid.print_duplicate_srt_dates(subtitles)
+        filtered_subtitles = func_vid.filter_duplicate_srt_dates(subtitles)
+
+        print()
+        func_vid.print_srt_date_statistics(
+            "Après filtrage", func_vid.get_srt_date_statistics(filtered_subtitles)
+        )
+        func_vid.print_duplicate_srt_dates(filtered_subtitles)
+
+        # write the filtered subtitles to the temporary SRT file
+        extracted_srt.write_text(
+            func_vid.format_srt_cues(filtered_subtitles), encoding="utf-8"
+        )
+        
+        # replace the original files with the filtered ones
+        extracted_video.replace(assembled_video)
+        extracted_srt.replace(assembled_video.with_suffix(".srt"))
+        print("✅ Extraction et filtrage des sous-titres terminés.")
+
+
 @func_glob.measure_time
 def video_encodor(cfg: AppConfig) -> bool:
     """
@@ -331,6 +387,14 @@ def video_assemblor(cfg: AppConfig) -> bool:
         # Print size reduction stats
         func_vid.print_size_reduction(stats)
 
+    # extract and filter SRT if flag is set and output exists
+    if (
+        not is_empty_folder
+        and cfg.VIDEO_ASSEMBLOR_EXTRACT_AND_FILTER_DATES
+        and output_path.exists()
+    ):
+        _extract_and_filter_assembled_srt(output_path)
+
     return is_empty_folder
 
 
@@ -491,6 +555,193 @@ def video_srt_extractor(cfg: AppConfig) -> bool:
         is_empty_folder = False
 
     return is_empty_folder
+
+
+@func_glob.measure_time
+def video_srt_date_filtrator(
+    cfg: AppConfig,
+    source_files: list[Path] | None = None,
+    output_dir: Path | None = None,
+    overwrite: bool = False,
+) -> bool:
+    """Keep only the first subtitle occurrence of every date in SRT input files.
+
+    Both standard ``.srt`` files and SRT files saved with a ``.txt`` extension
+    are supported. The filtered counterpart is written to ``data/output`` with
+    the same filename. ``source_files`` is used by the extractor follow-up
+    workflow to filter newly generated SRT files in place.
+    """
+    is_empty_folder = True
+
+    # for each SRT file in the input directory (or provided source files)
+    subtitle_files = source_files if source_files is not None else sorted(
+        path
+        for path in cfg.INPUT_DIR.rglob("*")
+        if path.suffix.lower() in {".srt", ".txt"}
+    )
+    destination_dir = output_dir or cfg.OUTPUT_DIR
+    for input_file in subtitle_files:
+        if not func_glob.is_processable_file(input_file):
+            continue
+
+        output_path = destination_dir / input_file.name
+        subtitles = func_vid.parse_srt_cues(
+            input_file.read_text(encoding="utf-8-sig")
+        )
+
+        # print statistics before filtering
+        func_vid.print_srt_date_statistics(
+            "Avant filtrage", func_vid.get_srt_date_statistics(subtitles)
+        )
+        func_vid.print_duplicate_srt_dates(subtitles)
+
+        # if the output file already exists and overwrite is False, skip filtering
+        if output_path.exists() and not overwrite:
+            print("Filtrage des dates déjà réalisé.")
+            filtered_subtitles = func_vid.parse_srt_cues(
+                output_path.read_text(encoding="utf-8-sig")
+            )
+        else:
+            filtered_subtitles = func_vid.filter_duplicate_srt_dates(subtitles)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_text(
+                func_vid.format_srt_cues(filtered_subtitles), encoding="utf-8"
+            )
+
+        # print statistics after filtering
+        print()
+        func_vid.print_srt_date_statistics(
+            "Après filtrage", func_vid.get_srt_date_statistics(filtered_subtitles)
+        )
+        func_vid.print_duplicate_srt_dates(filtered_subtitles)
+        is_empty_folder = False
+
+    return is_empty_folder
+
+
+@func_glob.measure_time
+def video_convert_srt_to_ass(cfg: AppConfig) -> bool:
+    """Convert input SRT files to ASS using ``data/template/template_sous_titre.ass``."""
+    # Check if template ASS file exists
+    template_path = cfg.ROOT / "data" / "template" / "template_sous_titre.ass"
+    if not template_path.is_file():
+        print(f"⚠️ Modèle ASS introuvable : {template_path}")
+        return True
+
+    # loop through all SRT files in the input directory and convert them to ASS
+    is_empty_folder = True
+    for input_file in sorted(cfg.INPUT_DIR.rglob("*.srt")):
+        if not func_glob.is_processable_file(input_file):
+            continue
+
+        output_path = cfg.OUTPUT_DIR / f"{input_file.stem}.ass"
+        if output_path.exists():
+            print("Conversion SRT vers ASS déjà réalisée.")
+        else:
+            func_vid.convert_srt_to_ass(
+                input_file,
+                template_path,
+                output_path,
+                title_duration_seconds=cfg.ASS_TITLE_DURATION_SECONDS,
+                subtitle_duration_seconds=cfg.ASS_SUBTITLE_DURATION_SECONDS,
+                title_fade_duration_ms=cfg.ASS_TITLE_FADE_DURATION_MS,
+                subtitle_fade_duration_ms=cfg.ASS_SUBTITLE_FADE_DURATION_MS,
+            )
+        is_empty_folder = False
+
+    return is_empty_folder
+
+
+@func_glob.measure_time
+def video_ass_hard_integrator(cfg: AppConfig) -> bool:
+    """Convert input SRT files to ASS when needed, then burn them into videos."""
+    # Import configuration
+    config = func_glob.parse_config(cfg)
+    
+    # Find all SRT, ASS, and video files in the input directory
+    srt_files = func_vid.find_files_by_extensions(cfg.INPUT_DIR, [".srt"])
+    ass_files = func_vid.find_files_by_extensions(cfg.INPUT_DIR, [".ass"])
+    video_files = func_vid.find_files_by_extensions(
+        cfg.INPUT_DIR, cfg.INPUT_ACCEPTED_VIDEO_FILES
+    )
+    if not video_files:
+        return True
+    if not srt_files and not ass_files:
+        print("⚠️ Aucun fichier SRT ou ASS trouvé dans le dossier d'entrée.")
+        return True
+
+    # Create a mapping of subtitle files by their stem (filename without extension)
+    subtitle_files = srt_files or ass_files
+    subtitle_by_stem = {
+        subtitle_file.stem.lower(): subtitle_file for subtitle_file in subtitle_files
+    }
+    shared_subtitle_path = subtitle_files[0] if len(subtitle_files) == 1 else None
+    template_path = cfg.ROOT / "data" / "template" / "template_sous_titre.ass"
+    if srt_files and not template_path.is_file():
+        print(f"⚠️ Modèle ASS introuvable : {template_path}")
+        return True
+
+    # loop through all video files and integrate the corresponding ASS subtitles
+    processed_video = False
+    with tempfile.TemporaryDirectory(prefix="video_ass_hard_integrator_") as temp_name:
+        temp_dir = Path(temp_name)
+        converted_ass_paths = {}
+
+        # If there are SRT files, convert them to ASS using the template
+        if srt_files:
+            print("\n    ==> Lancement intégré du Vidéo_convert_srt_to_ass...\n")
+            for srt_file in srt_files:
+                ass_path = temp_dir / f"{srt_file.stem}.ass"
+                func_vid.convert_srt_to_ass(
+                    srt_file,
+                    template_path,
+                    ass_path,
+                    title_duration_seconds=cfg.ASS_TITLE_DURATION_SECONDS,
+                    subtitle_duration_seconds=cfg.ASS_SUBTITLE_DURATION_SECONDS,
+                    title_fade_duration_ms=cfg.ASS_TITLE_FADE_DURATION_MS,
+                    subtitle_fade_duration_ms=cfg.ASS_SUBTITLE_FADE_DURATION_MS,
+                )
+                converted_ass_paths[srt_file] = ass_path
+            print("    ✅ Conversion SRT vers ASS terminée.\n")
+
+        for input_file in video_files:
+            subtitle_path = shared_subtitle_path or subtitle_by_stem.get(
+                input_file.stem.lower()
+            )
+            if subtitle_path is None:
+                print(f"⚠️ Aucun fichier SRT ou ASS associé à : {input_file.name}")
+                continue
+            ass_path = converted_ass_paths.get(subtitle_path, subtitle_path)
+
+            # build output subdirectory structure based on input file path
+            output_subdir = func_glob.build_output_subdir_from_input(
+                input_file, config["input_dir"], config["output_dir"]
+            )
+            output_path = func_glob.build_output_path(
+                input_file,
+                output_subdir,
+                config["suffix"],
+                config["codec_v"],
+                config["add_codec"],
+            )
+            # integrate ASS subtitles into the video using FFmpeg
+            if output_path.exists():
+                print("Incrustation ASS déjà réalisée.")
+            else:
+                func_vid.integrate_ass_hard_ffmpeg(
+                    input_video=input_file,
+                    ass_path=ass_path,
+                    output_video=output_path,
+                    codec_video=config["codec_v"],
+                    codec_audio=config["codec_a"],
+                    processing_comment=func_glob.build_video_processing_comment(
+                        input_file, "video_ass_hard_integrator",
+                        config["codec_v"], config["codec_a"],
+                    ),
+                )
+            processed_video = True
+
+    return not processed_video
 
 
 @func_glob.measure_time

@@ -25,6 +25,7 @@ import csv
 import tempfile
 import re
 import warnings
+from collections import Counter
 from datetime import date, datetime
 from typing import Iterable
 from dataclasses import dataclass
@@ -446,6 +447,229 @@ def parse_srt_cues(srt_content: str) -> list[tuple[int, int, str]]:
         if end_ms > start_ms:
             cues.append((start_ms, end_ms, text))
     return cues
+
+
+def format_srt_cues(cues: list[tuple[int, int, str]]) -> str:
+    """Return SRT content with cues renumbered in their retained order."""
+    entries = [
+        f"{index}\n{format_srt_timestamp(start_ms)} --> "
+        f"{format_srt_timestamp(end_ms)}\n{text}"
+        for index, (start_ms, end_ms, text) in enumerate(cues, start=1)
+    ]
+    return "\n\n".join(entries) + ("\n" if entries else "")
+
+
+def format_ass_timestamp(milliseconds: int) -> str:
+    """Format a millisecond offset as an ASS timestamp (H:MM:SS.cc)."""
+    milliseconds = max(0, milliseconds)
+    hours, remainder = divmod(milliseconds, 3_600_000)
+    minutes, remainder = divmod(remainder, 60_000)
+    seconds, milliseconds = divmod(remainder, 1_000)
+    return f"{hours}:{minutes:02}:{seconds:02}.{milliseconds // 10:02}"
+
+
+def _get_ass_template_header(template_content: str) -> str:
+    """Keep the ASS template through the Events format declaration only."""
+    lines = template_content.replace("\r\n", "\n").split("\n")
+    try:
+        events_index = next(
+            index for index, line in enumerate(lines)
+            if line.strip().lower() == "[events]"
+        )
+        format_index = next(
+            index for index, line in enumerate(lines[events_index + 1:], events_index + 1)
+            if line.strip().lower().startswith("format:")
+        )
+    except StopIteration as exc:
+        raise ValueError("Le modèle ASS doit contenir une section [Events] et son Format.") from exc
+    return "\n".join(lines[:format_index + 1]).rstrip() + "\n\n"
+
+
+def convert_srt_to_ass(
+    srt_path: Path,
+    template_path: Path,
+    output_path: Path,
+    title_duration_seconds: float,
+    subtitle_duration_seconds: float,
+    title_fade_duration_ms: int,
+    subtitle_fade_duration_ms: int,
+) -> None:
+    """Convert an SRT file to ASS using the styles and script info of a template."""
+
+    def round_up_to_second(milliseconds: int) -> int:
+        """Round a subtitle timestamp up to the next whole second."""
+        return ((milliseconds + 999) // 1_000) * 1_000
+
+    # Validate input durations and fade times
+    if title_duration_seconds <= 0 or subtitle_duration_seconds <= 0:
+        raise ValueError("Les durées des styles ASS doivent être strictement positives.")
+    if title_fade_duration_ms < 0 or subtitle_fade_duration_ms < 0:
+        raise ValueError("Les durées de fondu ASS ne peuvent pas être négatives.")
+
+    # Convert durations from seconds to milliseconds and parse the SRT cues
+    title_duration_ms = round(title_duration_seconds * 1_000)
+    subtitle_duration_ms = round(subtitle_duration_seconds * 1_000)
+
+    # Parse the SRT cues
+    cues = parse_srt_cues(srt_path.read_text(encoding="utf-8-sig"))
+
+    # Read the ASS template header
+    header = _get_ass_template_header(template_path.read_text(encoding="utf-8-sig"))
+
+    # Build ASS dialogue lines for each cue, applying styles and fade effects
+    dialogues = []
+    for start_ms, end_ms, text in cues:
+        ass_text = text.replace("\\", "\\\\").replace("{", "\\{").replace("}", "\\}")
+        ass_text = ass_text.replace("\n", "\\N")
+        start_ms = round_up_to_second(start_ms)
+        end_ms = round_up_to_second(end_ms)
+        date_title_match = re.fullmatch(
+            r"\s*(?P<date>(?:\d{4}[-_./\s]?\d{1,2}[-_./\s]?\d{1,2}|"
+            r"\d{1,2}[-_./\s]?\d{1,2}[-_./\s]?\d{4}))\s*-\s*"
+            r"(?P<title>.+?)\s*",
+            text,
+            flags=re.DOTALL,
+        )
+        date_text = date_title_match.group("date") if date_title_match else ""
+        title_text = date_title_match.group("title") if date_title_match else ""
+        is_dated_title = bool(
+            date_title_match and extract_dates_from_subtitle_text(date_text)
+        )
+        if is_dated_title:
+            title_end_ms = start_ms + title_duration_ms
+            title_ass_text = title_text.strip().replace("\\", "\\\\")
+            title_ass_text = title_ass_text.replace("{", "\\{").replace("}", "\\}")
+            title_ass_text = title_ass_text.replace("\n", "\\N")
+            dialogues.append(
+                "Dialogue: 0,"
+                f"{format_ass_timestamp(start_ms)},"
+                f"{format_ass_timestamp(title_end_ms)},"
+                f"TITRE,,0,0,0,,{{\\fad({title_fade_duration_ms},{title_fade_duration_ms})}}{title_ass_text}"
+            )
+            ass_text = date_text.strip().replace("\\", "\\\\")
+            ass_text = ass_text.replace("{", "\\{").replace("}", "\\}")
+        dialogues.append(
+            "Dialogue: 0,"
+            f"{format_ass_timestamp(start_ms)},"
+            f"{format_ass_timestamp(start_ms + subtitle_duration_ms)},"
+            f"sous-titre,,0,0,0,,{{\\fad({subtitle_fade_duration_ms},{subtitle_fade_duration_ms})}}{ass_text}"
+        )
+
+    # Write the ASS content to the output file, ensuring the parent directory exists
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(header + "\n".join(dialogues) + "\n", encoding="utf-8")
+
+
+def integrate_ass_hard_ffmpeg(
+    input_video: Path,
+    ass_path: Path,
+    output_video: Path,
+    codec_video: str,
+    codec_audio: str,
+    processing_comment: str,
+) -> None:
+    """Burn an ASS subtitle file into video pixels with FFmpeg/libass."""
+    # Escape the ASS path for FFmpeg filter usage
+    ass_filter_path = ass_path.resolve().as_posix().replace(":", r"\:")
+    command = [
+        "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+        "-i", str(input_video), "-vf", f"ass=filename='{ass_filter_path}'",
+        "-map", "0:v:0", "-map", "0:a?", "-c:v", codec_video,
+        "-c:a", codec_audio, "-metadata", f"comment={processing_comment}",
+        "-progress", "pipe:1",
+        str(output_video),
+    ]
+
+    # Run the FFmpeg command with progress reporting
+    _run_ffmpeg_with_progress(
+        command,
+        duration=probe_video_duration(input_video),
+        desc=f"Incrustation ASS : {input_video.name}",
+    )
+
+
+def extract_dates_from_subtitle_text(text: str) -> list[str]:
+    """Return valid dates in subtitle text as ISO keys, in display order."""
+    # Define regex patterns for matching date formats in the subtitle text
+    patterns = (
+        (r"(?<!\d)(\d{4})[-_./\s]?(\d{1,2})[-_./\s]?(\d{1,2})(?!\d)", "ymd"),
+        (r"(?<!\d)(\d{1,2})[-_./\s]?(\d{1,2})[-_./\s]?(\d{4})(?!\d)", "dmy"),
+    )
+
+    # Loop through patterns and attempt to extract valid dates
+    dates = []
+    for pattern, order in patterns:
+        for match in re.finditer(pattern, text):
+            values = [int(value) for value in match.groups()]
+            year, month, day = values if order == "ymd" else (
+                values[2], values[1], values[0]
+            )
+            try:
+                dates.append(date(year, month, day).isoformat())
+            except ValueError:
+                continue
+    return dates
+
+
+def get_srt_date_statistics(
+    cues: list[tuple[int, int, str]],
+) -> tuple[int, int, int]:
+    """Return distinct date count, date occurrences, and subtitle count."""
+    dates = [
+        subtitle_date
+        for _, _, text in cues
+        for subtitle_date in extract_dates_from_subtitle_text(text)
+    ]
+    return len(set(dates)), len(dates), len(cues)
+
+
+def print_srt_date_statistics(label: str, statistics: tuple[int, int, int]) -> None:
+    """Print a concise date/subtitle summary for the date filter."""
+    distinct_dates, occurrences, subtitles = statistics
+    print(
+        f"\n{label} : {distinct_dates} date(s) différente(s), "
+        f"{occurrences} occurrence(s) de date, "
+        f"{subtitles} sous-titre(s) détecté(s)."
+    )
+
+
+def print_duplicate_srt_dates(cues: list[tuple[int, int, str]]) -> None:
+    """Print each repeated subtitle date and its number of occurrences."""
+    occurrences = Counter(
+        subtitle_date
+        for _, _, text in cues
+        for subtitle_date in extract_dates_from_subtitle_text(text)
+    )
+    duplicate_dates = {
+        subtitle_date: count
+        for subtitle_date, count in occurrences.items()
+        if count > 1
+    }
+    if not duplicate_dates:
+        print("\nAucune date en doublon détectée.")
+        return
+
+    print("\nDates en doublon détectées :")
+    for subtitle_date, count in sorted(duplicate_dates.items()):
+        print(
+            f"- {datetime.fromisoformat(subtitle_date):%d/%m/%Y} : "
+            f"{count} occurrence(s)"
+        )
+
+
+def filter_duplicate_srt_dates(
+    cues: list[tuple[int, int, str]],
+) -> list[tuple[int, int, str]]:
+    """Keep the first cue for each date and remove later duplicate date cues."""
+    seen_dates = set()
+    filtered_cues = []
+    for cue in cues:
+        cue_dates = extract_dates_from_subtitle_text(cue[2])
+        if cue_dates and all(subtitle_date in seen_dates for subtitle_date in cue_dates):
+            continue
+        filtered_cues.append(cue)
+        seen_dates.update(cue_dates)
+    return filtered_cues
 
 
 def get_video_subtitle_cues(

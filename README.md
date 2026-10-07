@@ -14,6 +14,8 @@ Fonctionnalites actuellement disponibles dans le menu principal :
 - `Video_volume_adjust` : applique des variations de volume audio sur des plages temporelles definies dans `data/segment/boosts.csv`, sans reencoder le flux video.
 - `Video_srt_extractor` : extrait la piste de sous-titres deja integree a chaque video du dossier d'entree vers un fichier `.srt` independant place a cote de la video, et produit une copie de la video sans cette piste, sans reencoder l'audio ou la video. Les videos sans piste de sous-titres sont ignorees : rien n'est ecrit dans `data/output` pour elles.
 - `Video_srt_integrator` : integre `data/segment/sous_titre.srt` comme piste de sous-titres MP4 aux videos du dossier d'entree, sans reencoder l'audio ou la video.
+- `Video_srt_date_filtrator` : filtre les fichiers SRT (`.srt` ou `.txt`) : seule la premiere occurrence de chaque date est conservee. Les bilans avant/apres indiquent le nombre de dates distinctes, d'occurrences et de sous-titres detectes.
+- `Video_ass_hard_integrator` : convertit automatiquement les fichiers `.srt` en ASS avec le modele, puis les incruste de facon permanente dans les videos en reencodant la sortie avec les codecs configures globalement.
 `-- IMAGE --`
 - `Image_defilor` : genere une video verticale defilante pour chaque image source et, pour les PDF, une video par image extraite de chaque page. La hauteur, la vitesse, le FPS, les temps d'arret et le codec sont parametrables.
 - `Image_reductor` : reduit les photos JPEG/PNG sans changer leur format ni leurs dimensions. Une barre de progression, la comparaison de poids globale et un bilan des images compressees, intactes et deja traitees sont affiches. Les JPEG sont reencodes en qualite 95, les PNG sont optimises sans perte ; orientation EXIF, profil colorimetrique et transparence sont conserves. Les images non allegeables et les documents non-video sont copies intacts ; les videos compatibles sont reservees a `Video_encodor`. Les copies JPEG incluent un commentaire de suivi de traitement.
@@ -121,21 +123,21 @@ TOOLBOX_IMAGE=MON_COMPTE/toolbox-pb:1.0.0
 ```text
 toolbox_pb/
 ├── toolbox_pb/
-│   ├── main.py                 # menu et routage des options 1 a 14
+│   ├── main.py                 # menu et routage des options 1 a 18
 │   ├── config_global.py        # chemins, extensions, codecs et flags
 │   ├── func_global.py          # fonctions communes a toute l'application
 │   ├── reductor_workflow.py    # enchainement Video_encodor / Image_reductor
 │   ├── video/
-│   │   ├── main_video.py       # options 1 a 6 et 9
+│   │   ├── main_video.py       # options 1 a 8 et 11
 │   │   └── func_video.py       # traitements FFmpeg, MoviePy et SRT
 │   ├── image/
-│   │   ├── main_image.py       # options 7, 8 et 10
+│   │   ├── main_image.py       # options 9, 10 et 12
 │   │   └── func_image.py       # traitements et metadonnees image
 │   ├── pdf/
-│   │   ├── main_pdf.py         # options 11 et 12
+│   │   ├── main_pdf.py         # options 13 et 14
 │   │   └── func_pdf.py         # filigrane et fusion PDF
 │   └── file/
-│       ├── main_file.py        # option 13
+│       ├── main_file.py        # options 15 a 17
 │       └── func_file.py        # datation et copie des fichiers
 ├── data/
 │   ├── input/                  # fichiers sources a traiter
@@ -186,14 +188,16 @@ Le projet conserve la structure des sous-dossiers de `data/input` vers `data/out
 | 4 | `Video_volume_adjust` | Une ou plusieurs videos acceptees | `boosts.csv` requis | Une video ajustee par source |
 | 5 | `Video_srt_extractor` | Une ou plusieurs videos acceptees | Aucun | Pour chaque video contenant une piste de sous-titres : un fichier `.srt` et une copie de la video sans cette piste. Les videos sans sous-titres sont ignorees : rien n'est ecrit |
 | 6 | `Video_srt_integrator` | Une ou plusieurs videos acceptees | `sous_titre.srt` requis | Une video avec piste de sous-titres par source |
-| 7 | `Image_defilor` | Images acceptees et/ou PDF | Aucun | Une video defilante par image ou page PDF |
-| 8 | `Image_reductor` | Images, et eventuellement autres fichiers a copier | Aucun | Images reduites et copies intactes des fichiers non-video |
-| 9 | `Image_diapo_video_creator` | Images acceptees ; un audio facultatif | Aucun | Un MP4 de diaporama avec piste de sous-titres |
-| 10 | `Image_withoutbg` | Images acceptees | Aucun | Une image sans arriere-plan par source |
-| 11 | `PDF_filigranor` | Un ou plusieurs PDF | Aucun ; le destinataire est demande au menu | Un PDF filigrane par source |
-| 12 | `PDF_assemblor` | Un ou plusieurs PDF | Aucun | Un seul PDF `pdf_assemblage.pdf` |
-| 13 | `File_timeline_sorter` | Tout fichier source sauf `.gitkeep` | Aucun | Une copie par fichier, prefixee par sa date de modification |
-| 14 | `File_str_remover` | Tout fichier source sauf `.gitkeep` | La chaîne à supprimer, demandée au menu | Une copie par fichier avec la chaîne retirée du nom |
+| 7 | `Video_srt_date_filtrator` | Un ou plusieurs fichiers SRT au format `.srt` ou `.txt` | Aucun | Un fichier filtre par source, ne conservant que la premiere occurrence de chaque date |
+| 8 | `Video_ass_hard_integrator` | Une ou plusieurs videos et un ou plusieurs fichiers `.srt` ou `.ass` | `template_sous_titre.ass` requis pour les SRT | Une video reencodee par source, avec les sous-titres incrustes |
+| 9 | `Image_defilor` | Images acceptees et/ou PDF | Aucun | Une video defilante par image ou page PDF |
+| 10 | `Image_reductor` | Images, et eventuellement autres fichiers a copier | Aucun | Images reduites et copies intactes des fichiers non-video |
+| 11 | `Image_diapo_video_creator` | Images acceptees ; un audio facultatif | Aucun | Un MP4 de diaporama avec piste de sous-titres |
+| 12 | `Image_withoutbg` | Images acceptees | Aucun | Une image sans arriere-plan par source |
+| 13 | `PDF_filigranor` | Un ou plusieurs PDF | Aucun ; le destinataire est demande au menu | Un PDF filigrane par source |
+| 14 | `PDF_assemblor` | Un ou plusieurs PDF | Aucun | Un seul PDF `pdf_assemblage.pdf` |
+| 15 | `File_timeline_sorter` | Tout fichier source sauf `.gitkeep` | Aucun | Une copie par fichier, prefixee par sa date de modification |
+| 16 | `File_str_remover` | Tout fichier source sauf `.gitkeep` | La chaîne à supprimer, demandée au menu | Une copie par fichier avec la chaîne retirée du nom |
 
 `Video_assemblor` et `PDF_assemblor` classent leurs entrees par chemin relatif
 dans `data/input` lorsqu'aucun ordre explicite n'est fourni. Pour les autres
@@ -283,7 +287,7 @@ Le meme fichier SRT est integre a chaque video source traitee par l'option 6.
 
 ## Diaporama video (`Image_diapo_video_creator`)
 
-L'option `9` cree `image_diapo_video_v-<codec_video>_a-<codec_audio>.mp4` dans
+L'option `11` cree `image_diapo_video_v-<codec_video>_a-<codec_audio>.mp4` dans
 `data/output`.
 
 - Toutes les images `.jpeg`, `.jpg` et `.png` de `data/input` et de ses sous-dossiers sont prises en compte dans un ordre deterministe.
@@ -330,6 +334,35 @@ flux de sous-titres est ajoute, retire ou converti.
 
 Ces deux options ne modifient jamais les fichiers de `data/input`.
 
+### Filtrage des dates de sous-titres
+
+`Video_srt_date_filtrator` (option `7`) lit les fichiers SRT d'extension
+`.srt` ou `.txt` depuis `data/input`, puis ecrit leur version filtree dans
+`data/output`. Une date valide peut etre au format `JJ/MM/AAAA`, `AAAA-MM-JJ`
+ou avec des separateurs `.` / `_` / espaces ; les formats equivalents compacts
+sont aussi acceptes. La premiere occurrence est conservee, les suivantes sont
+supprimees et les sous-titres restants sont renumerotes. Avant le traitement,
+le programme affiche aussi chaque date en doublon et son nombre d'occurrences ;
+les bilans avant/apres indiquent le nombre de dates distinctes, d'occurrences
+et de sous-titres detectes. Le bilan final confirme aussi si aucun doublon ne
+reste.
+
+Apres l'option `5` (`Video_srt_extractor`), la toolbox propose automatiquement
+de lancer `Video_srt_date_filtrator` sur les fichiers SRT qui viennent d'etre
+extraits. La confirmation attend 10 secondes, puis lance le filtrage par
+defaut si aucune reponse n'est saisie. Repondez `n` ou `non` pour le passer ;
+le fichier SRT extrait est alors filtre directement dans `data/output`.
+
+### Incrustation permanente d'un ASS
+
+`Video_ass_hard_integrator` (option `8`) convertit d'abord les fichiers `.srt`
+en ASS a l'aide de `data/template/template_sous_titre.ass`, puis les incruste
+directement dans les pixels de la video. Si un seul fichier SRT ou ASS est
+present dans `data/input`, il est applique a toutes les videos ; s'il y en a
+plusieurs, chaque video doit avoir un fichier de sous-titres de meme nom. La
+video de sortie utilise les codecs, le suffixe et l'option de nommage configures
+dans `config_global.py`.
+
 ## Reducteurs image et video
 
 Les options `Video_encodor` et `Image_reductor` traitent les fichiers de
@@ -356,13 +389,13 @@ maniere recursive et conservent les sous-dossiers de `data/input` dans
 
 ### Commentaires de suivi dans les metadonnees
 
-Seules les fonctionnalites `Video_encodor`, `Video_assemblor` et
-`Image_reductor` inscrivent un commentaire de suivi dans le fichier genere.
-`Video_srt_extractor` et `Video_srt_integrator` ne font que remuxer le flux de
-sous-titres (`-c copy`) et n'ajoutent pas de nouvelle ligne d'historique ; un
-commentaire deja present sur la video source est cependant conserve tel quel,
-puisque FFmpeg reporte les metadonnees globales du fichier d'entree par
-defaut lors d'un remux. Les fichiers places dans `data/input` ne sont jamais
+Les fonctionnalites qui produisent une video (`Video_encodor`,
+`Video_assemblor`, `Video_srt_extractor`, `Video_srt_integrator` et
+`Video_ass_hard_integrator`) inscrivent un commentaire de suivi dans le
+fichier genere. Avec le post-traitement automatique de l'assembleur, la video
+remuxee indique egalement l'extraction et le filtrage des dates. Les filtres
+SRT seuls ne produisent pas de video et ne possedent donc pas de metadonnees
+video a completer. Les fichiers places dans `data/input` ne sont jamais
 modifies.
 
 Le commentaire construit un historique multi-lignes, une ligne par
@@ -426,6 +459,13 @@ Parametres du diaporama :
 - `IMAGE_DIAPO_FPS` : cadence de sortie, par defaut `24`
 - `IMAGE_DIAPO_MAX_HEIGHT` : hauteur maximale de la sortie, par defaut `2160`
 
+Parametres des sous-titres ASS :
+
+- `ASS_TITLE_DURATION_SECONDS` : duree d'un titre, par defaut `5.0`
+- `ASS_SUBTITLE_DURATION_SECONDS` : duree d'une date en bas, par defaut `10.0`
+- `ASS_TITLE_FADE_DURATION_MS` : fondu d'entree et de sortie du titre, par defaut `1000`
+- `ASS_SUBTITLE_FADE_DURATION_MS` : fondu d'entree et de sortie de la date, par defaut `500`
+
 Flags disponibles :
 
 - `LOG_TO_FILE` : redirige les sorties console vers `log/process_log.txt`
@@ -442,6 +482,10 @@ Flags disponibles :
   de sous-titres deja presentes dans les videos sources sont aussi conservees,
   recadrees si un segment est selectionne, puis decalees sur la nouvelle
   chronologie de l'assemblage.
+- `VIDEO_ASSEMBLOR_EXTRACT_AND_FILTER_DATES` : lorsque `True`, lance apres
+  l'assemblage l'extraction de la premiere piste de sous-titres, supprime ses
+  dates en doublon et place le SRT filtre ainsi que la video sans piste de
+  sous-titres dans `data/output`.
 
 ## Tests
 

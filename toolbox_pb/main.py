@@ -16,6 +16,8 @@ from video.main_video import (
     video_assemblor,
     video_audio_decalator,
     video_srt_extractor,
+    video_srt_date_filtrator,
+    video_ass_hard_integrator,
     video_volume_adjust,
     video_srt_integrator,
     image_diapo_video_creator,
@@ -71,6 +73,7 @@ def main(cfg : AppConfig):
         "ADD_WITHOUTBG_IN_NAME_IN_OUTPUT",
         "ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT",
         "VIDEO_ASSEMBLOR_ADD_DATE_SUBTITLES",
+        "VIDEO_ASSEMBLOR_EXTRACT_AND_FILTER_DATES",
         "PRINT_ALL_KEYS_IN_METADATA_SUMMARY"
     ])
 
@@ -87,22 +90,24 @@ def main(cfg : AppConfig):
     print("04. Vidéo_volume_adjust")
     print("05. Vidéo_srt_extractor")
     print("06. Vidéo_srt_integrator")
+    print("07. Vidéo_srt_date_filtrator")
+    print("08. Vidéo_ass_hard_integrator")
     print("\n-- IMAGE --")
-    print("07. Image_defilor")
-    print("08. Image_reductor")
-    print("09. Image_diapo_video_creator")
-    print("10. Image_withoutbg")
+    print("09. Image_defilor")
+    print("10. Image_reductor")
+    print("11. Image_diapo_video_creator")
+    print("12. Image_withoutbg")
     print("\n-- PDF --")
-    print("11. PDF_filigranor")
-    print("12. PDF_assemblor")
+    print("13. PDF_filigranor")
+    print("14. PDF_assemblor")
     print("\n-- FILE --")
-    print("13. File_timeline_sorter")
-    print("14. File_str_remover")
-    print("15. Folder_date_renammer")
-    print("\n16. Quitter")
+    print("15. File_timeline_sorter")
+    print("16. File_str_remover")
+    print("17. Folder_date_renammer")
+    print("\n18. Quitter")
 
     # Get user choice
-    choix = input("\nSélectionnez une option (1-16) : ")
+    choix = input("\nSélectionnez une option (1-18) : ")
     # choix = "5"
 
     # Default value if selected action does not return a folder-state flag.
@@ -132,18 +137,51 @@ def main(cfg : AppConfig):
             is_empty_folder = video_volume_adjust(cfg)
 
         case "5":
-            print("\nLancement du video_srt_extractor...")
+            print("\nLancement du video_srt_extractor...\n")
             is_empty_folder = video_srt_extractor(cfg)
+
+            # Check if complementary reductor should be run
+            extracted_srt_files = [
+                cfg.OUTPUT_DIR / f"{video_path.stem}.srt"
+                for video_path in find_files_by_extensions(
+                    cfg.INPUT_DIR, cfg.INPUT_ACCEPTED_VIDEO_FILES
+                )
+            ]
+            extracted_srt_files = [
+                path for path in extracted_srt_files if path.is_file()
+            ]
+            # If there are extracted SRT files, ask to run video_srt_date_filtrator
+            if (
+                extracted_srt_files
+                and reductor_workflow._ask_to_run_complementary_reductor(
+                    "Vidéo_srt_date_filtrator"
+                )
+            ):
+                print("\nLancement du Vidéo_srt_date_filtrator...")
+                video_srt_date_filtrator(
+                    cfg,
+                    source_files=extracted_srt_files,
+                    output_dir=cfg.OUTPUT_DIR,
+                    overwrite=True,
+                )
 
         case "6":
             print("\nLancement du Video_srt_integrator...")
             is_empty_folder = video_srt_integrator(cfg)
 
         case "7":
+            print("\nLancement du Vidéo_srt_date_filtrator...")
+            is_empty_folder = video_srt_date_filtrator(cfg)
+
+        case "8":
+            print("\nLancement du Vidéo_ass_hard_integrator...")
+            is_empty_folder = video_ass_hard_integrator(cfg)
+
+        case "9":
             print("\nLancement du Image_defilor...")
             is_empty_folder = run_image_defilor_interactive(cfg)
 
-        case "8":
+        case "10":
             print("\nLancement du Image_reductor...")
             is_empty_folder = image_reductor(cfg)
             complementary_is_empty = reductor_workflow._run_complementary_reductor(
@@ -152,30 +190,30 @@ def main(cfg : AppConfig):
             if complementary_is_empty is not None:
                 is_empty_folder = is_empty_folder and complementary_is_empty
 
-        case "9":
+        case "11":
             print("\nLancement du Image_diapo_video_creator...")
             is_empty_folder = image_diapo_video_creator(cfg)
 
-        case "10":
+        case "12":
             print("\nLancement du Image_withoutbg...")
             is_empty_folder = image_withoutbg(cfg)
 
-        case "11":
+        case "13":
             print("\nLancement du PDF_filigranor...")
             watermark_recipient = input(
                 "\nEntrez le nom du destinataire du filigrane: "
             ).strip()
             is_empty_folder = pdf_filigranor(cfg, watermark_recipient)
 
-        case "12":
+        case "14":
             print("\nLancement du PDF_assemblor...")
             is_empty_folder = pdf_assemblor(cfg)
 
-        case "13":
+        case "15":
             print("\nLancement du File_timeline_sorter...")
             is_empty_folder = file_timeline_sorter(cfg)
 
-        case "14":
+        case "16":
             print("\nLancement du File_str_remover...")
             string_to_remove = input(
                 "\nEntrez la chaîne à supprimer des noms de fichiers : "
@@ -185,11 +223,11 @@ def main(cfg : AppConfig):
                 return
             is_empty_folder = file_str_remover(cfg, string_to_remove)
 
-        case "15":
+        case "17":
             print("\nLancement du Folder_date_renammer...")
             is_empty_folder = folder_date_renammer(cfg)
 
-        case "16":
+        case "18":
             print("Quitter l'application. Au revoir !")
             sys.exit(0)
 
