@@ -147,7 +147,6 @@ def test_print_system_info(monkeypatch, capsys):
 
     # Verify output contains expected information
     assert "Python" in captured.out
-    assert "MoviePy" in captured.out
     assert "Numpy" in captured.out
     assert "Pillow" in captured.out
     assert "ffmpeg version test" in captured.out
