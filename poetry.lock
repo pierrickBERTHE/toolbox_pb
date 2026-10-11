@@ -517,6 +517,18 @@ files = [
 ]
 
 [[package]]
+name = "mutagen"
+version = "1.48.1"
+description = "read and write audio tags for many formats"
+optional = false
+python-versions = "<4,>=3.10"
+groups = ["main"]
+files = [
+    {file = "mutagen-1.48.1-py3-none-any.whl", hash = "sha256:4f077fe87d3fc7fba259aa63d8c026b18382ca6a42ef37c61e16f1b1b5b82fe7"},
+    {file = "mutagen-1.48.1.tar.gz", hash = "sha256:8f95637ab9f6f305cec6bd1294e197debe207998e3e068596563c74f86b0a173"},
+]
+
+[[package]]
 name = "numpy"
 version = "2.3.5"
 description = "Fundamental package for array computing in Python"
@@ -1081,4 +1093,4 @@ dev = ["black (>=22.0.0)", "commitizen (>=4.1.0)", "mypy (>=1.0.0)", "pip-audit 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<4"
-content-hash = "b9c018d67cbc2510c9cd48a701aa3389af3e79b4cbe3e6ca84479aa1bff0ff35"
+content-hash = "bcc31207a145f608d16f9469b0cc24a2819bc17e8280fccb79162c72c3a669ca"

@@ -29,7 +29,7 @@ INPUT_ACCEPTED_VIDEO_FILES = [
 ]
 INPUT_ACCEPTED_IMAGE_FILES = [".jpeg", ".jpg", ".png"]
 INPUT_ACCEPTED_AUDIO_FILES = [
-    ".aac", ".flac", ".m4a", ".mp3", ".ogg", ".wav", ".wma"
+    ".aac", ".flac", ".m4a", ".mp3", ".ogg", ".opus", ".wav", ".wma"
 ]
 INPUT_ACCEPTED_MEDIA_FILES = [
     *INPUT_ACCEPTED_VIDEO_FILES,
@@ -116,6 +116,10 @@ class AppConfig:
     IMAGE_DIAPO_DURATION_SECONDS: float = 5.0
     IMAGE_DIAPO_FPS: int = 24
     IMAGE_DIAPO_MAX_HEIGHT: int = 2160
+
+    # Audio compressor (MP3 output)
+    AUDIO_COMPRESSOR_MP3_BITRATE_KBPS: int = 160
+    AUDIO_COMPRESSOR_COPY_JPEG_FILES: bool = True
 
     def __post_init__(self) -> None:
         """Normalise les alias de configuration conservés pour compatibilité."""
