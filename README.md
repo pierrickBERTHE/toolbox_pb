@@ -20,6 +20,8 @@ Fonctionnalites actuellement disponibles dans le menu principal :
 - `Image_defilor` : genere une video verticale defilante pour chaque image source et, pour les PDF, une video par image extraite de chaque page. La hauteur, la vitesse, le FPS, les temps d'arret et le codec sont parametrables.
 - `Image_reductor` : reduit les photos JPEG/PNG sans changer leur format ni leurs dimensions. Une barre de progression, la comparaison de poids globale et un bilan des images compressees, intactes et deja traitees sont affiches. Les JPEG sont reencodes en qualite 95, les PNG sont optimises sans perte ; orientation EXIF, profil colorimetrique et transparence sont conserves. Les images non allegeables et les documents non-video sont copies intacts ; les videos compatibles sont reservees a `Video_encodor`. Les copies JPEG incluent un commentaire de suivi de traitement.
 - `Image_diapo_video_creator` : assemble toutes les photos du dossier d'entree dans une seule video avec une duree configurable par photo. Les images sont redimensionnees sans deformation, a leur orientation EXIF reelle, et leur ratio est conserve. Une piste audio unique du dossier d'entree peut etre ajoutee ; les noms des photos et leurs timings sont integres comme piste de sous-titres dans le MP4.
+`-- AUDIO --`
+- `Audio_compressor` : convertit les fichiers audio acceptes en MP3 au debit configure. Les MP3 deja a un debit inferieur ou egal au reglage sont copies intacts, sans reencodage ni modification de leurs metadonnees. Les jaquettes JPEG des dossiers audio peuvent etre copiees en option.
 `-- PDF --`
 - `PDF_filigranor` : ajoute a chaque PDF un filigrane textuel diagonal repete. Le menu demande le destinataire et ajoute automatiquement le prefixe configure `document exclusivement destine a`.
 - `PDF_assemblor` : fusionne tous les PDF du dossier d'entree (et de ses sous-dossiers) dans un unique fichier, dans l'ordre alphabetique de leurs chemins relatifs.
@@ -133,6 +135,9 @@ toolbox_pb/
 │   ├── image/
 │   │   ├── main_image.py       # options 9, 10 et 12
 │   │   └── func_image.py       # traitements et metadonnees image
+│   ├── audio/
+│   │   ├── main_audio.py       # option 13 : compression audio MP3
+│   │   └── func_audio.py       # encodage et metadonnees MP3
 │   ├── pdf/
 │   │   ├── main_pdf.py         # options 13 et 14
 │   │   └── func_pdf.py         # filigrane et fusion PDF
@@ -175,8 +180,9 @@ Le projet conserve la structure des sous-dossiers de `data/input` vers `data/out
 - Extensions video acceptees : `.avi`, `.m4v`, `.mkv`, `.mod`, `.mov`, `.mp4`,
   `.mpg`, `.mts`, `.vob`, `.webm`.
 - Extensions image acceptees : `.jpeg`, `.jpg`, `.png`. Extensions PDF :
-  `.pdf`. Extensions audio du diaporama : `.aac`, `.flac`, `.m4a`, `.mp3`,
-  `.ogg`, `.wav`.
+  `.pdf`. Extensions audio du compresseur : `.aac`, `.flac`, `.m4a`, `.mp3`,
+  `.ogg`, `.opus`, `.wav`, `.wma`. Le diaporama accepte `.aac`, `.flac`,
+  `.m4a`, `.mp3`, `.ogg` et `.wav`.
 
 ### Par fonctionnalite
 
@@ -194,10 +200,11 @@ Le projet conserve la structure des sous-dossiers de `data/input` vers `data/out
 | 10 | `Image_reductor` | Images, et eventuellement autres fichiers a copier | Aucun | Images reduites et copies intactes des fichiers non-video |
 | 11 | `Image_diapo_video_creator` | Images acceptees ; un audio facultatif | Aucun | Un MP4 de diaporama avec piste de sous-titres |
 | 12 | `Image_withoutbg` | Images acceptees | Aucun | Une image sans arriere-plan par source |
-| 13 | `PDF_filigranor` | Un ou plusieurs PDF | Aucun ; le destinataire est demande au menu | Un PDF filigrane par source |
-| 14 | `PDF_assemblor` | Un ou plusieurs PDF | Aucun | Un seul PDF `pdf_assemblage.pdf` |
-| 15 | `File_timeline_sorter` | Tout fichier source sauf `.gitkeep` | Aucun | Une copie par fichier, prefixee par sa date de modification |
-| 16 | `File_str_remover` | Tout fichier source sauf `.gitkeep` | La chaîne à supprimer, demandée au menu | Une copie par fichier avec la chaîne retirée du nom |
+| 13 | `Audio_compressor` | Un ou plusieurs fichiers audio acceptes | Aucun | Un MP3 par source ; les MP3 deja au debit cible sont copies intacts |
+| 14 | `PDF_filigranor` | Un ou plusieurs PDF | Aucun ; le destinataire est demande au menu | Un PDF filigrane par source |
+| 15 | `PDF_assemblor` | Un ou plusieurs PDF | Aucun | Un seul PDF `pdf_assemblage.pdf` |
+| 16 | `File_timeline_sorter` | Tout fichier source sauf `.gitkeep` | Aucun | Une copie par fichier, prefixee par sa date de modification |
+| 17 | `File_str_remover` | Tout fichier source sauf `.gitkeep` | La chaîne à supprimer, demandée au menu | Une copie par fichier avec la chaîne retirée du nom |
 
 `Video_assemblor` et `PDF_assemblor` classent leurs entrees par chemin relatif
 dans `data/input` lorsqu'aucun ordre explicite n'est fourni. Pour les autres
@@ -275,8 +282,9 @@ Le meme fichier SRT est integre a chaque video source traitee par l'option 6.
 ### Aucun fichier de parametrage requis
 
 - `Video_encodor`, `Video_audio_decalator`, `Video_srt_extractor`,
-  `Image_reductor`, `Image_withoutbg`, `PDF_filigranor`, `PDF_assemblor` et
-  `File_timeline_sorter` et `File_str_remover` ne demandent aucun fichier dans `data/segment`.
+  `Image_reductor`, `Image_withoutbg`, `Audio_compressor`, `PDF_filigranor`,
+  `PDF_assemblor`, `File_timeline_sorter` et `File_str_remover` ne demandent
+  aucun fichier dans `data/segment`.
   `Video_srt_extractor` lit directement la piste de sous-titres deja
   presente dans chaque video source : aucun fichier externe n'est necessaire.
 - `Image_defilor` se configure au lancement par les options affichees dans le
@@ -297,6 +305,23 @@ L'option `11` cree `image_diapo_video_v-<codec_video>_a-<codec_audio>.mp4` dans
 - Un seul fichier audio parmi `.aac`, `.flac`, `.m4a`, `.mp3`, `.ogg` et `.wav` peut etre place dans `data/input`. Il est ajoute a la video.
 - Les sous-titres sont integres directement au flux MP4 : chaque entree contient le timing et le nom de la photo, sans extension. Pour une date numerique complete ou annee-mois, seule la premiere annee valide a quatre chiffres est conservee ; les autres chiffres du nom (par exemple un age) sont conserves.
 - L'encodage est realise photo par photo puis assemble, afin de limiter la consommation de memoire. Deux barres `tqdm` indiquent la photo en cours et la progression globale.
+
+## Compression audio (`Audio_compressor`)
+
+L'option `13` convertit les fichiers audio acceptes, y compris ceux des
+sous-dossiers, en MP3 au debit defini par
+`AUDIO_COMPRESSOR_MP3_BITRATE_KBPS` (`160` kb/s par defaut). La structure des
+sous-dossiers est conservee dans `data/output`.
+
+- Les sources sont conservees intactes dans `data/input`.
+- Un MP3 dont le debit est inferieur ou egal au reglage est copie tel quel :
+  aucun reencodage, remux, commentaire Toolbox ou autre metadonnee n'est
+  ajoute.
+- Les autres sources sont encodees avec `libmp3lame`. Leurs metadonnees usuelles
+  sont reprises et un commentaire de suivi est ecrit dans le MP3 de sortie.
+- Si `AUDIO_COMPRESSOR_COPY_JPEG_FILES=True`, une seule jaquette JPEG visible
+  par dossier audio est copiee intacte. Les noms contenant `jaquette`, `cover`
+  ou `front` sont prioritaires, puis `folder.jpg` et les autres JPEG.
 
 ## Parametres d'`Image_defilor`
 
@@ -450,6 +475,8 @@ Points importants :
 - codec audio par defaut : `aac`
 - extensions video : `.avi`, `.m4v`, `.mkv`, `.mod`, `.mov`, `.mp4`, `.mpg`, `.mts`, `.vob`, `.webm`
 - extensions image : `.jpeg`, `.jpg`, `.png`
+- extensions audio pour le compresseur : `.aac`, `.flac`, `.m4a`, `.mp3`,
+  `.ogg`, `.opus`, `.wav`, `.wma`
 - extensions audio pour le diaporama : `.aac`, `.flac`, `.m4a`, `.mp3`, `.ogg`, `.wav`
 - extensions pdf : `.pdf`
 
@@ -475,6 +502,10 @@ Flags disponibles :
   JPEG réellement réduits et `_compress` aux PNG
 - `IMAGE_REDUCTOR_JPEG_QUALITY` : règle la qualité JPEG du réducteur, de `0`
   à `100`
+- `AUDIO_COMPRESSOR_MP3_BITRATE_KBPS` : debit cible MP3 du compresseur, par
+  defaut `160` kb/s
+- `AUDIO_COMPRESSOR_COPY_JPEG_FILES` : copie une jaquette JPEG par dossier
+  audio lorsque sa valeur est `True`
 - `PRINT_ALL_KEYS_IN_METADATA_SUMMARY` : affiche toutes les metadonnees FFprobe
 - `VIDEO_ASSEMBLOR_ADD_DATE_SUBTITLES` : ajoute une piste SRT de date au fichier
   assemble. Chaque date trouvee dans le nom d'une video source est affichee au

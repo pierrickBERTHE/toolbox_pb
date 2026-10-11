@@ -252,9 +252,23 @@ def test_main_image_withoutbg_called(monkeypatch):
     mock_withoutbg.assert_called_once_with(APP_CONFIG)
 
 
+def test_main_audio_compressor_called(monkeypatch):
+    """Test that choosing option '13' calls audio_compressor."""
+    monkeypatch.setattr('builtins.input', lambda _: '13')
+
+    with mock.patch('main.audio_compressor', autospec=True) as mock_audio, \
+        mock.patch('func_global.get_git_version', return_value="git123"), \
+        mock.patch('func_global.format_git_version', return_value="git123"), \
+        mock.patch('func_global.print_system_info'), \
+        mock.patch('func_global.print_config_flags'), \
+        mock.patch('func_global.summarize_files'):
+        main.main(APP_CONFIG)
+        mock_audio.assert_called_once_with(APP_CONFIG)
+
+
 def test_main_pdf_filigranor_called(monkeypatch):
-    """Test that choosing option '13' calls pdf_filigranor."""
-    answers = iter(['13', 'Destinataire'])
+    """Test that choosing option '14' calls pdf_filigranor."""
+    answers = iter(['14', 'Destinataire'])
     monkeypatch.setattr('builtins.input', lambda _: next(answers))
 
     with mock.patch('main.pdf_filigranor', autospec=True) as mock_pdf, \
@@ -269,8 +283,8 @@ def test_main_pdf_filigranor_called(monkeypatch):
 
 
 def test_main_pdf_assemblor_called(monkeypatch):
-    """Test that choosing option '14' calls pdf_assemblor."""
-    monkeypatch.setattr("builtins.input", lambda _: "14")
+    """Test that choosing option '15' calls pdf_assemblor."""
+    monkeypatch.setattr("builtins.input", lambda _: "15")
 
     with mock.patch("main.pdf_assemblor", return_value=False) as mock_pdf, \
         mock.patch("func_global.get_git_version", return_value="git123"), \
@@ -284,8 +298,8 @@ def test_main_pdf_assemblor_called(monkeypatch):
 
 
 def test_main_file_timeline_sorter_called(monkeypatch):
-    """Test that choosing option '15' calls file_timeline_sorter."""
-    monkeypatch.setattr("builtins.input", lambda _: "15")
+    """Test that choosing option '16' calls file_timeline_sorter."""
+    monkeypatch.setattr("builtins.input", lambda _: "16")
 
     with mock.patch("main.file_timeline_sorter", return_value=False) as mock_sorter, \
         mock.patch("func_global.get_git_version", return_value="git123"), \
@@ -299,8 +313,8 @@ def test_main_file_timeline_sorter_called(monkeypatch):
 
 
 def test_main_file_str_remover_called(monkeypatch):
-    """Test that choosing option '16' calls file_str_remover."""
-    answers = iter(["16", "_compressed_90"])
+    """Test that choosing option '17' calls file_str_remover."""
+    answers = iter(["17", "_compressed_90"])
     monkeypatch.setattr("builtins.input", lambda _: next(answers))
 
     with mock.patch("main.file_str_remover", return_value=False) as mock_remover, \
@@ -315,8 +329,8 @@ def test_main_file_str_remover_called(monkeypatch):
 
 
 def test_main_folder_date_renammer_called(monkeypatch):
-    """Test that choosing option '17' calls folder_date_renammer."""
-    monkeypatch.setattr("builtins.input", lambda _: "17")
+    """Test that choosing option '18' calls folder_date_renammer."""
+    monkeypatch.setattr("builtins.input", lambda _: "18")
 
     with mock.patch("main.folder_date_renammer", return_value=False) as mock_renammer, \
         mock.patch("func_global.get_git_version", return_value="git123"), \
@@ -339,11 +353,12 @@ def test_main_folder_date_renammer_called(monkeypatch):
     ("10", "Image_reductor"),
     ("11", "Image_diapo_video_creator"),
     ("12", "Image_withoutbg"),
-    ("13", "PDF_filigranor"),
-    ("14", "PDF_assemblor"),
-    ("15", "File_timeline_sorter"),
-    ("16", "File_str_remover"),
-    ("17", "Folder_date_renammer"),
+    ("13", "Audio_compressor"),
+    ("14", "PDF_filigranor"),
+    ("15", "PDF_assemblor"),
+    ("16", "File_timeline_sorter"),
+    ("17", "File_str_remover"),
+    ("18", "Folder_date_renammer"),
 ])
 def test_other_menu_choices(monkeypatch, capsys, choice, msg):
     """Test that other menu choices print the correct launch message."""
@@ -363,6 +378,7 @@ def test_other_menu_choices(monkeypatch, capsys, choice, msg):
         mock.patch('main.image_withoutbg', return_value=False), \
         mock.patch('main.find_files_by_extensions', return_value=[]), \
         mock.patch('main.image_diapo_video_creator', return_value=False), \
+        mock.patch('main.audio_compressor', return_value=False), \
         mock.patch('main.pdf_filigranor', return_value=False), \
         mock.patch('main.pdf_assemblor', return_value=False), \
         mock.patch('main.file_timeline_sorter', return_value=False), \
@@ -383,7 +399,7 @@ def test_other_menu_choices(monkeypatch, capsys, choice, msg):
 
 
 # Decorator to parametrize invalid choices (not in 1-16)
-@pytest.mark.parametrize("choice", ["invalid", "", "0", "19", "-1", "abc"])
+@pytest.mark.parametrize("choice", ["invalid", "", "0", "20", "-1", "abc"])
 def test_main_invalid_choice(monkeypatch, capsys, choice):
     """Test that invalid choices are handled properly.
     Args:
@@ -412,8 +428,8 @@ def test_main_invalid_choice(monkeypatch, capsys, choice):
 
 
 def test_main_quit(monkeypatch):
-    """Test that choosing option '18' exits the program."""
-    monkeypatch.setattr('builtins.input', lambda _: '18')
+    """Test that choosing option '19' exits the program."""
+    monkeypatch.setattr('builtins.input', lambda _: '19')
 
     # Mock python sys.exit to raise SystemExit
     with pytest.raises(SystemExit):
@@ -421,8 +437,8 @@ def test_main_quit(monkeypatch):
 
 
 def test_main_called(monkeypatch):
-    """Test that main runs without errors for choice '18' (quit)."""
-    monkeypatch.setattr("builtins.input", lambda _: "18")
+    """Test that main runs without errors for choice '19' (quit)."""
+    monkeypatch.setattr("builtins.input", lambda _: "19")
 
     # Mock others functions to avoid side effects
     with (

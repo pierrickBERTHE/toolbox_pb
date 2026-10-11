@@ -30,6 +30,7 @@ from image.main_image import (
 )
 from pdf.main_pdf import pdf_assemblor, pdf_filigranor
 from file.main_file import file_str_remover, file_timeline_sorter, folder_date_renammer
+from audio.main_audio import audio_compressor
 from config_global import APP_CONFIG, AppConfig
 import func_global as func
 import reductor_workflow
@@ -72,6 +73,8 @@ def main(cfg : AppConfig):
         "ADD_CODEC_NAME_IN_OUTPUT",
         "ADD_WITHOUTBG_IN_NAME_IN_OUTPUT",
         "ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT",
+        "AUDIO_COMPRESSOR_MP3_BITRATE_KBPS",
+        "AUDIO_COMPRESSOR_COPY_JPEG_FILES",
         "VIDEO_ASSEMBLOR_ADD_DATE_SUBTITLES",
         "VIDEO_ASSEMBLOR_EXTRACT_AND_FILTER_DATES",
         "PRINT_ALL_KEYS_IN_METADATA_SUMMARY"
@@ -97,17 +100,19 @@ def main(cfg : AppConfig):
     print("10. Image_reductor")
     print("11. Image_diapo_video_creator")
     print("12. Image_withoutbg")
+    print("\n-- AUDIO --")
+    print("13. Audio_compressor")
     print("\n-- PDF --")
-    print("13. PDF_filigranor")
-    print("14. PDF_assemblor")
+    print("14. PDF_filigranor")
+    print("15. PDF_assemblor")
     print("\n-- FILE --")
-    print("15. File_timeline_sorter")
-    print("16. File_str_remover")
-    print("17. Folder_date_renammer")
-    print("\n18. Quitter")
+    print("16. File_timeline_sorter")
+    print("17. File_str_remover")
+    print("18. Folder_date_renammer")
+    print("\n19. Quitter")
 
     # Get user choice
-    choix = input("\nSélectionnez une option (1-18) : ")
+    choix = input("\nSélectionnez une option (1-19) : ")
     # choix = "5"
 
     # Default value if selected action does not return a folder-state flag.
@@ -199,21 +204,25 @@ def main(cfg : AppConfig):
             is_empty_folder = image_withoutbg(cfg)
 
         case "13":
+            print("\nLancement du Audio_compressor...")
+            is_empty_folder = audio_compressor(cfg)
+
+        case "14":
             print("\nLancement du PDF_filigranor...")
             watermark_recipient = input(
                 "\nEntrez le nom du destinataire du filigrane: "
             ).strip()
             is_empty_folder = pdf_filigranor(cfg, watermark_recipient)
 
-        case "14":
+        case "15":
             print("\nLancement du PDF_assemblor...")
             is_empty_folder = pdf_assemblor(cfg)
 
-        case "15":
+        case "16":
             print("\nLancement du File_timeline_sorter...")
             is_empty_folder = file_timeline_sorter(cfg)
 
-        case "16":
+        case "17":
             print("\nLancement du File_str_remover...")
             string_to_remove = input(
                 "\nEntrez la chaîne à supprimer des noms de fichiers : "
@@ -223,11 +232,11 @@ def main(cfg : AppConfig):
                 return
             is_empty_folder = file_str_remover(cfg, string_to_remove)
 
-        case "17":
+        case "18":
             print("\nLancement du Folder_date_renammer...")
             is_empty_folder = folder_date_renammer(cfg)
 
-        case "18":
+        case "19":
             print("Quitter l'application. Au revoir !")
             sys.exit(0)
 
