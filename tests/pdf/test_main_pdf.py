@@ -7,11 +7,15 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
+import pytest
+
 # Add the toolbox_pb directory to sys.path for imports
 sys.path.append(str(Path(__file__).resolve().parents[2] / "toolbox_pb"))
 
 # Imports local
-from pdf.main_pdf import build_filigranor_text, pdf_assemblor, pdf_filigranor
+from pdf.main_pdf import (
+    build_filigranor_text, pdf_assemblor, pdf_filigranor, pdf_page_alternator,
+)
 
 
 # -----------------------------
@@ -168,3 +172,11 @@ def test_build_filigranor_text_adds_mandatory_prefix():
         build_filigranor_text("Pierrick")
         == "document exclusivement destiné à Pierrick"
     )
+
+
+def test_pdf_page_alternator_requires_both_named_files(tmp_path):
+    cfg = build_fake_cfg(tmp_path)
+    cfg.INPUT_DIR.mkdir()
+    (cfg.INPUT_DIR / "impaire.pdf").touch()
+    with pytest.raises(FileNotFoundError, match="paire.pdf"):
+        pdf_page_alternator(cfg)
