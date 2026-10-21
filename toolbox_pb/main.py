@@ -28,7 +28,7 @@ from image.main_image import (
     run_image_defilor_interactive,
     image_withoutbg,
 )
-from pdf.main_pdf import pdf_assemblor, pdf_filigranor
+from pdf.main_pdf import pdf_assemblor, pdf_filigranor, pdf_page_alternator
 from file.main_file import file_str_remover, file_timeline_sorter, folder_date_renammer
 from audio.main_audio import audio_compressor
 from config_global import APP_CONFIG, AppConfig
@@ -105,14 +105,15 @@ def main(cfg : AppConfig):
     print("\n-- PDF --")
     print("14. PDF_filigranor")
     print("15. PDF_assemblor")
+    print("16. PDF_page_alternator")
     print("\n-- FILE --")
-    print("16. File_timeline_sorter")
-    print("17. File_str_remover")
-    print("18. Folder_date_renammer")
-    print("\n19. Quitter")
+    print("17. File_timeline_sorter")
+    print("18. File_str_remover")
+    print("19. Folder_date_renammer")
+    print("\n20. Quitter")
 
     # Get user choice
-    choix = input("\nSélectionnez une option (1-19) : ")
+    choix = input("\nSélectionnez une option (1-20) : ")
     # choix = "5"
 
     # Default value if selected action does not return a folder-state flag.
@@ -219,10 +220,24 @@ def main(cfg : AppConfig):
             is_empty_folder = pdf_assemblor(cfg)
 
         case "16":
+            print("\nLancement du PDF_page_alternator...")
+            while True:
+                try:
+                    is_empty_folder = pdf_page_alternator(cfg)
+                    break
+                except FileNotFoundError as exc:
+                    if all((cfg.INPUT_DIR / name).is_file() for name in ("impaire.pdf", "paire.pdf")):
+                        raise
+                    print(f"\n{exc}")
+                    answer = input("Appuyez sur Entrée pour réessayer, ou tapez q pour quitter : ")
+                    if answer.strip().lower() == "q":
+                        return
+
+        case "17":
             print("\nLancement du File_timeline_sorter...")
             is_empty_folder = file_timeline_sorter(cfg)
 
-        case "17":
+        case "18":
             print("\nLancement du File_str_remover...")
             string_to_remove = input(
                 "\nEntrez la chaîne à supprimer des noms de fichiers : "
@@ -232,11 +247,11 @@ def main(cfg : AppConfig):
                 return
             is_empty_folder = file_str_remover(cfg, string_to_remove)
 
-        case "18":
+        case "19":
             print("\nLancement du Folder_date_renammer...")
             is_empty_folder = folder_date_renammer(cfg)
 
-        case "19":
+        case "20":
             print("Quitter l'application. Au revoir !")
             sys.exit(0)
 

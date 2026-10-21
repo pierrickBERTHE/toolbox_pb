@@ -135,3 +135,40 @@ def test_merge_pdf_files_rejects_an_empty_input_list(tmp_path):
     """An empty merge request must not produce an empty PDF."""
     with pytest.raises(ValueError, match="Au moins un PDF"):
         func_pdf.merge_pdf_files([], tmp_path / "assembled.pdf")
+
+
+def test_alternate_pdf_pages_orders_pages_and_keeps_last_odd(tmp_path):
+    """The result starts with odd pages and retains a final unpaired page."""
+    PdfReader, PdfWriter, _, _ = func_pdf._import_pdf_dependencies()
+    for name, widths in (("impaire.pdf", [101, 103, 105]), ("paire.pdf", [102, 104])):
+        writer = PdfWriter()
+        for width in widths:
+            writer.add_blank_page(width=width, height=200)
+        with (tmp_path / name).open("wb") as stream:
+            writer.write(stream)
+    output = tmp_path / "output.pdf"
+    func_pdf.alternate_pdf_pages(
+        tmp_path / "impaire.pdf",
+        tmp_path / "paire.pdf",
+        output
+    )
+    assert [
+        float(page.mediabox.width) for page in PdfReader(str(output)).pages
+    ] == [101, 102, 103, 104, 105]
+
+
+def test_alternate_pdf_pages_rejects_inconsistent_counts(tmp_path):
+    _, PdfWriter, _, _ = func_pdf._import_pdf_dependencies()
+    for name, count in (("impaire.pdf", 1), ("paire.pdf", 2)):
+        writer = PdfWriter()
+        for _ in range(count):
+            writer.add_blank_page(width=100, height=100)
+        with (tmp_path / name).open("wb") as stream:
+            writer.write(stream)
+    with pytest.raises(ValueError, match="autant de pages"):
+        func_pdf.alternate_pdf_pages(
+            tmp_path / "impaire.pdf",
+            tmp_path / "paire.pdf",
+            tmp_path / "out.pdf"
+        )
+    assert not (tmp_path / "out.pdf").exists()

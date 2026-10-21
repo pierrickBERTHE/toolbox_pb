@@ -298,8 +298,8 @@ def test_main_pdf_assemblor_called(monkeypatch):
 
 
 def test_main_file_timeline_sorter_called(monkeypatch):
-    """Test that choosing option '16' calls file_timeline_sorter."""
-    monkeypatch.setattr("builtins.input", lambda _: "16")
+    """Test that choosing option '17' calls file_timeline_sorter."""
+    monkeypatch.setattr("builtins.input", lambda _: "17")
 
     with mock.patch("main.file_timeline_sorter", return_value=False) as mock_sorter, \
         mock.patch("func_global.get_git_version", return_value="git123"), \
@@ -313,8 +313,8 @@ def test_main_file_timeline_sorter_called(monkeypatch):
 
 
 def test_main_file_str_remover_called(monkeypatch):
-    """Test that choosing option '17' calls file_str_remover."""
-    answers = iter(["17", "_compressed_90"])
+    """Test that choosing option '18' calls file_str_remover."""
+    answers = iter(["18", "_compressed_90"])
     monkeypatch.setattr("builtins.input", lambda _: next(answers))
 
     with mock.patch("main.file_str_remover", return_value=False) as mock_remover, \
@@ -329,8 +329,8 @@ def test_main_file_str_remover_called(monkeypatch):
 
 
 def test_main_folder_date_renammer_called(monkeypatch):
-    """Test that choosing option '18' calls folder_date_renammer."""
-    monkeypatch.setattr("builtins.input", lambda _: "18")
+    """Test that choosing option '19' calls folder_date_renammer."""
+    monkeypatch.setattr("builtins.input", lambda _: "19")
 
     with mock.patch("main.folder_date_renammer", return_value=False) as mock_renammer, \
         mock.patch("func_global.get_git_version", return_value="git123"), \
@@ -356,9 +356,10 @@ def test_main_folder_date_renammer_called(monkeypatch):
     ("13", "Audio_compressor"),
     ("14", "PDF_filigranor"),
     ("15", "PDF_assemblor"),
-    ("16", "File_timeline_sorter"),
-    ("17", "File_str_remover"),
-    ("18", "Folder_date_renammer"),
+    ("16", "PDF_page_alternator"),
+    ("17", "File_timeline_sorter"),
+    ("18", "File_str_remover"),
+    ("19", "Folder_date_renammer"),
 ])
 def test_other_menu_choices(monkeypatch, capsys, choice, msg):
     """Test that other menu choices print the correct launch message."""
@@ -380,7 +381,11 @@ def test_other_menu_choices(monkeypatch, capsys, choice, msg):
         mock.patch('main.image_diapo_video_creator', return_value=False), \
         mock.patch('main.audio_compressor', return_value=False), \
         mock.patch('main.pdf_filigranor', return_value=False), \
-        mock.patch('main.pdf_assemblor', return_value=False), \
+        mock.patch.multiple(
+            'main',
+            pdf_assemblor=mock.Mock(return_value=False),
+            pdf_page_alternator=mock.Mock(return_value=False)
+        ), \
         mock.patch('main.file_timeline_sorter', return_value=False), \
         mock.patch('main.file_str_remover', return_value=False), \
         mock.patch('main.folder_date_renammer', return_value=False), \
@@ -399,7 +404,7 @@ def test_other_menu_choices(monkeypatch, capsys, choice, msg):
 
 
 # Decorator to parametrize invalid choices (not in 1-16)
-@pytest.mark.parametrize("choice", ["invalid", "", "0", "20", "-1", "abc"])
+@pytest.mark.parametrize("choice", ["invalid", "", "0", "21", "-1", "abc"])
 def test_main_invalid_choice(monkeypatch, capsys, choice):
     """Test that invalid choices are handled properly.
     Args:
@@ -428,8 +433,8 @@ def test_main_invalid_choice(monkeypatch, capsys, choice):
 
 
 def test_main_quit(monkeypatch):
-    """Test that choosing option '19' exits the program."""
-    monkeypatch.setattr('builtins.input', lambda _: '19')
+    """Test that choosing option '20' exits the program."""
+    monkeypatch.setattr('builtins.input', lambda _: '20')
 
     # Mock python sys.exit to raise SystemExit
     with pytest.raises(SystemExit):
@@ -437,8 +442,8 @@ def test_main_quit(monkeypatch):
 
 
 def test_main_called(monkeypatch):
-    """Test that main runs without errors for choice '19' (quit)."""
-    monkeypatch.setattr("builtins.input", lambda _: "19")
+    """Test that main runs without errors for choice '20' (quit)."""
+    monkeypatch.setattr("builtins.input", lambda _: "20")
 
     # Mock others functions to avoid side effects
     with (
@@ -455,3 +460,54 @@ def test_main_called(monkeypatch):
 
     # If no exception is raised, the test passes    
     assert True
+
+
+def test_pdf_page_alternator_missing_files_can_retry(monkeypatch, capsys, tmp_path):
+    """A missing input prompts a retry and succeeds once the files are present."""
+    from types import SimpleNamespace
+    cfg = SimpleNamespace(**vars(APP_CONFIG))
+    cfg.INPUT_DIR = tmp_path
+    answers = iter(["16", ""])
+    def answer(prompt):
+        value = next(answers)
+        if not value:
+            (tmp_path / "impaire.pdf").touch()
+            (tmp_path / "paire.pdf").touch()
+        return value
+    monkeypatch.setattr("builtins.input", answer)
+    with mock.patch(
+        "main.pdf_page_alternator",
+        side_effect=[
+            FileNotFoundError(
+                "Placez impaire.pdf et paire.pdf dans le dossier d'entrée."
+            ),
+            False
+        ]
+    ) as run, \
+        mock.patch("func_global.get_git_version", return_value="git123"), \
+        mock.patch("func_global.format_git_version", return_value="git123"), \
+        mock.patch("func_global.print_system_info"), \
+        mock.patch("func_global.print_config_flags"), \
+        mock.patch("func_global.summarize_files"):
+        main.main(cfg)
+    assert run.call_count == 2
+    assert "Placez impaire.pdf et paire.pdf" in capsys.readouterr().out
+
+
+def test_pdf_page_alternator_missing_files_can_quit(monkeypatch, capsys, tmp_path):
+    """The user can abandon the retry without a traceback or success message."""
+    from types import SimpleNamespace
+    cfg = SimpleNamespace(**vars(APP_CONFIG))
+    cfg.INPUT_DIR = tmp_path
+    answers = iter(["16", "q"])
+    monkeypatch.setattr("builtins.input", lambda _: next(answers))
+    with mock.patch("main.pdf_page_alternator", side_effect=FileNotFoundError("Fichiers manquants")) as run, \
+        mock.patch("func_global.get_git_version", return_value="git123"), \
+        mock.patch("func_global.format_git_version", return_value="git123"), \
+        mock.patch("func_global.print_system_info"), \
+        mock.patch("func_global.print_config_flags"), \
+        mock.patch("func_global.summarize_files") as summary:
+        main.main(cfg)
+    run.assert_called_once()
+    summary.assert_not_called()
+    assert "Fichiers manquants" in capsys.readouterr().out
