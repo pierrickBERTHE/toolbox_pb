@@ -241,3 +241,34 @@ def merge_pdf_files(input_paths: Sequence[Path], output_path: Path) -> None:
         writer.write(output_file)
 
     print(f"PDF assemblé : {output_path}")
+
+
+def alternate_pdf_pages(odd_path: Path, even_path: Path, output_path: Path) -> None:
+    """Interleave odd and even pages, beginning with the first odd page."""
+    # import the necessary PDF libraries lazily
+    PdfReader, PdfWriter, _, _ = _import_pdf_dependencies()
+
+    # Validate the input files and check lengths
+    odd_reader = PdfReader(str(odd_path))
+    even_reader = PdfReader(str(even_path))
+    odd_count, even_count = len(odd_reader.pages), len(even_reader.pages)
+
+    # Validate that the odd PDF has good page counts relative to the even PDF
+    if odd_count == 0 or odd_count not in (even_count, even_count + 1):
+        raise ValueError(
+            "\nLe PDF impair doit avoir autant de pages que le PDF pair, "
+            "ou une page de plus, et contenir au moins une page."
+        )
+
+    # Create a new PDF writer and interleave the pages
+    writer = PdfWriter()
+    for index, page in enumerate(odd_reader.pages):
+        writer.add_page(page)
+        if index < even_count:
+            writer.add_page(even_reader.pages[index])
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Write the interleaved pages to the output PDF
+    with output_path.open("wb") as output_file:
+        writer.write(output_file)
+    print(f"\nPDF avec pages alternées : {output_path}")

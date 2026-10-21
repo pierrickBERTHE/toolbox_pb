@@ -24,6 +24,7 @@ Fonctionnalites actuellement disponibles dans le menu principal :
 - `Audio_compressor` : convertit les fichiers audio acceptes en MP3 au debit configure. Les MP3 deja a un debit inferieur ou egal au reglage sont copies intacts, sans reencodage ni modification de leurs metadonnees. Les jaquettes JPEG des dossiers audio peuvent etre copiees en option.
 `-- PDF --`
 - `PDF_filigranor` : ajoute a chaque PDF un filigrane textuel diagonal repete. Le menu demande le destinataire et ajoute automatiquement le prefixe configure `document exclusivement destine a`.
+- `PDF_page_alternator` : alterne les pages de `impaire.pdf` et `paire.pdf` places dans le dossier d’entree, en commencant par `impaire.pdf`. Les pages de chaque fichier doivent etre dans leur ordre de lecture.
 - `PDF_assemblor` : fusionne tous les PDF du dossier d'entree (et de ses sous-dossiers) dans un unique fichier, dans l'ordre alphabetique de leurs chemins relatifs.
 `-- FILE --`
 - `File_timeline_sorter` : copie les fichiers du dossier d'entree vers le dossier de sortie avec leur date de derniere modification (`AAAA-MM-JJ_HH-MM-SS__nom-original.ext`) afin que le tri alphabetique corresponde a l'ordre chronologique. Les fichiers source restent intacts.
@@ -203,8 +204,9 @@ Le projet conserve la structure des sous-dossiers de `data/input` vers `data/out
 | 13 | `Audio_compressor` | Un ou plusieurs fichiers audio acceptes | Aucun | Un MP3 par source ; les MP3 deja au debit cible sont copies intacts |
 | 14 | `PDF_filigranor` | Un ou plusieurs PDF | Aucun ; le destinataire est demande au menu | Un PDF filigrane par source |
 | 15 | `PDF_assemblor` | Un ou plusieurs PDF | Aucun | Un seul PDF `pdf_assemblage.pdf` |
-| 16 | `File_timeline_sorter` | Tout fichier source sauf `.gitkeep` | Aucun | Une copie par fichier, prefixee par sa date de modification |
-| 17 | `File_str_remover` | Tout fichier source sauf `.gitkeep` | La chaîne à supprimer, demandée au menu | Une copie par fichier avec la chaîne retirée du nom |
+| 16 | `PDF_page_alternator` | `impaire.pdf` et `paire.pdf` dans le dossier d’entree | Aucun | `pdf_pages_alternees.pdf` |
+| 17 | `File_timeline_sorter` | Tout fichier source sauf `.gitkeep` | Aucun | Une copie par fichier, prefixee par sa date de modification |
+| 18 | `File_str_remover` | Tout fichier source sauf `.gitkeep` | La chaîne à supprimer, demandée au menu | Une copie par fichier avec la chaîne retirée du nom |
 
 `Video_assemblor` et `PDF_assemblor` classent leurs entrees par chemin relatif
 dans `data/input` lorsqu'aucun ordre explicite n'est fourni. Pour les autres

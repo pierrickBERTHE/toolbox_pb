@@ -108,9 +108,39 @@ def pdf_assemblor(cfg: AppConfig) -> bool:
         ),
     )
 
+    # If no PDF files were found, return True to indicate an empty folder.
     if not input_files:
         return True
 
+    # merge the PDFs into a single output PDF
     output_path = cfg.OUTPUT_DIR / f"pdf_assemblage{cfg.SUFFIX_OUTPUT_PDF}"
     func_pdf.merge_pdf_files(input_files, output_path)
+    return False
+
+
+@func_glob.measure_time
+def pdf_page_alternator(cfg: AppConfig) -> bool:
+    """Alternate the pages of impaire.pdf and paire.pdf in the input folder."""
+    # Check that both files exist in the input directory
+    odd_path = cfg.INPUT_DIR / "impaire.pdf"
+    even_path = cfg.INPUT_DIR / "paire.pdf"
+    
+    # Check for missing files and raise an error if any are not found
+    missing = [
+        path.name for path in (odd_path, even_path) if not path.is_file()
+    ]
+    
+    # If any files are missing, raise a FileNotFoundError with a message
+    if missing:
+        raise FileNotFoundError(
+            "Placez impaire.pdf et paire.pdf dans le dossier d'entrée."
+            f"\n==> Fichier(s) manquant(s) : {', '.join(missing)}\n"
+        )
+
+    # Call the function to alternate pages and save the output PDF
+    func_pdf.alternate_pdf_pages(
+        odd_path,
+        even_path,
+        cfg.OUTPUT_DIR / f"pdf_pages_alternees{cfg.SUFFIX_OUTPUT_PDF}"
+    )
     return False
