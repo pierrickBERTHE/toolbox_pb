@@ -23,6 +23,12 @@ INPUT_DIR = ROOT / "data" / "input"
 OUTPUT_DIR = ROOT / "data" / "output"
 SEGMENT_DIR = ROOT / "data" / "segment"
 
+# Date formats shared by filename and subtitle processing
+DATE_PATTERNS = (
+    (r"(?<!\d)(\d{4})[-_./\s]?(\d{1,2})[-_./\s]?(\d{1,2})(?!\d)", "ymd"),
+    (r"(?<!\d)(\d{1,2})[-_./\s]?(\d{1,2})[-_./\s]?(\d{4})(?!\d)", "dmy"),
+)
+
 # Accepted files
 INPUT_ACCEPTED_VIDEO_FILES = [
     ".avi", ".m4v", ".mkv", ".mod", ".mov", ".mp4", ".mpg", ".mts", ".vob", ".webm"

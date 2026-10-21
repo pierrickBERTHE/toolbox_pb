@@ -16,6 +16,7 @@ import re
 import tempfile
 import numpy as np
 from pathlib import Path
+from datetime import date
 from collections import defaultdict
 from tqdm import tqdm
 
@@ -28,7 +29,23 @@ import pypdf
 import reportlab
 
 # Import custom librairies
-from toolbox_pb.config_global import AppConfig
+from toolbox_pb.config_global import AppConfig, DATE_PATTERNS
+
+
+def extract_valid_dates(text: str) -> list[date]:
+    """Extract valid calendar dates in configured pattern order."""
+    dates = []
+    for pattern, order in DATE_PATTERNS:
+        for match in re.finditer(pattern, text):
+            values = [int(value) for value in match.groups()]
+            year, month, day = values if order == "ymd" else (
+                values[2], values[1], values[0]
+            )
+            try:
+                dates.append(date(year, month, day))
+            except ValueError:
+                continue
+    return dates
 
 
 class Logger(object):

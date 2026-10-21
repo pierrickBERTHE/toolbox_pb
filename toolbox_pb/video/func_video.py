@@ -20,6 +20,7 @@ from datetime import date, datetime
 from typing import Iterable, Protocol
 from dataclasses import dataclass
 from tqdm import tqdm
+from toolbox_pb.config_global import DATE_PATTERNS
 
 # Import custom librairies
 from func_global import (
@@ -29,6 +30,7 @@ from func_global import (
     convert_hhmmss_to_seconds,
     get_mobile_video_output_options,
     is_processable_file,
+    extract_valid_dates,
 )
 
 
@@ -322,24 +324,8 @@ def extract_date_from_filename(media_path: Path) -> str | None:
     # Validate input path and extract the stem (filename without extension)
     name = media_path.stem
 
-    # Define regex patterns for matching date formats in the filename
-    patterns = (
-        (r"(?<!\d)(\d{4})[-_.\s]?(\d{1,2})[-_.\s]?(\d{1,2})(?!\d)", "ymd"),
-        (r"(?<!\d)(\d{1,2})[-_.\s]?(\d{1,2})[-_.\s]?(\d{4})(?!\d)", "dmy"),
-    )
-
-    # Loop through patterns and attempt to extract a valid date
-    for pattern, order in patterns:
-        for match in re.finditer(pattern, name):
-            values = [int(value) for value in match.groups()]
-            year, month, day = values if order == "ymd" else (
-                values[2], values[1], values[0]
-            )
-            try:
-                return datetime(year, month, day).strftime("%d/%m/%Y")
-            except ValueError:
-                continue
-    return None
+    dates = extract_valid_dates(name)
+    return dates[0].strftime("%d/%m/%Y") if dates else None
 
 
 def write_video_assemblor_date_srt(
@@ -519,9 +505,9 @@ def convert_srt_to_ass(
         ass_text = ass_text.replace("\n", "\\N")
         start_ms = round_up_to_second(start_ms)
         end_ms = round_up_to_second(end_ms)
+        date_patterns = "|".join(pattern for pattern, _ in DATE_PATTERNS)
         date_title_match = re.fullmatch(
-            r"\s*(?P<date>(?:\d{4}[-_./\s]?\d{1,2}[-_./\s]?\d{1,2}|"
-            r"\d{1,2}[-_./\s]?\d{1,2}[-_./\s]?\d{4}))\s*-\s*"
+            rf"\s*(?P<date>(?:{date_patterns}))\s*-\s*"
             r"(?P<title>.+?)\s*",
             text,
             flags=re.DOTALL,
@@ -586,25 +572,7 @@ def integrate_ass_hard_ffmpeg(
 
 def extract_dates_from_subtitle_text(text: str) -> list[str]:
     """Return valid dates in subtitle text as ISO keys, in display order."""
-    # Define regex patterns for matching date formats in the subtitle text
-    patterns = (
-        (r"(?<!\d)(\d{4})[-_./\s]?(\d{1,2})[-_./\s]?(\d{1,2})(?!\d)", "ymd"),
-        (r"(?<!\d)(\d{1,2})[-_./\s]?(\d{1,2})[-_./\s]?(\d{4})(?!\d)", "dmy"),
-    )
-
-    # Loop through patterns and attempt to extract valid dates
-    dates = []
-    for pattern, order in patterns:
-        for match in re.finditer(pattern, text):
-            values = [int(value) for value in match.groups()]
-            year, month, day = values if order == "ymd" else (
-                values[2], values[1], values[0]
-            )
-            try:
-                dates.append(date(year, month, day).isoformat())
-            except ValueError:
-                continue
-    return dates
+    return [value.isoformat() for value in extract_valid_dates(text)]
 
 
 def get_srt_date_statistics(
