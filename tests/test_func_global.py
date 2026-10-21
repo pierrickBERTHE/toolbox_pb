@@ -16,6 +16,7 @@ Test Coverage:
 import sys
 from pathlib import Path
 import json
+from datetime import date
 import pytest
 from unittest import mock
 
@@ -24,6 +25,12 @@ sys.path.append(str(Path(__file__).resolve().parents[1] / 'toolbox_pb'))
 
 # Import the module to test
 import func_global
+
+
+def test_extract_valid_dates_supports_shared_formats_and_rejects_invalid_dates():
+    assert func_global.extract_valid_dates(
+        "2024/07/03; 20240105; 31/02/2024; 04/12/2023"
+    ) == [date(2024, 7, 3), date(2024, 1, 5), date(2023, 12, 4)]
 
 
 def test_is_processable_file_excludes_gitkeep(tmp_path):
