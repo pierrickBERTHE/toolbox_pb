@@ -29,7 +29,9 @@ from image.main_image import (
     image_withoutbg,
 )
 from pdf.main_pdf import pdf_assemblor, pdf_filigranor, pdf_page_alternator
-from file.main_file import file_str_remover, file_timeline_sorter, folder_date_renammer
+from file.main_file import (
+    cache_nettoyor, file_str_remover, file_timeline_sorter, folder_date_renammer
+)
 from audio.main_audio import audio_compressor
 from config_global import APP_CONFIG, AppConfig
 import func_global as func
@@ -110,10 +112,11 @@ def main(cfg : AppConfig):
     print("17. File_timeline_sorter")
     print("18. File_str_remover")
     print("19. Folder_date_renammer")
-    print("\n20. Quitter")
+    print("20. Cache_nettoyor")
+    print("\n21. Quitter")
 
     # Get user choice
-    choix = input("\nSélectionnez une option (1-20) : ")
+    choix = input("\nSélectionnez une option (1-21) : ")
     # choix = "5"
 
     # Default value if selected action does not return a folder-state flag.
@@ -252,6 +255,11 @@ def main(cfg : AppConfig):
             is_empty_folder = folder_date_renammer(cfg)
 
         case "20":
+            print("\nLancement du Cache_nettoyor...")
+            cache_nettoyor()
+            return
+
+        case "21":
             print("Quitter l'application. Au revoir !")
             sys.exit(0)
 
