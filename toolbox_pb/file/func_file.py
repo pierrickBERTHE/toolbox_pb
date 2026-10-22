@@ -2,9 +2,13 @@
 
 from datetime import date, datetime
 from pathlib import Path
+import os
 import re
+import subprocess
 import shutil
 import unicodedata
+
+import config_global
 
 
 # Regex to match the timeline-sort prefix of a filename.
@@ -184,3 +188,84 @@ def copy_folder(input_path: Path, output_path: Path) -> bool:
 
     shutil.copytree(input_path, output_path, copy_function=shutil.copy2)
     return True
+
+
+def get_size(path: Path) -> int:
+    """
+    Recursively compute the total size, in bytes, of all files inside a folder.
+    """
+    total = 0
+    if not path.exists():
+        return 0
+    for dirpath, _, filenames in os.walk(path):
+        for f in filenames:
+            try:
+                total += (Path(dirpath) / f).stat().st_size
+            except OSError:
+                pass
+    return total
+
+
+def clean_contents(path: Path) -> int:
+    """
+    Delete everything inside a folder (files and subfolders) while keeping
+    the folder itself. Items that cannot be deleted (e.g. locked files) are
+    silently skipped.
+    """
+    if not path.exists():
+        return 0
+    before = get_size(path)
+    for item in path.iterdir():
+        try:
+            shutil.rmtree(item, ignore_errors=True) if item.is_dir() else item.unlink()
+        except OSError:
+            pass
+    return max(0, before - get_size(path))
+
+
+def format_size(num_bytes: int) -> str:
+    """
+    Format a size in decimal megabytes below 1 GB, otherwise in gigabytes.
+    """
+    if num_bytes < 1000 ** 3:
+        return f"{num_bytes / (1000 ** 2):.1f} Mo"
+    return f"{num_bytes / (1000 ** 3):.1f} Go"
+
+
+def get_cli_caches() -> list[tuple[str, Path, list[str]]]:
+    """Find each tool's configured cache without cleaning it."""
+    caches = []
+    for name, dir_cmd, clean_cmd in config_global.CLI_CLEAN_COMMANDS:
+        try:
+            result = subprocess.run(
+                dir_cmd,
+                capture_output=True,
+                text=True,
+                timeout=60,
+                check=True
+            )
+            if not result.stdout.strip():
+                raise ValueError("empty cache directory")
+            caches.append((name, Path(result.stdout.strip()), clean_cmd))
+        except (OSError, subprocess.SubprocessError, ValueError) as exc:
+            print(f"{name} : unable to find cache ({exc})")
+    return caches
+
+
+def run_cli_cleaners(caches: list[tuple[str, Path, list[str]]]) -> int:
+    """Run the tools' cleaners and return the measured reduction in bytes."""
+    total_freed = 0
+    for name, cache_path, clean_cmd in caches:
+        before = get_size(cache_path)
+        try:
+            result = subprocess.run(
+                clean_cmd, capture_output=True, text=True, timeout=60
+            )
+            if result.returncode != 0:
+                print(f"{name} : cleaning failed or incomplete")
+        except (OSError, subprocess.SubprocessError) as exc:
+            print(f"{name} : unable to clean cache ({exc})")
+        total_freed += max(0, before - get_size(cache_path))
+    return total_freed
+
+

@@ -12,16 +12,46 @@ from pathlib import Path
 from typing import List
 
 # -----------------------------
-# CONSTANTES DE CONFIGURATION
+# CONFIGURATION CONSTANTS
 # -----------------------------
-# Constantes qui servent à en composer d'autres ou qui dépendent de l'exécution
 
-# paths (dépendent de l'emplacement du fichier, calculés à l'exécution)
+# paths (depend of the execution path)
 ROOT = Path(__file__).resolve().parents[1]
 LOG_DIR = ROOT / "log"
 INPUT_DIR = ROOT / "data" / "input"
 OUTPUT_DIR = ROOT / "data" / "output"
 SEGMENT_DIR = ROOT / "data" / "segment"
+
+# Cache-cleaning configuration
+HOME = Path.home()
+LOCAL = HOME / "AppData" / "Local"
+ROAMING = HOME / "AppData" / "Roaming"
+
+# List of known safe cache folders to empty
+CACHE_FOLDERS = [
+    LOCAL / "pypoetry" / "Cache" / "artifacts",
+    LOCAL / "pypoetry" / "Cache" / "cache",
+    LOCAL / "npm-cache",
+    LOCAL / "Temp",
+    LOCAL / "Microsoft" / "Office" / "16.0" / "OfficeFileCache",
+    LOCAL / "Google" / "Chrome" / "User Data" / "Default" / "Cache",
+    LOCAL / "Google" / "Chrome" / "User Data" / "Default" / "Code Cache",
+    ROAMING / "Microsoft" / "Teams" / "Cache",
+    # Firefox cache2 lives inside a randomly named profile subfolder
+    *[
+        p / "cache2"
+        for p in (LOCAL / "Mozilla" / "Firefox" / "Profiles").glob("*")
+        if (p / "cache2").is_dir()
+    ]
+]
+
+# External CLI commands used to clean caches through their own tool
+# (cleaner than deleting their folders by hand)
+CLI_CLEAN_COMMANDS = [
+    ("pip", ["pip", "cache", "dir"], ["pip", "cache", "purge"]),
+    ("uv", ["uv", "cache", "dir"], ["uv", "cache", "clean"]),
+]
+
 
 # Date formats shared by filename and subtitle processing
 DATE_PATTERNS = (
@@ -62,7 +92,7 @@ SUFFIX_OUTPUT = [
 WATERMARK_PREFIX = "document exclusivement destiné à "
 
 # -----------------------------
-# CONFIGURATION TYPÉE
+# TYPING AND CONFIGURATION CLASSES
 # -----------------------------
 
 @dataclass(frozen=True)
@@ -101,7 +131,7 @@ class AppConfig:
     # that predate audio support remain valid.
     SUFFIX_OUTPUT_AUDIO: str = ".mp3"
 
-    # Flags — valeurs par défaut modifiables ici et uniquement ici
+    # Flags — default values ​​can be changed here, and ONLY here
     LOG_TO_FILE: bool = True
     ADD_CODEC_NAME_IN_OUTPUT: bool = False
     PRINT_ALL_KEYS_IN_METADATA_SUMMARY: bool = False
@@ -145,10 +175,10 @@ class AppConfig:
 
 
 # -----------------------------
-# INSTANCE UNIQUE DE CONFIGURATION
+# UNIQUE INSTANCE OF AppConfig
 # -----------------------------
-# Les flags et valeurs par défaut (LOG_TO_FILE, etc.) sont définis directement
-# dans la classe AppConfig au dessus.
+# flags and configuration constants are set above, and the AppConfig instance 
+# is created here for use throughout the project.
 
 APP_CONFIG = AppConfig(
     # Accepted files

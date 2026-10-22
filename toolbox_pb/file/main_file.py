@@ -1,6 +1,6 @@
 """Main workflows for file-management features."""
 
-from config_global import AppConfig
+from config_global import AppConfig, CACHE_FOLDERS
 import toolbox_pb.file.func_file as func_file
 import func_global as func_glob
 
@@ -116,3 +116,45 @@ def folder_date_renammer(cfg: AppConfig) -> bool:
 
     print(f"{copied_folders} dossier(s) copié(s).")
     return False
+
+
+@func_glob.measure_time
+def cache_nettoyor() -> None:
+    """
+    Show cache sizes before and after cleaning and the measured reduction.
+    """
+    # Get the list of cache folders and CLI caches, ensuring uniqueness
+    cli_caches = func_file.get_cli_caches()
+    paths = list(dict.fromkeys(
+        [*CACHE_FOLDERS, *(path for _, path, _ in cli_caches)]
+    ))
+
+    # Print the sizes of each cache folder before cleaning
+    print("\n----- AVANT NETTOYAGE -----")
+    total_before = 0
+    for path in paths:
+        size = func_file.get_size(path)
+        total_before += size
+        print(f"{path} : {func_file.format_size(size)}")
+    print(f"TOTAL : {func_file.format_size(total_before)}")
+
+    # Clean the cache folders and CLI caches, summing the total freed space
+    total_freed = sum(
+        func_file.clean_contents(path) for path in CACHE_FOLDERS
+    )
+    total_freed += func_file.run_cli_cleaners(cli_caches)
+
+    # Print the sizes of each cache folder after cleaning
+    print("\n----- APRES NETTOYAGE -----")
+    total_remaining = 0
+    for path in paths:
+        remaining = func_file.get_size(path)
+        total_remaining += remaining
+        print(f"{path} : {func_file.format_size(remaining)}")
+    print(f"TOTAL restant : {func_file.format_size(total_remaining)}")
+    print(f"\n===> Espace nettoyé : {func_file.format_size(total_freed)} <===")
+    print("\nPensez à nettoyer les fichiers temporaires dans : "
+        "Paramètres > Système > Stockage > Fichiers temporaires."
+        )
+
+
