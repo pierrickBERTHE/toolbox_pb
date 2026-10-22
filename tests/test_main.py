@@ -404,7 +404,7 @@ def test_other_menu_choices(monkeypatch, capsys, choice, msg):
 
 
 # Decorator to parametrize invalid choices (not in 1-16)
-@pytest.mark.parametrize("choice", ["invalid", "", "0", "21", "-1", "abc"])
+@pytest.mark.parametrize("choice", ["invalid", "", "0", "22", "-1", "abc"])
 def test_main_invalid_choice(monkeypatch, capsys, choice):
     """Test that invalid choices are handled properly.
     Args:
@@ -432,9 +432,21 @@ def test_main_invalid_choice(monkeypatch, capsys, choice):
         assert "Choix invalide" in captured.out
 
 
+def test_main_cache_nettoyor(monkeypatch):
+    """Option 20 runs the cache cleaner without input/output summaries."""
+    monkeypatch.setattr("builtins.input", lambda _: "20")
+    with (
+        mock.patch("main.cache_nettoyor") as cleaner,
+        mock.patch("func_global.summarize_files") as summary
+    ):
+        main.main(APP_CONFIG)
+    cleaner.assert_called_once_with()
+    summary.assert_not_called()
+
+
 def test_main_quit(monkeypatch):
-    """Test that choosing option '20' exits the program."""
-    monkeypatch.setattr('builtins.input', lambda _: '20')
+    """Test that choosing option '21' exits the program."""
+    monkeypatch.setattr('builtins.input', lambda _: '21')
 
     # Mock python sys.exit to raise SystemExit
     with pytest.raises(SystemExit):
@@ -442,8 +454,8 @@ def test_main_quit(monkeypatch):
 
 
 def test_main_called(monkeypatch):
-    """Test that main runs without errors for choice '20' (quit)."""
-    monkeypatch.setattr("builtins.input", lambda _: "20")
+    """Test that main runs without errors for choice '21' (quit)."""
+    monkeypatch.setattr("builtins.input", lambda _: "21")
 
     # Mock others functions to avoid side effects
     with (

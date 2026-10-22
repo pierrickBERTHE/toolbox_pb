@@ -8,7 +8,12 @@ import sys
 
 sys.path.append(str(Path(__file__).resolve().parents[2] / "toolbox_pb"))
 
-from file.main_file import folder_date_renammer, file_str_remover, file_timeline_sorter
+from file.main_file import (
+    cache_nettoyor,
+    file_str_remover,
+    file_timeline_sorter,
+    folder_date_renammer,
+)
 
 
 def test_file_timeline_sorter_copies_files_from_their_modification_dates(tmp_path):
@@ -129,3 +134,21 @@ def test_folder_date_renammer_returns_true_without_direct_folders(tmp_path):
     cfg = SimpleNamespace(INPUT_DIR=input_dir, OUTPUT_DIR=tmp_path / "output")
 
     assert folder_date_renammer(cfg) is True
+
+
+def test_cache_nettoyor_reports_sizes_before_and_after(tmp_path, capsys):
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    (cache / "file").write_bytes(b"x" * 2_000_000)
+    with (
+        mock.patch("file.main_file.CACHE_FOLDERS", [cache]),
+        mock.patch("file.main_file.func_file.get_cli_caches", return_value=[]),
+        mock.patch("file.main_file.func_file.run_cli_cleaners", return_value=0),
+    ):
+        cache_nettoyor()
+
+    output = capsys.readouterr().out
+    assert f"{cache} : 2.0 Mo" in output
+    assert f"{cache} : 0.0 Mo" in output
+    assert "Espace nettoyé : 2.0 Mo" in output
+    assert cache.is_dir() and not list(cache.iterdir())
