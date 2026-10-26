@@ -18,8 +18,9 @@ Fonctionnalites actuellement disponibles dans le menu principal :
 - `Video_ass_hard_integrator` : convertit automatiquement les fichiers `.srt` en ASS avec le modele, puis les incruste de facon permanente dans les videos en reencodant la sortie avec les codecs configures globalement.
 `-- IMAGE --`
 - `Image_defilor` : genere une video verticale defilante pour chaque image source et, pour les PDF, une video par image extraite de chaque page. La hauteur, la vitesse, le FPS, les temps d'arret et le codec sont parametrables.
-- `Image_reductor` : reduit les photos JPEG/PNG sans changer leur format ni leurs dimensions. Une barre de progression, la comparaison de poids globale et un bilan des images compressees, intactes et deja traitees sont affiches. Les JPEG sont reencodes en qualite 95, les PNG sont optimises sans perte ; orientation EXIF, profil colorimetrique et transparence sont conserves. Les images non allegeables et les documents non-video sont copies intacts ; les videos compatibles sont reservees a `Video_encodor`. Les copies JPEG incluent un commentaire de suivi de traitement.
+- `Image_reductor` : reduit les photos JPEG/PNG sans changer leur format ni leurs dimensions. Une barre de progression, la comparaison de poids globale et un bilan des images compressees, intactes et deja traitees sont affiches. Les JPEG sont reencodes a la qualite configuree (75 par defaut), les PNG sont optimises sans perte ; orientation EXIF, profil colorimetrique et transparence sont conserves. Les images non allegeables et les documents non-video sont copies intacts ; les videos compatibles sont reservees a `Video_encodor`. Les copies JPEG incluent un commentaire de suivi de traitement.
 - `Image_diapo_video_creator` : assemble toutes les photos du dossier d'entree dans une seule video avec une duree configurable par photo. Les images sont redimensionnees sans deformation, a leur orientation EXIF reelle, et leur ratio est conserve. Une piste audio unique du dossier d'entree peut etre ajoutee ; les noms des photos et leurs timings sont integres comme piste de sous-titres dans le MP4.
+- `Image_withoutbg` : supprime l'arriere-plan de chaque image source et genere un PNG transparent. Le traitement utilise le modele local de `withoutbg`, conserve l'arborescence des sous-dossiers et peut ajouter le suffixe `_WithoutBG` au nom de sortie.
 `-- AUDIO --`
 - `Audio_compressor` : convertit les fichiers audio acceptes en MP3 au debit configure. Les MP3 deja a un debit inferieur ou egal au reglage sont copies intacts, sans reencodage ni modification de leurs metadonnees. Les jaquettes JPEG des dossiers audio peuvent etre copiees en option.
 `-- PDF --`
@@ -29,6 +30,8 @@ Fonctionnalites actuellement disponibles dans le menu principal :
 `-- FILE --`
 - `File_timeline_sorter` : copie les fichiers du dossier d'entree vers le dossier de sortie avec leur date de derniere modification (`AAAA-MM-JJ_HH-MM-SS__nom-original.ext`) afin que le tri alphabetique corresponde a l'ordre chronologique. Les fichiers source restent intacts.
 - `File_str_remover` : copie les fichiers du dossier d'entree vers le dossier de sortie en supprimant la chaîne demandée de leurs noms. Les fichiers source restent intacts.
+- `Folder_date_renammer` : copie les dossiers directement presents dans `data/input` et, lorsqu'un nom contient une date francaise valide, le renomme en `AAMMJJ-titre`. Les mois avec ou sans accent et une faute de frappe non ambiguë sont reconnus ; les dossiers sans date sont copies sans renommage.
+- `Cache_nettoyor` : affiche l'espace occupe avant et apres nettoyage, puis vide les caches locaux connus de Poetry, npm, Windows, Office, Chrome, Teams et Firefox lorsqu'ils existent. Il utilise aussi les commandes officielles de nettoyage des caches `pip` et `uv` lorsqu'elles sont disponibles.
 
 ## Prerequis
 
@@ -126,7 +129,7 @@ TOOLBOX_IMAGE=MON_COMPTE/toolbox-pb:1.0.0
 ```text
 toolbox_pb/
 ├── toolbox_pb/
-│   ├── main.py                 # menu et routage des options 1 a 18
+│   ├── main.py                 # menu et routage des options 1 a 21
 │   ├── config_global.py        # chemins, extensions, codecs et flags
 │   ├── func_global.py          # fonctions communes a toute l'application
 │   ├── reductor_workflow.py    # enchainement Video_encodor / Image_reductor
@@ -140,7 +143,7 @@ toolbox_pb/
 │   │   ├── main_audio.py       # option 13 : compression audio MP3
 │   │   └── func_audio.py       # encodage et metadonnees MP3
 │   ├── pdf/
-│   │   ├── main_pdf.py         # options 13 et 14
+│   │   ├── main_pdf.py         # options 14 a 16
 │   │   └── func_pdf.py         # filigrane et fusion PDF
 │   └── file/
 │       ├── main_file.py        # options 15 a 17
@@ -207,6 +210,9 @@ Le projet conserve la structure des sous-dossiers de `data/input` vers `data/out
 | 16 | `PDF_page_alternator` | `impaire.pdf` et `paire.pdf` dans le dossier d’entree | Aucun | `pdf_pages_alternees.pdf` |
 | 17 | `File_timeline_sorter` | Tout fichier source sauf `.gitkeep` | Aucun | Une copie par fichier, prefixee par sa date de modification |
 | 18 | `File_str_remover` | Tout fichier source sauf `.gitkeep` | La chaîne à supprimer, demandée au menu | Une copie par fichier avec la chaîne retirée du nom |
+| 19 | `Folder_date_renammer` | Un ou plusieurs dossiers directement dans `data/input` | Aucun | Une copie complète de chaque dossier ; les noms contenant une date française valide sont préfixés par `AAMMJJ-` |
+| 20 | `Cache_nettoyor` | Aucun fichier dans `data/input` | Aucun | Nettoyage des caches locaux connus et bilan de l'espace libéré |
+| 21 | Quitter | — | — | Ferme l'application |
 
 `Video_assemblor` et `PDF_assemblor` classent leurs entrees par chemin relatif
 dans `data/input` lorsqu'aucun ordre explicite n'est fourni. Pour les autres
@@ -285,7 +291,8 @@ Le meme fichier SRT est integre a chaque video source traitee par l'option 6.
 
 - `Video_encodor`, `Video_audio_decalator`, `Video_srt_extractor`,
   `Image_reductor`, `Image_withoutbg`, `Audio_compressor`, `PDF_filigranor`,
-  `PDF_assemblor`, `File_timeline_sorter` et `File_str_remover` ne demandent
+  `PDF_assemblor`, `File_timeline_sorter`, `File_str_remover`,
+  `Folder_date_renammer` et `Cache_nettoyor` ne demandent
   aucun fichier dans `data/segment`.
   `Video_srt_extractor` lit directement la piste de sous-titres deja
   presente dans chaque video source : aucun fichier externe n'est necessaire.
@@ -324,6 +331,22 @@ sous-dossiers est conservee dans `data/output`.
 - Si `AUDIO_COMPRESSOR_COPY_JPEG_FILES=True`, une seule jaquette JPEG visible
   par dossier audio est copiee intacte. Les noms contenant `jaquette`, `cover`
   ou `front` sont prioritaires, puis `folder.jpg` et les autres JPEG.
+
+## Gestion des fichiers et des caches
+
+- `File_timeline_sorter` (option `17`) ajoute au nom de chaque copie la date de
+  derniere modification sous la forme `AAAA-MM-JJ_HH-MM-SS__`. Un nom déjà
+  préfixé de cette manière n'est pas préfixé une seconde fois.
+- `File_str_remover` (option `18`) retire de chaque nom de fichier la chaîne
+  saisie dans le menu. Les fichiers sont copiés, sans modification des sources.
+- `Folder_date_renammer` (option `19`) traite uniquement les sous-dossiers
+  immédiats de `data/input`. Une date française telle que `3 octobre 2026` ou
+  `3 octobr 2026` est transformée en préfixe `261003-`; le reste du nom devient
+  le titre. Un dossier sans date reconnue est simplement copié.
+- `Cache_nettoyor` (option `20`) est la seule opération qui n'utilise pas
+  `data/input` ou `data/output` : elle vide le contenu des caches détectés,
+  mais conserve leurs dossiers. Les fichiers verrouillés sont ignorés et le
+  bilan final indique l'espace réellement libéré.
 
 ## Parametres d'`Image_defilor`
 
@@ -397,7 +420,7 @@ maniere recursive et conservent les sous-dossiers de `data/input` dans
 `data/output`.
 
 - `Image_reductor` traite les `.jpeg`, `.jpg` et `.png`. Les JPEG sont
-  reencodes a la qualite 95 sans redimensionnement ; les PNG sont optimises
+  reencodes a la qualite configuree (`75` par defaut) sans redimensionnement ; les PNG sont optimises
   sans perte. Une image qui ne deviendrait pas plus legere est copiee telle
   quelle. Les documents non-video (par exemple PDF et DOCX) sont aussi copies
   intacts. Les formats video acceptes ne sont pas copies afin d'eviter les
@@ -461,7 +484,7 @@ intactes :
   `photo_compress_95.jpg`. Les PNG gardent le suffixe `_compress` car ils ne
   reçoivent pas de qualité JPEG.
 - `IMAGE_REDUCTOR_JPEG_QUALITY` définit la qualité JPEG du réducteur ; sa
-  valeur par défaut est `95`.
+  valeur par défaut est `75`.
 
 Ce réglage est regroupé avec les autres flags utilisateur en tête de
 `toolbox_pb/config_global.py`.
@@ -500,6 +523,8 @@ Flags disponibles :
 - `LOG_TO_FILE` : redirige les sorties console vers `log/process_log.txt`
 - `ADD_CODEC_NAME_IN_OUTPUT` : ajoute le codec vidéo au nom des vidéos
   réencodées
+- `ADD_WITHOUTBG_IN_NAME_IN_OUTPUT` : ajoute `_WithoutBG` au nom des PNG
+  produits par `Image_withoutbg`
 - `ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT` : ajoute `_compress_<qualité>` aux
   JPEG réellement réduits et `_compress` aux PNG
 - `IMAGE_REDUCTOR_JPEG_QUALITY` : règle la qualité JPEG du réducteur, de `0`
