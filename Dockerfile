@@ -15,7 +15,8 @@ WORKDIR /app
 # Installer les dependances avant le code optimise le cache de construction.
 COPY pyproject.toml README.md ./
 COPY toolbox_pb ./toolbox_pb
-RUN pip install .
+RUN python -m pip install --upgrade pip \
+    && python -m pip install .
 
 # Les dossiers sont aussi montes depuis Windows par docker-compose.yml.
 RUN mkdir -p /app/data/input /app/data/output /app/data/segment /app/log
