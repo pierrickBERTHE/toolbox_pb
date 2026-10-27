@@ -413,6 +413,14 @@ plusieurs, chaque video doit avoir un fichier de sous-titres de meme nom. La
 video de sortie utilise les codecs, le suffixe et l'option de nommage configures
 dans `config_global.py`.
 
+Dans un fichier SRT converti par cette option, une entrée sans date devient un
+`TITRE` grand et centré à l'écran. Pour forcer cette entrée à rester un
+sous-titre noir en bas, préfixez son texte par `>` ; le signe n'est pas affiché :
+
+```text
+> Cette légende apparaît en noir en bas
+```
+
 ## Reducteurs image et video
 
 Les options `Video_encodor` et `Image_reductor` traitent les fichiers de

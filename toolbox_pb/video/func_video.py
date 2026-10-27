@@ -467,6 +467,16 @@ def _get_ass_template_header(template_content: str) -> str:
     return "\n".join(lines[:format_index + 1]).rstrip() + "\n\n"
 
 
+def _escape_ass_text(text: str) -> str:
+    """Escape text so it can be safely used in an ASS dialogue event."""
+    return (
+        text.replace("\\", "\\\\")
+        .replace("{", "\\{")
+        .replace("}", "\\}")
+        .replace("\n", "\\N")
+    )
+
+
 def convert_srt_to_ass(
     srt_path: Path,
     template_path: Path,
@@ -484,11 +494,15 @@ def convert_srt_to_ass(
 
     # Validate input durations and fade times
     if title_duration_seconds <= 0 or subtitle_duration_seconds <= 0:
-        raise ValueError("Les durées des styles ASS doivent être strictement positives.")
+        raise ValueError(
+            "Les durées des styles ASS doivent être strictement positives."
+        )
     if title_fade_duration_ms < 0 or subtitle_fade_duration_ms < 0:
-        raise ValueError("Les durées de fondu ASS ne peuvent pas être négatives.")
+        raise ValueError(
+            "Les durées de fondu ASS ne peuvent pas être négatives."
+        )
 
-    # Convert durations from seconds to milliseconds and parse the SRT cues
+    # Convert durations from seconds to milliseconds
     title_duration_ms = round(title_duration_seconds * 1_000)
     subtitle_duration_ms = round(subtitle_duration_seconds * 1_000)
 
@@ -496,20 +510,34 @@ def convert_srt_to_ass(
     cues = parse_srt_cues(srt_path.read_text(encoding="utf-8-sig"))
 
     # Read the ASS template header
-    header = _get_ass_template_header(template_path.read_text(encoding="utf-8-sig"))
+    header = _get_ass_template_header(
+        template_path.read_text(encoding="utf-8-sig")
+    )
 
     # Build ASS dialogue lines for each cue, applying styles and fade effects
     dialogues = []
     for start_ms, end_ms, text in cues:
-        ass_text = text.replace("\\", "\\\\").replace("{", "\\{").replace("}", "\\}")
-        ass_text = ass_text.replace("\n", "\\N")
+        # Round the start and end times to the upper second
         start_ms = round_up_to_second(start_ms)
         end_ms = round_up_to_second(end_ms)
+
+        # detect the ">" prefix for bottom black subtitles and extract the text
+        bottom_black_subtitle_match = re.match(
+            r"\s*>\s?(?P<text>.*)", text, flags=re.DOTALL
+        )
+        is_bottom_black_subtitle = bottom_black_subtitle_match is not None
+        display_text = (
+            bottom_black_subtitle_match.group("text")
+            if bottom_black_subtitle_match else text
+        )
+        ass_text = _escape_ass_text(display_text)
+
+        # Check if the subtitle text contains a date and extract date + title
         date_patterns = "|".join(pattern for pattern, _ in DATE_PATTERNS)
         date_title_match = re.fullmatch(
             rf"\s*(?P<date>(?:{date_patterns}))\s*-\s*"
             r"(?P<title>.+?)\s*",
-            text,
+            display_text,
             flags=re.DOTALL,
         )
         date_text = date_title_match.group("date") if date_title_match else ""
@@ -517,24 +545,41 @@ def convert_srt_to_ass(
         is_dated_title = bool(
             date_title_match and extract_dates_from_subtitle_text(date_text)
         )
+
+        # if the subtitle contains a date + title, create the TITLE dialogue first
         if is_dated_title:
             title_end_ms = start_ms + title_duration_ms
-            title_ass_text = title_text.strip().replace("\\", "\\\\")
-            title_ass_text = title_ass_text.replace("{", "\\{").replace("}", "\\}")
-            title_ass_text = title_ass_text.replace("\n", "\\N")
+            title_ass_text = _escape_ass_text(title_text.strip())
             dialogues.append(
                 "Dialogue: 0,"
                 f"{format_ass_timestamp(start_ms)},"
                 f"{format_ass_timestamp(title_end_ms)},"
-                f"TITRE,,0,0,0,,{{\\fad({title_fade_duration_ms},{title_fade_duration_ms})}}{title_ass_text}"
+                f"TITRE,,0,0,0,,"
+                f"{{\\fad({title_fade_duration_ms},"
+                f"{title_fade_duration_ms})}}{title_ass_text}"
             )
-            ass_text = date_text.strip().replace("\\", "\\\\")
-            ass_text = ass_text.replace("{", "\\{").replace("}", "\\}")
+            ass_text = _escape_ass_text(date_text.strip())
+
+        # elif the subtitle does not contain a date, it is a TITLE too
+        elif not is_bottom_black_subtitle and not extract_dates_from_subtitle_text(display_text):
+            dialogues.append(
+                "Dialogue: 0,"
+                f"{format_ass_timestamp(start_ms)},"
+                f"{format_ass_timestamp(start_ms + title_duration_ms)},"
+                f"TITRE,,0,0,0,,"
+                f"{{\\fad({title_fade_duration_ms},"
+                f"{title_fade_duration_ms})}}{ass_text}"
+            )
+            continue
+
+        # Create the regular bottom subtitle event for the remaining text
         dialogues.append(
             "Dialogue: 0,"
             f"{format_ass_timestamp(start_ms)},"
             f"{format_ass_timestamp(start_ms + subtitle_duration_ms)},"
-            f"sous-titre,,0,0,0,,{{\\fad({subtitle_fade_duration_ms},{subtitle_fade_duration_ms})}}{ass_text}"
+            f"sous-titre,,0,0,0,,"
+            f"{{\\fad({subtitle_fade_duration_ms},"
+            f"{subtitle_fade_duration_ms})}}{ass_text}"
         )
 
     # Write the ASS content to the output file, ensuring the parent directory exists
