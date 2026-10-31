@@ -8,6 +8,7 @@ Décembre 2025
 """
 # Imports standard
 from functools import wraps
+import os
 import sys
 import time
 import json
@@ -30,6 +31,17 @@ import reportlab
 
 # Import custom librairies
 from toolbox_pb.config_global import AppConfig, DATE_PATTERNS
+
+
+def preserve_file_modification_time(source_path: Path, output_path: Path) -> None:
+    """Set ``output_path``'s modification time to that of ``source_path``.
+
+    The source creation time is intentionally left untouched: it is not
+    portable and cannot reliably be set on every supported filesystem.
+    """
+    source_mtime_ns = source_path.stat().st_mtime_ns
+    output_atime_ns = output_path.stat().st_atime_ns
+    os.utime(output_path, ns=(output_atime_ns, source_mtime_ns))
 
 
 def extract_valid_dates(text: str) -> list[date]:

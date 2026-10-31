@@ -1,6 +1,7 @@
 """Tests for the low-level MP3 compression helpers."""
 
 from pathlib import Path
+import os
 import sys
 from unittest import mock
 
@@ -46,6 +47,23 @@ def test_compress_audio_uses_mp3_and_copies_global_metadata(tmp_path):
     assert ["-c:a", "libmp3lame"] == command[command.index("-c:a"):command.index("-c:a") + 2]
     assert ["-b:a", "160k"] == command[command.index("-b:a"):command.index("-b:a") + 2]
     assert output.parent.is_dir()
+
+
+def test_compress_audio_preserves_source_modification_time(tmp_path):
+    """The completed MP3 keeps the source file's modification timestamp."""
+    source = tmp_path / "song.flac"
+    output = tmp_path / "output" / "song.mp3"
+    source.write_bytes(b"source")
+    os.utime(source, ns=(source.stat().st_atime_ns, 1_700_000_000_123_456_789))
+    stored_source_mtime_ns = source.stat().st_mtime_ns
+
+    def write_output(*_args, **_kwargs):
+        output.write_bytes(b"mp3")
+
+    with mock.patch("audio.func_audio.subprocess.run", side_effect=write_output):
+        compress_audio_to_mp3(source, output, 160, "comment")
+
+    assert output.stat().st_mtime_ns == stored_source_mtime_ns
 
 
 def test_read_audio_comment_reads_standard_file_metadata(tmp_path):

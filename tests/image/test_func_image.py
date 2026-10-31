@@ -4,6 +4,7 @@ Unit tests for the image.func_image module
 # Imports standard
 import sys
 import json
+import os
 import subprocess
 from types import ModuleType
 from pathlib import Path
@@ -379,12 +380,16 @@ def test_reduce_image_for_screen_writes_smaller_png_and_keeps_dimensions(tmp_pat
     source = tmp_path / "photo.png"
     output = tmp_path / "photo_compressed.png"
     Image.new("RGBA", (1000, 700), (24, 120, 220, 120)).save(source)
+    source_mtime_ns = 1_700_000_000_123_456_789
+    os.utime(source, ns=(source.stat().st_atime_ns, source_mtime_ns))
+    stored_source_mtime_ns = source.stat().st_mtime_ns
 
     sizes = reduce_image_for_screen(source, output)
 
     assert sizes is not None
     assert sizes[1] < sizes[0]
     assert output.exists()
+    assert output.stat().st_mtime_ns == stored_source_mtime_ns
     with Image.open(output) as result:
         assert result.format == "PNG"
         assert result.size == (1000, 700)

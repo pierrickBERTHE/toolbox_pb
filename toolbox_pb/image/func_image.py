@@ -17,6 +17,7 @@ from func_global import (
     build_processing_comment,
     consume_ffmpeg_progress,
     get_mobile_video_output_options,
+    preserve_file_modification_time,
 )
 
 
@@ -209,6 +210,7 @@ def reduce_image_for_screen(
         
         # If the recompressed image is smaller, replace the original
         candidate_path.replace(output_path)
+        preserve_file_modification_time(input_path, output_path)
         return input_size, output_size
     
     # Handle any OSError that occurs during image processing

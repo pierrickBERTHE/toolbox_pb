@@ -14,6 +14,7 @@ Test Coverage:
 """
 # Imports standard
 import sys
+import os
 from pathlib import Path
 import json
 from datetime import date
@@ -25,6 +26,21 @@ sys.path.append(str(Path(__file__).resolve().parents[1] / 'toolbox_pb'))
 
 # Import the module to test
 import func_global
+
+
+def test_preserve_file_modification_time_copies_only_the_source_mtime(tmp_path):
+    """Generated files retain the source's last modification timestamp."""
+    source = tmp_path / "source.bin"
+    output = tmp_path / "output.bin"
+    source.write_bytes(b"source")
+    output.write_bytes(b"output")
+    source_mtime_ns = 1_700_000_000_123_456_789
+    os.utime(source, ns=(source.stat().st_atime_ns, source_mtime_ns))
+    stored_source_mtime_ns = source.stat().st_mtime_ns
+
+    func_global.preserve_file_modification_time(source, output)
+
+    assert output.stat().st_mtime_ns == stored_source_mtime_ns
 
 
 def test_extract_valid_dates_supports_shared_formats_and_rejects_invalid_dates():

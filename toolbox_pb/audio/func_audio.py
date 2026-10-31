@@ -14,7 +14,11 @@ from mutagen import File as open_audio_file
 from mutagen.id3 import COMM, POPM
 from mutagen.mp3 import MP3
 
-from func_global import build_video_processing_comment, is_processable_file
+from func_global import (
+    build_video_processing_comment,
+    is_processable_file,
+    preserve_file_modification_time,
+)
 
 
 def find_audio_files(input_dir: Path, extensions: list[str]) -> list[Path]:
@@ -178,3 +182,5 @@ def compress_audio_to_mp3(
     )
     copy_star_rating(input_path, output_path)
     write_id3_processing_comment(output_path, processing_comment)
+    if output_path.exists():
+        preserve_file_modification_time(input_path, output_path)

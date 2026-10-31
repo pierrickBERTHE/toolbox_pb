@@ -31,6 +31,7 @@ from func_global import (
     get_mobile_video_output_options,
     is_processable_file,
     extract_valid_dates,
+    preserve_file_modification_time,
 )
 
 
@@ -1072,6 +1073,9 @@ def encode_full_video(
                 cmd,
                 output="\n".join(error_lines),
             )
+
+        if Path(output_path).exists():
+            preserve_file_modification_time(Path(input_path), Path(output_path))
         
         print(f"✅ Encodage réussi : {output_path}\n")
     

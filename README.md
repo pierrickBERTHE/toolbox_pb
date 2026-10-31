@@ -456,6 +456,10 @@ SRT seuls ne produisent pas de video et ne possedent donc pas de metadonnees
 video a completer. Les fichiers places dans `data/input` ne sont jamais
 modifies.
 
+`Video_encodor`, `Image_reductor` et `Audio_compressor` conservent la date de
+derniere modification du fichier source. `Video_assemblor` conserve son
+horodatage de creation, correspondant au moment de l'assemblage.
+
 Le commentaire construit un historique multi-lignes, une ligne par
 traitement subi par le fichier :
 
