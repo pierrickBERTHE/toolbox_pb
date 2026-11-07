@@ -16,7 +16,7 @@ from PIL import Image
 sys.path.append(str(Path(__file__).resolve().parents[2] / "toolbox_pb"))
 
 # Import the module to test
-from image.func_image import (
+from toolbox_pb.core.image.func_image import (
     parse_defilor_extra_args,
     extract_pdf_images_to_files,
     get_image_size,
@@ -109,7 +109,7 @@ def test_extract_pdf_images_to_files(tmp_path):
 
     # Mock the lazy pypdf import to avoid parsing a real PDF
     with mock.patch(
-        "image.func_image._import_pypdf_dependency",
+        "toolbox_pb.core.image.func_image._import_pypdf_dependency",
         return_value=reader_cls,
     ):
         extracted = extract_pdf_images_to_files(pdf, output_dir)
@@ -134,7 +134,7 @@ def test_extract_pdf_images_to_files_without_images(tmp_path):
 
     # Mock the lazy pypdf import to avoid parsing a real PDF
     with mock.patch(
-        "image.func_image._import_pypdf_dependency",
+        "toolbox_pb.core.image.func_image._import_pypdf_dependency",
         return_value=mock.Mock(return_value=reader),
     ):
         with pytest.raises(RuntimeError, match="Aucune image exploitable"):
@@ -173,7 +173,7 @@ def test_get_image_size_success(tmp_path):
         stdout=json.dumps(payload),
         stderr="",
     )
-    with mock.patch("image.func_image.subprocess.run", return_value=completed):
+    with mock.patch("toolbox_pb.core.image.func_image.subprocess.run", return_value=completed):
         width, height = get_image_size(image)
 
     # Assert the returned dimensions match the mocked output
@@ -193,7 +193,7 @@ def test_get_image_size_no_streams(tmp_path):
         stdout=json.dumps({"streams": []}),
         stderr="",
     )
-    with mock.patch("image.func_image.subprocess.run", return_value=completed):
+    with mock.patch("toolbox_pb.core.image.func_image.subprocess.run", return_value=completed):
         with pytest.raises(RuntimeError, match="No image stream detected"):
             get_image_size(image)
 
@@ -204,7 +204,7 @@ def test_get_image_size_wraps_ffprobe_launch_and_process_errors(tmp_path):
     image.touch()
 
     with mock.patch(
-        "image.func_image.subprocess.run", side_effect=FileNotFoundError
+        "toolbox_pb.core.image.func_image.subprocess.run", side_effect=FileNotFoundError
     ), pytest.raises(RuntimeError, match="ffprobe not found"):
         get_image_size(image)
 
@@ -212,7 +212,7 @@ def test_get_image_size_wraps_ffprobe_launch_and_process_errors(tmp_path):
         1, ["ffprobe"], output="", stderr="invalid image"
     )
     with mock.patch(
-        "image.func_image.subprocess.run", side_effect=process_error
+        "toolbox_pb.core.image.func_image.subprocess.run", side_effect=process_error
     ), pytest.raises(RuntimeError, match="invalid image"):
         get_image_size(image)
 
@@ -228,7 +228,7 @@ def test_get_image_size_rejects_missing_dimensions(tmp_path):
         stderr="",
     )
 
-    with mock.patch("image.func_image.subprocess.run", return_value=completed), pytest.raises(
+    with mock.patch("toolbox_pb.core.image.func_image.subprocess.run", return_value=completed), pytest.raises(
         RuntimeError, match="Invalid dimensions"
     ):
         get_image_size(image)
@@ -269,9 +269,9 @@ def test_generate_image_defilor_calls_ffmpeg_and_progress(tmp_path):
 
     # Mock several functions to isolate the ffmpeg call and progress parsing
     fake_proc = DummyProc(returncode=0)
-    with mock.patch("image.func_image.get_image_size", return_value=(1200, 2000)), \
-        mock.patch("image.func_image.consume_ffmpeg_progress", return_value=[]), \
-        mock.patch("image.func_image.subprocess.Popen", return_value=fake_proc) as popen_mock:
+    with mock.patch("toolbox_pb.core.image.func_image.get_image_size", return_value=(1200, 2000)), \
+        mock.patch("toolbox_pb.core.image.func_image.consume_ffmpeg_progress", return_value=[]), \
+        mock.patch("toolbox_pb.core.image.func_image.subprocess.Popen", return_value=fake_proc) as popen_mock:
 
         # Act
         generate_image_defilor(
@@ -316,7 +316,7 @@ def test_generate_image_defilor_validation_errors(tmp_path, kwargs, expected_mes
     image = tmp_path / "img.jpg"
     image.touch()
     output = tmp_path / "out.mp4"
-    with mock.patch("image.func_image.get_image_size", return_value=(800, 600)):
+    with mock.patch("toolbox_pb.core.image.func_image.get_image_size", return_value=(800, 600)):
         with pytest.raises(ValueError, match=expected_message):
             generate_image_defilor(
                 image_path=image,
@@ -334,7 +334,7 @@ def test_generate_image_defilor_height_larger_than_image(tmp_path):
     image = tmp_path / "img.jpg"
     image.touch()
     output = tmp_path / "out.mp4"
-    with mock.patch("image.func_image.get_image_size", return_value=(800, 600)):
+    with mock.patch("toolbox_pb.core.image.func_image.get_image_size", return_value=(800, 600)):
         with pytest.raises(ValueError, match="image height"):
             generate_image_defilor(
                 image_path=image,
@@ -358,9 +358,9 @@ def test_generate_image_defilor_raises_runtimeerror_on_ffmpeg_failure(tmp_path):
     
     # Mock several functions to simulate an ffmpeg failure with error messages
     fake_proc = DummyProc(returncode=1)
-    with mock.patch("image.func_image.get_image_size", return_value=(1200, 2000)), \
-        mock.patch("image.func_image.consume_ffmpeg_progress", return_value=["error one", "error two"]), \
-        mock.patch("image.func_image.subprocess.Popen", return_value=fake_proc):
+    with mock.patch("toolbox_pb.core.image.func_image.get_image_size", return_value=(1200, 2000)), \
+        mock.patch("toolbox_pb.core.image.func_image.consume_ffmpeg_progress", return_value=["error one", "error two"]), \
+        mock.patch("toolbox_pb.core.image.func_image.subprocess.Popen", return_value=fake_proc):
         with pytest.raises(RuntimeError, match="ffmpeg failed"):
             generate_image_defilor(
                 image_path=image,

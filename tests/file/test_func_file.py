@@ -7,7 +7,7 @@ import sys
 
 sys.path.append(str(Path(__file__).resolve().parents[2] / "toolbox_pb"))
 
-from file import func_file
+from toolbox_pb.core.file import func_file
 
 
 def test_get_file_modification_time_uses_the_last_modification_timestamp(tmp_path):

@@ -8,8 +8,8 @@ import pytest
 
 sys.path.append(str(Path(__file__).resolve().parents[2] / "toolbox_pb"))
 
-from audio.main_audio import audio_compressor
-from config_global import AppConfig
+from toolbox_pb.core.audio.main_audio import audio_compressor
+from toolbox_pb.core.config_global import AppConfig
 
 
 @pytest.fixture
@@ -42,8 +42,8 @@ def test_audio_compressor_writes_mp3_in_matching_subdirectory(audio_config):
     def fake_compress(**kwargs):
         kwargs["output_path"].write_bytes(b"mp3")
 
-    with mock.patch("audio.main_audio.compress_audio_to_mp3", side_effect=fake_compress) as compress, \
-        mock.patch("audio.main_audio.build_audio_processing_comment", return_value="comment"):
+    with mock.patch("toolbox_pb.core.audio.main_audio.compress_audio_to_mp3", side_effect=fake_compress) as compress, \
+        mock.patch("toolbox_pb.core.audio.main_audio.build_audio_processing_comment", return_value="comment"):
         assert audio_compressor(audio_config) is False
 
     assert compress.call_args.kwargs["bitrate_kbps"] == 128
@@ -57,7 +57,7 @@ def test_audio_compressor_leaves_existing_output_unchanged(audio_config, capsys)
     source.write_bytes(b"source")
     output.write_bytes(b"existing mp3")
 
-    with mock.patch("audio.main_audio.compress_audio_to_mp3") as compress:
+    with mock.patch("toolbox_pb.core.audio.main_audio.compress_audio_to_mp3") as compress:
         assert audio_compressor(audio_config) is False
 
     compress.assert_not_called()
@@ -78,7 +78,7 @@ def test_audio_compressor_copies_source_at_or_below_configured_bitrate(audio_con
     source = audio_config.INPUT_DIR / "already_small.mp3"
     source.write_bytes(b"source")
 
-    with mock.patch("audio.main_audio.probe_audio_bitrate_kbps", return_value=128):
+    with mock.patch("toolbox_pb.core.audio.main_audio.probe_audio_bitrate_kbps", return_value=128):
         assert audio_compressor(audio_config) is False
 
     assert (audio_config.OUTPUT_DIR / "already_small.mp3").read_bytes() == b"source"
@@ -97,7 +97,7 @@ def test_audio_compressor_optionally_copies_jpeg_from_audio_folder(audio_config)
         **audio_config.__dict__, "AUDIO_COMPRESSOR_COPY_JPEG_FILES": True,
     })
 
-    with mock.patch("audio.main_audio.probe_audio_bitrate_kbps", return_value=96):
+    with mock.patch("toolbox_pb.core.audio.main_audio.probe_audio_bitrate_kbps", return_value=96):
         audio_compressor(enabled_config)
 
     assert (enabled_config.OUTPUT_DIR / "album" / "cover.jpg").read_bytes() == b"jpeg"
@@ -115,7 +115,7 @@ def test_audio_compressor_prefers_named_cover_over_albumart_cache(audio_config):
         **audio_config.__dict__, "AUDIO_COMPRESSOR_COPY_JPEG_FILES": True,
     })
 
-    with mock.patch("audio.main_audio.probe_audio_bitrate_kbps", return_value=96):
+    with mock.patch("toolbox_pb.core.audio.main_audio.probe_audio_bitrate_kbps", return_value=96):
         audio_compressor(enabled_config)
 
     output_album = enabled_config.OUTPUT_DIR / "album"

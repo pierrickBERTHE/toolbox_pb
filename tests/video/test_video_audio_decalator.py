@@ -9,8 +9,8 @@ import pytest
 # Add the toolbox_pb directory to sys.path for imports
 sys.path.append(str(Path(__file__).resolve().parents[2] / "toolbox_pb"))
 
-from config_global import AppConfig
-from video.main_video import video_audio_decalator
+from toolbox_pb.core.config_global import AppConfig
+from toolbox_pb.core.video.main_video import video_audio_decalator
 
 
 @pytest.fixture
@@ -55,11 +55,11 @@ def test_processes_video_file(fake_config):
 
     with (
         mock.patch("builtins.input", return_value="0.5"),
-        mock.patch("video.main_video.func_glob.build_output_subdir_from_input", return_value=fake_config.OUTPUT_DIR),
-        mock.patch("video.main_video.func_glob.build_output_path", return_value=output_path),
-        mock.patch("video.main_video.func_vid.shift_audio_no_reencode") as shift_mock,
+        mock.patch("toolbox_pb.core.video.main_video.func_glob.build_output_subdir_from_input", return_value=fake_config.OUTPUT_DIR),
+        mock.patch("toolbox_pb.core.video.main_video.func_glob.build_output_path", return_value=output_path),
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.shift_audio_no_reencode") as shift_mock,
     ):
-        result = video_audio_decalator(fake_config)
+        result = video_audio_decalator(fake_config, 0.5)
 
     shift_mock.assert_called_once_with(
         input_video=input_file,
@@ -80,11 +80,11 @@ def test_skips_already_processed_file(fake_config, capsys):
 
     with (
         mock.patch("builtins.input", return_value="0.5"),
-        mock.patch("video.main_video.func_glob.build_output_subdir_from_input", return_value=fake_config.OUTPUT_DIR),
-        mock.patch("video.main_video.func_glob.build_output_path", return_value=output_path),
-        mock.patch("video.main_video.func_vid.shift_audio_no_reencode") as shift_mock,
+        mock.patch("toolbox_pb.core.video.main_video.func_glob.build_output_subdir_from_input", return_value=fake_config.OUTPUT_DIR),
+        mock.patch("toolbox_pb.core.video.main_video.func_glob.build_output_path", return_value=output_path),
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.shift_audio_no_reencode") as shift_mock,
     ):
-        result = video_audio_decalator(fake_config)
+        result = video_audio_decalator(fake_config, 0.5)
 
     shift_mock.assert_not_called()
     assert result is False
@@ -95,7 +95,7 @@ def test_skips_already_processed_file(fake_config, capsys):
 def test_empty_folder_returns_true(fake_config):
     """An empty input folder returns True."""
     with mock.patch("builtins.input", return_value="0.5"):
-        result = video_audio_decalator(fake_config)
+        result = video_audio_decalator(fake_config, 0.5)
     assert result is True
 
 
@@ -106,22 +106,18 @@ def test_ignores_non_video_files(fake_config):
 
     with (
         mock.patch("builtins.input", return_value="0.5"),
-        mock.patch("video.main_video.func_vid.shift_audio_no_reencode") as shift_mock,
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.shift_audio_no_reencode") as shift_mock,
     ):
-        result = video_audio_decalator(fake_config)
+        result = video_audio_decalator(fake_config, 0.5)
 
     shift_mock.assert_not_called()
     assert result is True
 
 
-def test_invalid_delay_then_valid(fake_config, capsys):
-    """Invalid delay input loops until a valid float is provided."""
-    with mock.patch("builtins.input", side_effect=["abc", "xyz", "-0.5"]):
-        result = video_audio_decalator(fake_config)
-
-    assert result is True
-    captured = capsys.readouterr()
-    assert "Format invalide" in captured.out
+def test_missing_delay_is_rejected(fake_config):
+    """The core operation requires a delay supplied by an interface."""
+    with pytest.raises(ValueError, match="délai"):
+        video_audio_decalator(fake_config)
 
 
 def test_negative_delay(fake_config):
@@ -132,11 +128,11 @@ def test_negative_delay(fake_config):
 
     with (
         mock.patch("builtins.input", return_value="-0.5"),
-        mock.patch("video.main_video.func_glob.build_output_subdir_from_input", return_value=fake_config.OUTPUT_DIR),
-        mock.patch("video.main_video.func_glob.build_output_path", return_value=output_path),
-        mock.patch("video.main_video.func_vid.shift_audio_no_reencode") as shift_mock,
+        mock.patch("toolbox_pb.core.video.main_video.func_glob.build_output_subdir_from_input", return_value=fake_config.OUTPUT_DIR),
+        mock.patch("toolbox_pb.core.video.main_video.func_glob.build_output_path", return_value=output_path),
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.shift_audio_no_reencode") as shift_mock,
     ):
-        video_audio_decalator(fake_config)
+        video_audio_decalator(fake_config, -0.5)
 
     shift_mock.assert_called_once_with(
         input_video=input_file,

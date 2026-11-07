@@ -9,8 +9,8 @@ import pytest
 # Add the toolbox_pb directory to sys.path for imports
 sys.path.append(str(Path(__file__).resolve().parents[2] / "toolbox_pb"))
 
-from config_global import AppConfig
-from video.main_video import video_volume_adjust
+from toolbox_pb.core.config_global import AppConfig
+from toolbox_pb.core.video.main_video import video_volume_adjust
 
 
 @pytest.fixture
@@ -48,7 +48,7 @@ def fake_config(tmp_path):
 
 def test_missing_boosts_csv_returns_true(fake_config, capsys):
     """If boosts.csv is missing, function returns True and prints warning."""
-    with mock.patch("video.main_video.func_vid.apply_audio_boosts_ffmpeg") as boost_mock:
+    with mock.patch("toolbox_pb.core.video.main_video.func_vid.apply_audio_boosts_ffmpeg") as boost_mock:
         result = video_volume_adjust(fake_config)
 
     assert result is True
@@ -64,7 +64,7 @@ def test_empty_input_with_boosts_csv_returns_true(fake_config):
         encoding="utf-8",
     )
 
-    with mock.patch("video.main_video.func_vid.apply_audio_boosts_ffmpeg") as boost_mock:
+    with mock.patch("toolbox_pb.core.video.main_video.func_vid.apply_audio_boosts_ffmpeg") as boost_mock:
         result = video_volume_adjust(fake_config)
 
     assert result is True
@@ -80,7 +80,7 @@ def test_ignores_non_video_files(fake_config):
     (fake_config.INPUT_DIR / "notes.txt").touch()
     (fake_config.INPUT_DIR / "image.jpg").touch()
 
-    with mock.patch("video.main_video.func_vid.apply_audio_boosts_ffmpeg") as boost_mock:
+    with mock.patch("toolbox_pb.core.video.main_video.func_vid.apply_audio_boosts_ffmpeg") as boost_mock:
         result = video_volume_adjust(fake_config)
 
     assert result is True
@@ -96,7 +96,7 @@ def test_processes_video_when_output_not_exists(fake_config):
     input_video.touch()
     expected_output = fake_config.OUTPUT_DIR / "clip.mp4"
 
-    with mock.patch("video.main_video.func_vid.apply_audio_boosts_ffmpeg") as boost_mock:
+    with mock.patch("toolbox_pb.core.video.main_video.func_vid.apply_audio_boosts_ffmpeg") as boost_mock:
         result = video_volume_adjust(fake_config)
 
     assert result is False
@@ -118,7 +118,7 @@ def test_skips_already_adjusted_file(fake_config, capsys):
     input_video.touch()
     (fake_config.OUTPUT_DIR / "clip.mp4").touch()
 
-    with mock.patch("video.main_video.func_vid.apply_audio_boosts_ffmpeg") as boost_mock:
+    with mock.patch("toolbox_pb.core.video.main_video.func_vid.apply_audio_boosts_ffmpeg") as boost_mock:
         result = video_volume_adjust(fake_config)
 
     assert result is False
@@ -138,7 +138,7 @@ def test_processes_only_missing_outputs_in_mixed_case(fake_config):
     v2.touch()
     (fake_config.OUTPUT_DIR / "a.mp4").touch()
 
-    with mock.patch("video.main_video.func_vid.apply_audio_boosts_ffmpeg") as boost_mock:
+    with mock.patch("toolbox_pb.core.video.main_video.func_vid.apply_audio_boosts_ffmpeg") as boost_mock:
         result = video_volume_adjust(fake_config)
 
     assert result is False
@@ -160,7 +160,7 @@ def test_multiple_audio_boosts_do_not_list_individual_gain_values(fake_config):
     input_video = fake_config.INPUT_DIR / "clip.mp4"
     input_video.touch()
 
-    with mock.patch("video.main_video.func_vid.apply_audio_boosts_ffmpeg") as boost_mock:
+    with mock.patch("toolbox_pb.core.video.main_video.func_vid.apply_audio_boosts_ffmpeg") as boost_mock:
         assert video_volume_adjust(fake_config) is False
 
     assert boost_mock.call_args.kwargs["processing_comment"] == (

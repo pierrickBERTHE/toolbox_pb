@@ -10,7 +10,7 @@ import pytest
 # Add the application directory so tests use the same import style as main.
 sys.path.append(str(Path(__file__).resolve().parents[2] / "toolbox_pb"))
 
-from pdf import func_pdf
+from toolbox_pb.core.pdf import func_pdf
 
 
 class FakeCanvas:

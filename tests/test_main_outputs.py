@@ -21,8 +21,8 @@ from dataclasses import replace
 sys.path.append(str(Path(__file__).resolve().parents[1] / 'toolbox_pb'))
 
 # local imports
-import main
-from config_global import APP_CONFIG
+import toolbox_pb.ui.cli as main
+from toolbox_pb.core.config_global import APP_CONFIG
 
 
 def test_main_prints_git_version(monkeypatch, capsys):
@@ -33,8 +33,8 @@ def test_main_prints_git_version(monkeypatch, capsys):
     cfg = replace(APP_CONFIG, LOG_TO_FILE=False)
 
     # Mock get_git_version and format_git_version
-    with mock.patch('func_global.get_git_version', return_value="abc123"), \
-        mock.patch('func_global.format_git_version', return_value="Version : abc123"):
+    with mock.patch('toolbox_pb.core.func_global.get_git_version', return_value="abc123"), \
+        mock.patch('toolbox_pb.core.func_global.format_git_version', return_value="Version : abc123"):
 
         # Call main and expect SystemExit
         with pytest.raises(SystemExit):
@@ -53,7 +53,7 @@ def test_main_prints_system_info(monkeypatch, capsys):
     cfg = replace(APP_CONFIG, LOG_TO_FILE=False)
 
     # Mock print_system_info
-    with mock.patch('func_global.print_system_info') as m_sys:
+    with mock.patch('toolbox_pb.core.func_global.print_system_info') as m_sys:
 
         # Call main and expect SystemExit
         with pytest.raises(SystemExit):
@@ -71,7 +71,7 @@ def test_main_prints_config_flags(monkeypatch):
     cfg = replace(APP_CONFIG, LOG_TO_FILE=False)
 
     # Mock print_config_flags
-    with mock.patch('func_global.print_config_flags') as m_flags:
+    with mock.patch('toolbox_pb.core.func_global.print_config_flags') as m_flags:
 
         # Call main and expect SystemExit
         with pytest.raises(SystemExit):

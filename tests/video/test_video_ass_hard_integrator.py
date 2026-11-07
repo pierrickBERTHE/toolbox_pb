@@ -8,9 +8,9 @@ import pytest
 
 sys.path.append(str(Path(__file__).resolve().parents[2] / "toolbox_pb"))
 
-from config_global import AppConfig
-from video.main_video import video_ass_hard_integrator
-from video.func_video import integrate_ass_hard_ffmpeg
+from toolbox_pb.core.config_global import AppConfig
+from toolbox_pb.core.video.main_video import video_ass_hard_integrator
+from toolbox_pb.core.video.func_video import integrate_ass_hard_ffmpeg
 
 
 @pytest.fixture
@@ -38,7 +38,7 @@ def test_burns_matching_ass_with_global_codecs_and_output_name(fake_config):
     video.touch()
     ass.touch()
 
-    with mock.patch("video.main_video.func_vid.integrate_ass_hard_ffmpeg") as burner:
+    with mock.patch("toolbox_pb.core.video.main_video.func_vid.integrate_ass_hard_ffmpeg") as burner:
         assert video_ass_hard_integrator(fake_config) is False
 
     burner.assert_called_once_with(
@@ -57,7 +57,7 @@ def test_uses_a_single_ass_for_all_videos(fake_config):
     shared_ass = fake_config.INPUT_DIR / "captions.ass"
     shared_ass.touch()
 
-    with mock.patch("video.main_video.func_vid.integrate_ass_hard_ffmpeg") as burner:
+    with mock.patch("toolbox_pb.core.video.main_video.func_vid.integrate_ass_hard_ffmpeg") as burner:
         assert video_ass_hard_integrator(fake_config) is False
 
     assert burner.call_count == 2
@@ -80,8 +80,8 @@ def test_converts_srt_before_hard_integration(fake_config):
     template.parent.mkdir(parents=True)
     template.touch()
 
-    with mock.patch("video.main_video.func_vid.convert_srt_to_ass") as converter, \
-        mock.patch("video.main_video.func_vid.integrate_ass_hard_ffmpeg") as burner:
+    with mock.patch("toolbox_pb.core.video.main_video.func_vid.convert_srt_to_ass") as converter, \
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.integrate_ass_hard_ffmpeg") as burner:
         assert video_ass_hard_integrator(fake_config) is False
 
     converter.assert_called_once()
@@ -98,8 +98,8 @@ def test_hard_ass_command_emits_ffmpeg_progress(tmp_path):
     input_video = tmp_path / "clip.mp4"
     ass_file = tmp_path / "clip.ass"
     output_video = tmp_path / "output.mp4"
-    with mock.patch("video.func_video.probe_video_duration", return_value=12.0), \
-        mock.patch("video.func_video._run_ffmpeg_with_progress") as runner:
+    with mock.patch("toolbox_pb.core.video.func_video.probe_video_duration", return_value=12.0), \
+        mock.patch("toolbox_pb.core.video.func_video._run_ffmpeg_with_progress") as runner:
         integrate_ass_hard_ffmpeg(
             input_video, ass_file, output_video, "libx265", "aac", "comment"
         )

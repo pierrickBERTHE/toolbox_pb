@@ -28,7 +28,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parents[1] / 'toolbox_pb'))
 
 # Import the module to test
-from config_global import AppConfig, APP_CONFIG
+from toolbox_pb.core.config_global import AppConfig, APP_CONFIG
 
 
 # -----------------------------

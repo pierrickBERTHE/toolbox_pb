@@ -13,7 +13,7 @@ import pytest
 sys.path.append(str(Path(__file__).resolve().parents[2] / "toolbox_pb"))
 
 # Imports local
-from pdf.main_pdf import (
+from toolbox_pb.core.pdf.main_pdf import (
     build_filigranor_text, pdf_assemblor, pdf_filigranor, pdf_page_alternator,
 )
 
@@ -63,9 +63,9 @@ def test_pdf_filigranor_processes_only_pdfs_and_skips_existing(tmp_path):
 
     # Mock filesystem helper and watermark generation to avoid PDF side effects
     with mock.patch(
-        "pdf.main_pdf.func_glob.build_output_subdir_from_input",
+        "toolbox_pb.core.pdf.main_pdf.func_glob.build_output_subdir_from_input",
         return_value=cfg.OUTPUT_DIR
-    ), mock.patch("pdf.main_pdf.func_pdf.add_text_watermark_to_pdf") as watermark_mock:
+    ), mock.patch("toolbox_pb.core.pdf.main_pdf.func_pdf.add_text_watermark_to_pdf") as watermark_mock:
 
         # Run the function under test
         is_empty = pdf_filigranor(cfg, watermark_text="CONFIDENTIEL")
@@ -98,7 +98,7 @@ def test_pdf_filigranor_returns_true_when_no_pdf(tmp_path):
     (cfg.INPUT_DIR / "notes.txt").touch()
 
     # Mock watermark generation to ensure it is not called
-    with mock.patch("pdf.main_pdf.func_pdf.add_text_watermark_to_pdf") as watermark_mock:
+    with mock.patch("toolbox_pb.core.pdf.main_pdf.func_pdf.add_text_watermark_to_pdf") as watermark_mock:
 
         # Run the function under test
         is_empty = pdf_filigranor(cfg, watermark_text="CONFIDENTIEL")
@@ -121,7 +121,7 @@ def test_pdf_assemblor_merges_pdf_files_in_relative_path_order(tmp_path):
     (nested_input_dir / "c.pdf").touch()
     (cfg.INPUT_DIR / "notes.txt").touch()
 
-    with mock.patch("pdf.main_pdf.func_pdf.merge_pdf_files") as merge_mock:
+    with mock.patch("toolbox_pb.core.pdf.main_pdf.func_pdf.merge_pdf_files") as merge_mock:
         is_empty = pdf_assemblor(cfg)
 
     assert is_empty is False
@@ -137,7 +137,7 @@ def test_pdf_assemblor_returns_true_when_no_pdf(tmp_path):
     cfg.INPUT_DIR.mkdir(parents=True)
     (cfg.INPUT_DIR / "notes.txt").touch()
 
-    with mock.patch("pdf.main_pdf.func_pdf.merge_pdf_files") as merge_mock:
+    with mock.patch("toolbox_pb.core.pdf.main_pdf.func_pdf.merge_pdf_files") as merge_mock:
         is_empty = pdf_assemblor(cfg)
 
     assert is_empty is True
