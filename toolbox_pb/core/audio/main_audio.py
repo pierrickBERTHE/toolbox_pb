@@ -12,18 +12,19 @@ from collections import Counter
 from pathlib import Path
 import shutil
 
-from config_global import AppConfig
-from func_global import (
+from toolbox_pb.core.config_global import AppConfig
+from toolbox_pb.core.func_global import (
     build_output_subdir_from_input,
     format_bytes,
     measure_time,
 )
-from audio.func_audio import (
+from toolbox_pb.core.audio.func_audio import (
     build_audio_processing_comment,
     compress_audio_to_mp3,
     find_audio_files,
     probe_audio_bitrate_kbps,
 )
+from toolbox_pb.core.events import emit
 
 
 def artwork_priority(jpeg_path: Path) -> tuple[int, str]:
@@ -74,11 +75,11 @@ def copy_jpeg_files_from_audio_folders(
 
         # Create the output folder if it doesn't exist
         if output_path.exists():
-            print(f"JPEG déjà copié : {jpeg_path.name}")
+            emit(f"JPEG déjà copié : {jpeg_path.name}")
             continue
         shutil.copy2(jpeg_path, output_path)
         copied_files += 1
-        print(f"JPEG copié intact : {jpeg_path.name}")
+        emit(f"JPEG copié intact : {jpeg_path.name}")
     return copied_files
 
 
@@ -139,12 +140,12 @@ def audio_compressor(cfg: AppConfig) -> bool:
             intact_output_path = output_subdir / input_path.name
             if intact_output_path.exists():
                 already_processed += 1
-                print(f"MP3 déjà copié : {input_path.name}")
+                emit(f"MP3 déjà copié : {input_path.name}")
             else:
                 intact_output_path.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(input_path, intact_output_path)
                 copied_mp3_files += 1
-                print(
+                emit(
                     f"Copié intact (débit source "
                     f"{input_bitrate_kbps:.0f} kb/s inférieur ou égal au réglage MP3 "
                     f"{bitrate_kbps} kb/s) : "
@@ -165,11 +166,11 @@ def audio_compressor(cfg: AppConfig) -> bool:
         # If the output file already exists, skip processing and count it as already processed
         if output_path.exists():
             already_processed += 1
-            print(f"MP3 déjà traité : {input_path.name}")
+            emit(f"MP3 déjà traité : {input_path.name}")
             continue
 
         # try to compress the audio file to MP3, handling any errors that may occur
-        print(
+        emit(
             f"\033[92mCompression MP3 {bitrate_kbps} kb/s : "
             f"{input_path.name}\033[0m"
         )
@@ -186,7 +187,7 @@ def audio_compressor(cfg: AppConfig) -> bool:
         except (FileNotFoundError, subprocess.CalledProcessError, OSError) as exc:
             output_path.unlink(missing_ok=True)
             failed_files += 1
-            print(f"Audio ignoré : {input_path.name} ({exc})")
+            emit(f"Audio ignoré : {input_path.name} ({exc})")
             continue
 
         # Update counters and byte sizes after successful compression
@@ -195,7 +196,7 @@ def audio_compressor(cfg: AppConfig) -> bool:
         bytes_after += output_path.stat().st_size
 
     # Print a summary of the audio compression results
-    print(
+    emit(
         "\nRésumé Audio_compressor : "
         f"{compressed_files} fichier(s) compressé(s), "
         f"{copied_mp3_files} MP3 copié(s) intact(s), "
@@ -206,7 +207,7 @@ def audio_compressor(cfg: AppConfig) -> bool:
     if compressed_files:
         gain = bytes_before - bytes_after
         percentage = (gain / bytes_before * 100) if bytes_before else 0
-        print(
+        emit(
             f"Taille : {format_bytes(bytes_before)} → {format_bytes(bytes_after)} "
             f"(gain : {format_bytes(gain)}, {percentage:.1f} %)."
         )

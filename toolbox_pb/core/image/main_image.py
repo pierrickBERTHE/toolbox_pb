@@ -12,12 +12,13 @@ from pathlib import Path
 import shlex
 import shutil
 from tempfile import TemporaryDirectory
-from tqdm import tqdm
+from toolbox_pb.core.progress import progress
 
-from config_global import AppConfig
-import toolbox_pb.image.func_image as func_ima
-import toolbox_pb.video.func_video as func_vid
-import func_global as func_glob
+from toolbox_pb.core.config_global import AppConfig
+import toolbox_pb.core.image.func_image as func_ima
+import toolbox_pb.core.video.func_video as func_vid
+import toolbox_pb.core.func_global as func_glob
+from toolbox_pb.core.events import emit
 
 
 def _copy_unchanged_file(input_path: Path, output_path: Path) -> None:
@@ -56,7 +57,7 @@ def image_reductor(cfg: AppConfig, quality: int | None = None) -> bool:
     )
 
     # Use tqdm to display a progress bar for the file processing
-    for input_file in tqdm(input_files, desc="Image_reductor", unit="fichier"):
+    for input_file in progress(input_files, desc="Image_reductor", unit="fichier"):
 
         # create the output subdirectory structure based on the input file path
         is_empty_folder = False
@@ -83,7 +84,7 @@ def image_reductor(cfg: AppConfig, quality: int | None = None) -> bool:
         )
         # Check if the output file already exists; if so, skip processing
         if output_path.exists():
-            print(f"Réduction déjà réalisée : {input_file.name}")
+            emit(f"Réduction déjà réalisée : {input_file.name}")
             already_compressed_images += 1
             continue
 
@@ -97,7 +98,7 @@ def image_reductor(cfg: AppConfig, quality: int | None = None) -> bool:
         except RuntimeError as exc:
             failed_images += 1
             _copy_unchanged_file(input_file, unchanged_output_path)
-            print(f"Image ignorée : {input_file.name} ({exc})")
+            emit(f"Image ignorée : {input_file.name} ({exc})")
             continue
 
         # If the image was not reduced, copy the original
@@ -111,7 +112,7 @@ def image_reductor(cfg: AppConfig, quality: int | None = None) -> bool:
         reduced_sizes.append((input_size, output_size))
         compressed_images += 1
         reduction = (1 - output_size / input_size) * 100
-        print(
+        emit(
             f"Image réduite : {input_file.name} -> {output_path.name} "
             f"({reduction:.1f} % de gain)"
         )
@@ -135,7 +136,7 @@ def image_reductor(cfg: AppConfig, quality: int | None = None) -> bool:
         + failed_images
     )
     if processed_image_count:
-        print(
+        emit(
             "\nRésumé Image_reductor : "
             f"{compressed_images} image(s) compressée(s), "
             f"{unchanged_images} laissée(s) intacte(s), "
@@ -171,7 +172,7 @@ def image_withoutbg(cfg: AppConfig) -> bool:
     failed = 0
 
     # loop through all input files and process them with a progress bar
-    for input_file in tqdm(input_files, desc="Image_withoutbg", unit="image"):
+    for input_file in progress(input_files, desc="Image_withoutbg", unit="image"):
         output_subdir = func_glob.build_output_subdir_from_input(
             input_file, cfg.INPUT_DIR, cfg.OUTPUT_DIR
         )
@@ -203,7 +204,7 @@ def image_withoutbg(cfg: AppConfig) -> bool:
         completed += 1
 
     # Print a summary of the number of images processed, skipped, and failed
-    print(
+    emit(
         "\nRésumé Image_withoutbg : "
         f"{completed} image(s) traitée(s), "
         f"{skipped} déjà traitée(s), "
@@ -304,7 +305,7 @@ def _generate_defilor_video(
     """
     # Check if already encoded
     if output_path.exists():
-        print("image_defilor déjà réalisé.")
+        emit("image_defilor déjà réalisé.")
         return
 
     output_height = params.height
@@ -328,38 +329,3 @@ def _generate_defilor_video(
     )
 
 
-@func_glob.measure_time
-def run_image_defilor_interactive(cfg: AppConfig) -> bool:
-    """
-    Interactive wrapper for image_defilor with user input for extra parameters.
-    """
-    while True:
-        # Print the menu and ask for input parameters
-        print(
-            "\nOptions disponibles: "
-            "--height --speed --fps --hold-start --hold-end --codec --crf"
-        )
-        answer = input("Ajouter des options ? (o/n) : ").strip().lower()
-        # Validate the answer
-        if answer not in {"o", "oui", "y", "yes", "n", "non", "no"}:
-            print("Réponse invalide, veuillez entrer 'o' ou 'n'.\n")
-            continue
-        # If user wants to add options, ask for them
-        extra_args = None
-        if answer in {"o", "oui", "y", "yes"}:
-            extra_args = input(
-                "Entrez les options (ex: --height 720 --speed 50): "
-            ).strip()
-        # TRY run the image_defilor
-        try:
-            is_empty_folder = image_defilor(
-                cfg, extra_args=extra_args
-            )
-            break
-        except ValueError as exc:
-            print(f"Arguments invalides pour Image_defilor: {exc}")
-            print("Veuillez réessayer.\n")
-            is_empty_folder = True
-            break
-
-    return is_empty_folder

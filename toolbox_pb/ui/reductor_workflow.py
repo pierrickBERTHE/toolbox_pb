@@ -6,7 +6,7 @@ import sys
 import time
 from pathlib import Path
 from typing import Any
-import func_global as func_glob
+import toolbox_pb.core.func_global as func_glob
 
 
 def _read_timed_confirmation(timeout_seconds: int) -> str | None:

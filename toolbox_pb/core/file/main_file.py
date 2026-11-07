@@ -1,8 +1,9 @@
 """Main workflows for file-management features."""
 
-from config_global import AppConfig, CACHE_FOLDERS
-import toolbox_pb.file.func_file as func_file
-import func_global as func_glob
+from toolbox_pb.core.config_global import AppConfig, CACHE_FOLDERS
+import toolbox_pb.core.file.func_file as func_file
+import toolbox_pb.core.func_global as func_glob
+from toolbox_pb.core.events import emit
 
 
 @func_glob.measure_time
@@ -35,12 +36,12 @@ def file_timeline_sorter(cfg: AppConfig) -> bool:
         output_path = output_subdir / filename
 
         if func_file.copy_file_for_timeline(input_path, output_path):
-            print(f"Fichier redaté : {input_path.name} -> {output_path.name}")
+            emit(f"Fichier redaté : {input_path.name} -> {output_path.name}")
             copied_files += 1
         else:
-            print(f"Redatage déjà réalisé : {input_path.name}")
+            emit(f"Redatage déjà réalisé : {input_path.name}")
 
-    print(f"{copied_files} fichier(s) redaté(s).")
+    emit(f"{copied_files} fichier(s) redaté(s).")
     return False
 
 
@@ -77,13 +78,13 @@ def file_str_remover(cfg: AppConfig, string_to_remove: str) -> bool:
 
         # Copy the file to the output directory if it hasn't been copied already
         if func_file.copy_file_for_string_removal(input_path, output_path):
-            print(f"Nom modifié : {input_path.name} -> {output_path.name}")
+            emit(f"Nom modifié : {input_path.name} -> {output_path.name}")
             copied_files += 1
         else:
-            print(f"Suppression déjà réalisée : {input_path.name}")
+            emit(f"Suppression déjà réalisée : {input_path.name}")
 
     # Print the number of files that were renamed
-    print(f"{copied_files} fichier(s) renommé(s).")
+    emit(f"{copied_files} fichier(s) renommé(s).")
     return False
 
 
@@ -107,14 +108,14 @@ def folder_date_renammer(cfg: AppConfig) -> bool:
 
         if func_file.copy_folder(folder_path, output_path):
             if new_name == folder_path.name:
-                print(f"Dossier copié sans modification : {folder_path.name}")
+                emit(f"Dossier copié sans modification : {folder_path.name}")
             else:
-                print(f"Dossier copié et renommé : {folder_path.name} -> {new_name}")
+                emit(f"Dossier copié et renommé : {folder_path.name} -> {new_name}")
             copied_folders += 1
         else:
-            print(f"Dossier ignoré (destination existante) : {folder_path.name}")
+            emit(f"Dossier ignoré (destination existante) : {folder_path.name}")
 
-    print(f"{copied_folders} dossier(s) copié(s).")
+    emit(f"{copied_folders} dossier(s) copié(s).")
     return False
 
 
@@ -130,13 +131,13 @@ def cache_nettoyor() -> None:
     ))
 
     # Print the sizes of each cache folder before cleaning
-    print("\n----- AVANT NETTOYAGE -----")
+    emit("\n----- AVANT NETTOYAGE -----")
     total_before = 0
     for path in paths:
         size = func_file.get_size(path)
         total_before += size
-        print(f"{path} : {func_file.format_size(size)}")
-    print(f"TOTAL : {func_file.format_size(total_before)}")
+        emit(f"{path} : {func_file.format_size(size)}")
+    emit(f"TOTAL : {func_file.format_size(total_before)}")
 
     # Clean the cache folders and CLI caches, summing the total freed space
     total_freed = sum(
@@ -145,15 +146,15 @@ def cache_nettoyor() -> None:
     total_freed += func_file.run_cli_cleaners(cli_caches)
 
     # Print the sizes of each cache folder after cleaning
-    print("\n----- APRES NETTOYAGE -----")
+    emit("\n----- APRES NETTOYAGE -----")
     total_remaining = 0
     for path in paths:
         remaining = func_file.get_size(path)
         total_remaining += remaining
-        print(f"{path} : {func_file.format_size(remaining)}")
-    print(f"TOTAL restant : {func_file.format_size(total_remaining)}")
-    print(f"\n===> Espace nettoyé : {func_file.format_size(total_freed)} <===")
-    print("\nPensez à nettoyer les fichiers temporaires dans : "
+        emit(f"{path} : {func_file.format_size(remaining)}")
+    emit(f"TOTAL restant : {func_file.format_size(total_remaining)}")
+    emit(f"\n===> Espace nettoyé : {func_file.format_size(total_freed)} <===")
+    emit("\nPensez à nettoyer les fichiers temporaires dans : "
         "Paramètres > Système > Stockage > Fichiers temporaires."
         )
 

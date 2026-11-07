@@ -16,7 +16,7 @@ from typing import List
 # -----------------------------
 
 # paths (depend of the execution path)
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 LOG_DIR = ROOT / "log"
 INPUT_DIR = ROOT / "data" / "input"
 OUTPUT_DIR = ROOT / "data" / "output"
@@ -78,6 +78,9 @@ INPUT_ACCEPTED_PDF_FILES = [".pdf"]
 CODEC_VIDEO_LIST = ["libx264", "libx265", "h264_amf", "hevc_amf"]
 CODEC_VIDEO = CODEC_VIDEO_LIST[1]
 CODEC_AUDIO = "aac"
+
+# Audio compressor
+AUDIO_COMPRESSOR_MP3_BITRATE_KBPS = 160
 
 # suffix
 SUFFIX_OUTPUT_VIDEO = ".mp4"
@@ -154,7 +157,7 @@ class AppConfig:
     IMAGE_DIAPO_MAX_HEIGHT: int = 2160
 
     # Audio compressor (MP3 output)
-    AUDIO_COMPRESSOR_MP3_BITRATE_KBPS: int = 160
+    AUDIO_COMPRESSOR_MP3_BITRATE_KBPS: int = AUDIO_COMPRESSOR_MP3_BITRATE_KBPS
     AUDIO_COMPRESSOR_COPY_JPEG_FILES: bool = True
 
     def __post_init__(self) -> None:
@@ -193,6 +196,7 @@ APP_CONFIG = AppConfig(
     CODEC_VIDEO_LIST=CODEC_VIDEO_LIST,
     CODEC_VIDEO=CODEC_VIDEO,
     CODEC_AUDIO=CODEC_AUDIO,
+    AUDIO_COMPRESSOR_MP3_BITRATE_KBPS=AUDIO_COMPRESSOR_MP3_BITRATE_KBPS,
 
     # suffix
     SUFFIX_OUTPUT=SUFFIX_OUTPUT,

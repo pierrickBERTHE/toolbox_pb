@@ -1,4 +1,5 @@
 @echo off
+
 REM === Detect Windows user ===
 set USERNAME=%USERNAME%
 
@@ -11,7 +12,7 @@ if /I "%USERNAME%"=="pierr" (
     exit /b
 )
 
-REM === Launch the Python script with the Poetry environment ===
-poetry run python toolbox_pb/main.py
+REM === Launch the Streamlit application with the Poetry environment ===
+poetry run streamlit run toolbox_pb/ui/streamlit_app.py
 
 pause

@@ -8,7 +8,8 @@ import subprocess
 import shutil
 import unicodedata
 
-import config_global
+import toolbox_pb.core.config_global as config_global
+from toolbox_pb.core.events import emit
 
 
 # Regex to match the timeline-sort prefix of a filename.
@@ -248,7 +249,7 @@ def get_cli_caches() -> list[tuple[str, Path, list[str]]]:
                 raise ValueError("empty cache directory")
             caches.append((name, Path(result.stdout.strip()), clean_cmd))
         except (OSError, subprocess.SubprocessError, ValueError) as exc:
-            print(f"{name} : unable to find cache ({exc})")
+            emit(f"{name} : unable to find cache ({exc})")
     return caches
 
 
@@ -262,9 +263,9 @@ def run_cli_cleaners(caches: list[tuple[str, Path, list[str]]]) -> int:
                 clean_cmd, capture_output=True, text=True, timeout=60
             )
             if result.returncode != 0:
-                print(f"{name} : cleaning failed or incomplete")
+                emit(f"{name} : cleaning failed or incomplete")
         except (OSError, subprocess.SubprocessError) as exc:
-            print(f"{name} : unable to clean cache ({exc})")
+            emit(f"{name} : unable to clean cache ({exc})")
         total_freed += max(0, before - get_size(cache_path))
     return total_freed
 

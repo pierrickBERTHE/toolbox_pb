@@ -12,6 +12,7 @@ import math
 from pathlib import Path
 import re
 from collections.abc import Sequence
+from toolbox_pb.core.events import emit
 
 
 def _import_pdf_dependencies():
@@ -212,7 +213,7 @@ def add_text_watermark_to_pdf(
         writer.write(output_file)
 
     # Print success message
-    print(f"Filigrane ajouté : {output_path}")
+    emit(f"Filigrane ajouté : {output_path}")
 
 
 def merge_pdf_files(input_paths: Sequence[Path], output_path: Path) -> None:
@@ -240,7 +241,7 @@ def merge_pdf_files(input_paths: Sequence[Path], output_path: Path) -> None:
     with output_path.open("wb") as output_file:
         writer.write(output_file)
 
-    print(f"PDF assemblé : {output_path}")
+    emit(f"PDF assemblé : {output_path}")
 
 
 def alternate_pdf_pages(odd_path: Path, even_path: Path, output_path: Path) -> None:
@@ -271,4 +272,4 @@ def alternate_pdf_pages(odd_path: Path, even_path: Path, output_path: Path) -> N
     # Write the interleaved pages to the output PDF
     with output_path.open("wb") as output_file:
         writer.write(output_file)
-    print(f"\nPDF avec pages alternées : {output_path}")
+    emit(f"\nPDF avec pages alternées : {output_path}")

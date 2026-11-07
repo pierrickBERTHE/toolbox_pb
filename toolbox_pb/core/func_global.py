@@ -19,7 +19,7 @@ import numpy as np
 from pathlib import Path
 from datetime import date
 from collections import defaultdict
-from tqdm import tqdm
+from toolbox_pb.core.progress import progress
 
 # Import specialized libraries
 import PIL
@@ -30,7 +30,8 @@ import pypdf
 import reportlab
 
 # Import custom librairies
-from toolbox_pb.config_global import AppConfig, DATE_PATTERNS
+from toolbox_pb.core.config_global import AppConfig, DATE_PATTERNS
+from toolbox_pb.core.events import emit
 
 
 def preserve_file_modification_time(source_path: Path, output_path: Path) -> None:
@@ -123,21 +124,21 @@ def print_system_info():
     et des outils externes utilisés par la toolbox.
     """
 
-    print("\n=== ENVIRONNEMENT ===")
+    emit("\n=== ENVIRONNEMENT ===")
 
-    print(f"Python          : {sys.version.split()[0]}")
+    emit(f"Python          : {sys.version.split()[0]}")
 
-    print("\n=== LIBRAIRIES ===")
+    emit("\n=== LIBRAIRIES ===")
 
-    print(f"HuggingFace Hub : {huggingface_hub.__version__}")
-    print(f"Numpy           : {np.__version__}")
-    print(f"ONNX Runtime    : {onnxruntime.__version__}")
-    print(f"Pillow          : {PIL.__version__}")
-    print(f"Pypdf           : {pypdf.__version__}")
-    print(f"ReportLab       : {reportlab.Version}")
-    print(f"Withoutbg       : {withoutbg.__version__}")
+    emit(f"HuggingFace Hub : {huggingface_hub.__version__}")
+    emit(f"Numpy           : {np.__version__}")
+    emit(f"ONNX Runtime    : {onnxruntime.__version__}")
+    emit(f"Pillow          : {PIL.__version__}")
+    emit(f"Pypdf           : {pypdf.__version__}")
+    emit(f"ReportLab       : {reportlab.Version}")
+    emit(f"Withoutbg       : {withoutbg.__version__}")
 
-    print("\n=== OUTILS EXTERNES ===")
+    emit("\n=== OUTILS EXTERNES ===")
 
     try:
         ffmpeg_version = subprocess.check_output(
@@ -146,23 +147,23 @@ def print_system_info():
             text=True,
         ).splitlines()[0]
 
-        print(f"FFmpeg          : {ffmpeg_version}")
+        emit(f"FFmpeg          : {ffmpeg_version}")
 
     except Exception:
         # This diagnostic must never prevent the toolbox from starting.
-        print("FFmpeg version    : non disponible")
+        emit("FFmpeg version    : non disponible")
 
-    print("========================\n")
+    emit("========================\n")
 
 
 def print_config_flags(config, flag_names: list[str]):
     """
     Print selected configuration flags.
     """
-    print("\nFlags de configuration :")
+    emit("\nFlags de configuration :")
     for name in flag_names:
         value = getattr(config, name, None)
-        print(f"{name} = {value}")
+        emit(f"{name} = {value}")
 
 
 def transform_sec_duration_in_min_sec(start, end):
@@ -184,7 +185,7 @@ def measure_time(func):
         result = func(*args, **kwargs)
         duration_sec = time.perf_counter() - start
         min, sec = transform_sec_duration_in_min_sec(0, duration_sec)
-        print(
+        emit(
             f"\n⏱️ Temps d'exécution de {func.__name__} : "
             f"{min} min et {sec} sec.")
         return result
@@ -195,16 +196,16 @@ def print_step(step_num, message):
     """
     Print a formatted step message for process reporting.
     """
-    print("\n\n" + "*" * 100)
-    print(f"==> STEP {step_num} : {message} <==")
-    print("*" * 100 + "\n")
+    emit("\n\n" + "*" * 100)
+    emit(f"==> STEP {step_num} : {message} <==")
+    emit("*" * 100 + "\n")
 
 
 def exit_toolbox():
     """
     Print a goodbye message and exit the toolbox.
     """
-    print("\nAu revoir !")
+    emit("\nAu revoir !")
     exit()
 
 
@@ -213,8 +214,8 @@ def print_json(obj, title=None):
     Print a JSON object in a readable format.
     """
     if title:
-        print(f"\n===== {title} =====")
-    print(json.dumps(obj, indent=4, ensure_ascii=False))
+        emit(f"\n===== {title} =====")
+    emit(json.dumps(obj, indent=4, ensure_ascii=False))
 
 
 def format_bytes(size_bytes: int) -> str:
@@ -316,7 +317,7 @@ def write_video_processing_comment(
         temporary_path.replace(video_path)
     except (FileNotFoundError, subprocess.CalledProcessError, OSError) as exc:
         temporary_path.unlink(missing_ok=True)
-        print(f"Commentaire de traitement non écrit : {video_path.name} ({exc})")
+        emit(f"Commentaire de traitement non écrit : {video_path.name} ({exc})")
         return None
     return comment
 
@@ -415,7 +416,7 @@ def summarize_files(dir_path: Path, label: str) -> None:
 
     # Check that the directory exists
     if not dir_path.exists():
-        print(f"\n[{label}] Directory not found: {dir_path}")
+        emit(f"\n[{label}] Directory not found: {dir_path}")
         return
 
     # Recursively collect all files in the directory
@@ -435,17 +436,17 @@ def summarize_files(dir_path: Path, label: str) -> None:
         by_ext[f.suffix.lower() or "no_ext"] += 1
 
     # Print summary header
-    print(f"\n======= FILE SUMMARY : {label} =======")
-    print(f"Directory : {dir_path}")
-    print(f"Total files : {len(files)}")
+    emit(f"\n======= FILE SUMMARY : {label} =======")
+    emit(f"Directory : {dir_path}")
+    emit(f"Total files : {len(files)}")
 
     # Print breakdown by file extension
-    print("\nBy extension:")
+    emit("\nBy extension:")
     for ext, count in sorted(by_ext.items()):
-        print(f" - {ext}: {count}")
+        emit(f" - {ext}: {count}")
 
     # Print total size in human-readable format
-    print(f"\nTotal size : {format_bytes(total_size)}")
+    emit(f"\nTotal size : {format_bytes(total_size)}")
 
 
 def consume_ffmpeg_progress(
@@ -480,7 +481,7 @@ def consume_ffmpeg_progress(
     if leave is not True:
         tqdm_options["leave"] = leave
 
-    with tqdm(**tqdm_options) as pbar:
+    with progress(**tqdm_options) as pbar:
         for line in iter(proc.stdout.readline, ""):
             if not line:
                 break

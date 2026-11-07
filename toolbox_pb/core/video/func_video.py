@@ -19,11 +19,11 @@ from collections import Counter
 from datetime import date, datetime
 from typing import Iterable, Protocol
 from dataclasses import dataclass
-from tqdm import tqdm
-from toolbox_pb.config_global import DATE_PATTERNS
+from toolbox_pb.core.progress import progress
+from toolbox_pb.core.config_global import DATE_PATTERNS
 
 # Import custom librairies
-from func_global import (
+from toolbox_pb.core.func_global import (
     measure_time,
     format_bytes,
     consume_ffmpeg_progress,
@@ -33,6 +33,7 @@ from func_global import (
     extract_valid_dates,
     preserve_file_modification_time,
 )
+from toolbox_pb.core.events import emit
 
 
 class DurationClip(Protocol):
@@ -191,7 +192,7 @@ def prepare_video_for_assembly(
 
     Some phone files declare a high nominal frame rate (for example 120 FPS)
     while their timestamped frames run at about 30 FPS. FFmpeg rewrites these
-    video frames with a cadence that differs from audio. FFmpeg rewrites these
+    video frames with a cadence that differs from toolbox_pb.core.audio. FFmpeg rewrites these
     exceptional sources with their average FPS before they are assembled.
     """
     # Check the declared (r_frame_rate) and average FPS (avg_frame_rate) 
@@ -219,7 +220,7 @@ def prepare_video_for_assembly(
     ]
 
     # display the concerned video which has a problem
-    print(
+    emit(
         f"Cadence vidéo incohérente détectée pour {video_path.name} "
         f"({declared_rate} déclaré, {average_fps:.2f} moyen) : normalisation.\n"
     )
@@ -636,7 +637,7 @@ def get_srt_date_statistics(
 def print_srt_date_statistics(label: str, statistics: tuple[int, int, int]) -> None:
     """Print a concise date/subtitle summary for the date filter."""
     distinct_dates, occurrences, subtitles = statistics
-    print(
+    emit(
         f"\n{label} : {distinct_dates} date(s) différente(s), "
         f"{occurrences} occurrence(s) de date, "
         f"{subtitles} sous-titre(s) détecté(s)."
@@ -656,12 +657,12 @@ def print_duplicate_srt_dates(cues: list[tuple[int, int, str]]) -> None:
         if count > 1
     }
     if not duplicate_dates:
-        print("\nAucune date en doublon détectée.")
+        emit("\nAucune date en doublon détectée.")
         return
 
-    print("\nDates en doublon détectées :")
+    emit("\nDates en doublon détectées :")
     for subtitle_date, count in sorted(duplicate_dates.items()):
-        print(
+        emit(
             f"- {datetime.fromisoformat(subtitle_date):%d/%m/%Y} : "
             f"{count} occurrence(s)"
         )
@@ -814,7 +815,7 @@ def create_image_diapo_ffmpeg(
     total_duration = duration * len(image_paths)
     
     # use tqdm to show a progress bar for the slideshow creation
-    with tqdm(
+    with progress(
         total=len(image_paths),
         unit="étape",
         desc="Progression globale",
@@ -962,7 +963,7 @@ def count_cpu_threads() -> int:
     Returns the number of CPU threads available on the machine.
     """
     max_threads = os.cpu_count()
-    print(f"Nombre de threads disponibles : {max_threads}\n")
+    emit(f"Nombre de threads disponibles : {max_threads}\n")
     return max_threads
 
 
@@ -1037,7 +1038,7 @@ def encode_full_video(
             )
             if normalized_sample_rate:
                 if str(normalized_sample_rate) != str(sample_rate):
-                    print(
+                    emit(
                         "Taux audio ajusté pour l'encodeur "
                         f"{codec_audio}: {sample_rate} Hz -> "
                         f"{normalized_sample_rate} Hz"
@@ -1077,11 +1078,11 @@ def encode_full_video(
         if Path(output_path).exists():
             preserve_file_modification_time(Path(input_path), Path(output_path))
         
-        print(f"✅ Encodage réussi : {output_path}\n")
+        emit(f"✅ Encodage réussi : {output_path}\n")
     
     # Handle errors
     except subprocess.CalledProcessError as exc:
-        print(f"❌ Erreur lors de l'encodage : {output_path}")
+        emit(f"❌ Erreur lors de l'encodage : {output_path}")
         raise
 
 
@@ -1164,24 +1165,24 @@ def print_metadata_summary_all_keys(meta: dict):
         if isinstance(obj, dict):
             for k, v in obj.items():
                 if isinstance(v, (dict, list)):
-                    print(f"{space}[{k}]")
+                    emit(f"{space}[{k}]")
                     print_recursive(v, indent + 1)
                 else:
-                    print(f"{space}- {k}: {v}")
+                    emit(f"{space}- {k}: {v}")
         elif isinstance(obj, list):
             for i, item in enumerate(obj):
-                print(f"{space}[index_{i}]")
+                emit(f"{space}[index_{i}]")
                 print_recursive(item, indent + 1)
         else:
-            print(f"{space}{obj}")
+            emit(f"{space}{obj}")
 
     # ================= HEADER =================
 
-    print("\n======= MÉTADONNÉES COMPLÈTES =======")
+    emit("\n======= MÉTADONNÉES COMPLÈTES =======")
 
     # ================= FORMAT =================
 
-    print("\n[format]")
+    emit("\n[format]")
     format_block = meta.get("format", meta)  # fallback safety
     print_recursive(format_block, indent=1)
 
@@ -1191,7 +1192,7 @@ def print_metadata_summary_all_keys(meta: dict):
 
     for idx, stream in enumerate(streams):
         stream_type = stream.get("codec_type", "unknown")
-        print(f"\n[stream_{idx}] ({stream_type})")
+        emit(f"\n[stream_{idx}] ({stream_type})")
         print_recursive(stream, indent=1)
 
 
@@ -1243,14 +1244,14 @@ def print_metadata_diff_summary(meta_before: dict, meta_after: dict):
     Adds units and thousand separators for better readability.
     """
     # header
-    print("======= DIFFÉRENCES MÉTADONNÉES =======")
+    emit("======= DIFFÉRENCES MÉTADONNÉES =======")
 
     # Print format-level differences
-    print("[format]")
+    emit("[format]")
     format_keys = ["filename", "duration", "size", "bit_rate"]
     
     # Print duration every time
-    print(
+    emit(
         f" ■  - duration: "
         f"{format_duration_hms(meta_before['format'].get('duration'))} → "
         f"{format_duration_hms(meta_after['format'].get('duration'))}"
@@ -1261,7 +1262,7 @@ def print_metadata_diff_summary(meta_before: dict, meta_after: dict):
         before = meta_before.get(k)
         after = meta_after.get(k)
         if before != after:
-            print(
+            emit(
                 f"  - {k}: {format_value(k, before)} → {format_value(k, after)}"
             )
 
@@ -1269,14 +1270,14 @@ def print_metadata_diff_summary(meta_before: dict, meta_after: dict):
     tags_before = safe_get(meta_before, ["tags"], {})
     tags_after = safe_get(meta_after, ["tags"], {})
     if tags_before != tags_after:
-        print("  [tags]")
+        emit("  [tags]")
         for tag, val_before in tags_before.items():
             val_after = tags_after.get(tag)
             if val_before != val_after:
-                print(f"    - {tag}: {val_before} → {val_after}")
+                emit(f"    - {tag}: {val_before} → {val_after}")
 
     # Print stream-level differences
-    print("[streams]")
+    emit("[streams]")
 
     # Split streams by type
     before_by_type = split_streams_by_type(meta_before.get("streams", []))
@@ -1289,10 +1290,10 @@ def print_metadata_diff_summary(meta_before: dict, meta_after: dict):
 
         # Check if number of streams differ
         for idx, (b, a) in enumerate(zip(before_list, after_list)):
-            print(f"  [{stream_type}]")
+            emit(f"  [{stream_type}]")
 
             # Codec
-            print(
+            emit(
                 f" ■  - codec_name: {b.get('codec_name')}"
                 f"→ {a.get('codec_name')}"
             )
@@ -1301,14 +1302,14 @@ def print_metadata_diff_summary(meta_before: dict, meta_after: dict):
             if stream_type == "video":
                 dim_before = f"{b.get('width')}x{b.get('height')}"
                 dim_after = f"{a.get('width')}x{a.get('height')}"
-                print(f" ■  - dimensions: {dim_before} → {dim_after}")
+                emit(f" ■  - dimensions: {dim_before} → {dim_after}")
 
             # Common numeric fields
             for key in ["bit_rate", "duration", "sample_rate", "nb_frames"]:
                 vb = b.get(key)
                 va = a.get(key)
                 if vb != va:
-                    print(
+                    emit(
                         f"    - {key}: {format_value(key, vb)} → "
                         f"{format_value(key, va)}"
                     )
@@ -1367,28 +1368,28 @@ def print_size_reduction(stats: dict):
     factor = stats.get("compression_factor")
 
     # Header
-    print("\n======= RÉDUCTION DE TAILLE =======")
+    emit("\n======= RÉDUCTION DE TAILLE =======")
 
     # Check if sizes are available
     if before is None or after is None:
-        print("Impossible de calculer : tailles non disponibles.")
+        emit("Impossible de calculer : tailles non disponibles.")
         return
 
     # Print sizes
-    print(f"Avant  : {format_bytes(before)}")
-    print(f"Après  : {format_bytes(after)}")
+    emit(f"Avant  : {format_bytes(before)}")
+    emit(f"Après  : {format_bytes(after)}")
 
     # Print reduction and factor if available
     if red is not None:
-        print(f"Réduction : {red:.2f} %")
+        emit(f"Réduction : {red:.2f} %")
     if factor is not None:
-        print(f"Facteur de compression : x{factor:.2f}")
+        emit(f"Facteur de compression : x{factor:.2f}")
     
     # Print delimiter
-    print("\n"* 5)
-    print("=" * 100 + "\n")
-    print("=" * 100)
-    print("\n"* 3)
+    emit("\n"* 5)
+    emit("=" * 100 + "\n")
+    emit("=" * 100)
+    emit("\n"* 3)
 
 
 def to_seconds(time_str: str) -> float:
@@ -1531,7 +1532,7 @@ def sum_input_sizes(metas_before: list[dict]) -> int | None:
     Prints detailed size per input.
     Returns total size in bytes or None if invalid.
     """
-    print("\n======= INPUT FILE SIZES =======\n")
+    emit("\n======= INPUT FILE SIZES =======\n")
 
     total = 0
 
@@ -1546,12 +1547,12 @@ def sum_input_sizes(metas_before: list[dict]) -> int | None:
         try:
             size = int(size)
         except (TypeError, ValueError):
-            print(f"- {filename}: size unavailable")
+            emit(f"- {filename}: size unavailable")
             return None
-        print(f"- {filename}: {format_bytes(size)}")
+        emit(f"- {filename}: {format_bytes(size)}")
         total += size
 
-    print(f"\nTOTAL INPUT SIZE: {format_bytes(total)}")
+    emit(f"\nTOTAL INPUT SIZE: {format_bytes(total)}")
     return total
 
 
@@ -1689,7 +1690,7 @@ def apply_audio_boosts_ffmpeg(
             f"volume=enable='between(t,{boost.start},{boost.end})'"
             f":volume={gain_linear}"
         )
-        print(
+        emit(
             f"\nApplying audio boost: {boost.start}s to {boost.end}s "
             f"with gain {boost.gain_db} dB"
         )
@@ -1741,15 +1742,15 @@ def apply_video_srt_ffmpeg(
         result = subprocess.run(cmd, capture_output=True, text=True, check=False)
         
         if result.returncode != 0:
-            print(f"⚠️ FFmpeg stdout:\n{result.stdout}")
-            print(f"⚠️ FFmpeg stderr:\n{result.stderr}")
+            emit(f"⚠️ FFmpeg stdout:\n{result.stdout}")
+            emit(f"⚠️ FFmpeg stderr:\n{result.stderr}")
             raise subprocess.CalledProcessError(result.returncode, cmd)
         
-        print(f"✅ Sous-titres ajoutés : {output_video}\n")
+        emit(f"✅ Sous-titres ajoutés : {output_video}\n")
     
     # Handle errors and print FFmpeg output for debugging
     except subprocess.CalledProcessError as exc:
-        print(f"❌ Erreur lors de l'ajout des SRT : {output_video}")
+        emit(f"❌ Erreur lors de l'ajout des SRT : {output_video}")
         raise
 
 
@@ -1776,12 +1777,12 @@ def extract_video_srt_ffmpeg(
             probe_cmd, capture_output=True, text=True, check=True
         )
     except subprocess.CalledProcessError as exc:
-        print(f"⚠️ Impossible d'analyser les flux de {input_video} : {exc}")
+        emit(f"⚠️ Impossible d'analyser les flux de {input_video} : {exc}")
         raise
 
     # No subtitle stream found: skip entirely, nothing written to output
     if not probe_result.stdout.strip():
-        print(f"ℹ️ Aucun sous-titre à extraire : {input_video}\n")
+        emit(f"ℹ️ Aucun sous-titre à extraire : {input_video}\n")
         return
 
     # Build FFmpeg command with two outputs in a single pass:
@@ -1810,16 +1811,16 @@ def extract_video_srt_ffmpeg(
         result = subprocess.run(cmd, capture_output=True, text=True, check=False)
 
         if result.returncode != 0:
-            print(f"⚠️ FFmpeg stdout:\n{result.stdout}")
-            print(f"⚠️ FFmpeg stderr:\n{result.stderr}")
+            emit(f"⚠️ FFmpeg stdout:\n{result.stdout}")
+            emit(f"⚠️ FFmpeg stderr:\n{result.stderr}")
             raise subprocess.CalledProcessError(result.returncode, cmd)
 
-        print(f"✅ Sous-titres extraits : {srt_output_path}")
-        print(f"✅ Vidéo sans sous-titres : {output_video}\n")
+        emit(f"✅ Sous-titres extraits : {srt_output_path}")
+        emit(f"✅ Vidéo sans sous-titres : {output_video}\n")
 
     # Handle errors and print FFmpeg output for debugging
     except subprocess.CalledProcessError as exc:
-        print(f"❌ Erreur lors de l'extraction des SRT : {output_video}")
+        emit(f"❌ Erreur lors de l'extraction des SRT : {output_video}")
         raise
 
 def probe_video_dimensions(video_path: Path) -> tuple[int, int] | None:

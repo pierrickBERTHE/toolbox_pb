@@ -14,11 +14,12 @@ from mutagen import File as open_audio_file
 from mutagen.id3 import COMM, POPM
 from mutagen.mp3 import MP3
 
-from func_global import (
+from toolbox_pb.core.func_global import (
     build_video_processing_comment,
     is_processable_file,
     preserve_file_modification_time,
 )
+from toolbox_pb.core.events import emit
 
 
 def find_audio_files(input_dir: Path, extensions: list[str]) -> list[Path]:
@@ -141,7 +142,7 @@ def write_id3_processing_comment(
         )
         output_audio.save(v1=1, v2_version=3)
     except Exception as exc:
-        print(f"Commentaire ID3 non écrit : {output_path.name} ({exc})")
+        emit(f"Commentaire ID3 non écrit : {output_path.name} ({exc})")
 
 
 def _build_mp3_command(

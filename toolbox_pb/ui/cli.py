@@ -9,9 +9,10 @@ Décembre 2025
 # Imports standard
 import sys
 import datetime
+from tqdm import tqdm
 
 # Import custom librairies
-from video.main_video import (
+from toolbox_pb.core.video.main_video import (
     video_encodor,
     video_assemblor,
     video_audio_decalator,
@@ -22,20 +23,25 @@ from video.main_video import (
     video_srt_integrator,
     image_diapo_video_creator,
 )
-from video.func_video import find_files_by_extensions
-from image.main_image import (
+from toolbox_pb.core.video.func_video import find_files_by_extensions
+from toolbox_pb.core.image.main_image import (
     image_reductor,
-    run_image_defilor_interactive,
     image_withoutbg,
 )
-from pdf.main_pdf import pdf_assemblor, pdf_filigranor, pdf_page_alternator
-from file.main_file import (
+from toolbox_pb.core.pdf.main_pdf import pdf_assemblor, pdf_filigranor, pdf_page_alternator
+from toolbox_pb.core.file.main_file import (
     cache_nettoyor, file_str_remover, file_timeline_sorter, folder_date_renammer
 )
-from audio.main_audio import audio_compressor
-from config_global import APP_CONFIG, AppConfig
-import func_global as func
-import reductor_workflow
+from toolbox_pb.core.audio.main_audio import audio_compressor
+from toolbox_pb.core.config_global import APP_CONFIG, AppConfig
+import toolbox_pb.core.func_global as func
+from toolbox_pb.core.events import use_message_sink
+from toolbox_pb.core.progress import use_progress_factory
+from toolbox_pb.ui.cli_helpers import (
+    run_image_defilor_interactive,
+    run_video_audio_decalator_interactive,
+)
+from toolbox_pb.ui import reductor_workflow
 
 
 def main(cfg : AppConfig):
@@ -139,7 +145,7 @@ def main(cfg : AppConfig):
 
         case "3":
             print("\nLancement du Vidéo_audio_decalator...")
-            is_empty_folder = video_audio_decalator(cfg)
+            is_empty_folder = run_video_audio_decalator_interactive(cfg)
 
         case "4":
             print("\nLancement du Vidéo_volume_adjust...")
@@ -280,4 +286,5 @@ def main(cfg : AppConfig):
 
 # Main entry point
 if __name__ == "__main__":
-    main(APP_CONFIG)
+    with use_progress_factory(tqdm), use_message_sink(lambda message: print(message, end="")):
+        main(APP_CONFIG)

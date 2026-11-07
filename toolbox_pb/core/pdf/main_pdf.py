@@ -10,10 +10,11 @@ Mai 2026
 # Imports standard
 
 # Import custom librairies
-from config_global import AppConfig
-import toolbox_pb.pdf.func_pdf as func_pdf
-import func_global as func_glob
-from config_global import WATERMARK_PREFIX
+from toolbox_pb.core.config_global import AppConfig
+import toolbox_pb.core.pdf.func_pdf as func_pdf
+import toolbox_pb.core.func_global as func_glob
+from toolbox_pb.core.config_global import WATERMARK_PREFIX
+from toolbox_pb.core.events import emit
 
 def build_filigranor_text(destination_text: str) -> str:
     """
@@ -77,7 +78,7 @@ def pdf_filigranor(cfg: AppConfig, watermark_text: str | None = None) -> bool:
 
         # ------------- ADD WATERMARK IF NOT ALREADY DONE -------------
         if output_path.exists():
-            print("PDF_filigranor déjà réalisé.")
+            emit("PDF_filigranor déjà réalisé.")
         else:
             func_pdf.add_text_watermark_to_pdf(
                 input_path=input_file,

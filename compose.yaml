@@ -7,6 +7,8 @@ services:
     image: ${TOOLBOX_IMAGE:-pierrickberthe/toolbox-pb:latest}
     stdin_open: true
     tty: true
+    ports:
+      - "8501:8501"
     volumes:
       # Fichiers visibles et persistants sur le PC Windows hote.
       - ./data/input:/app/data/input

@@ -12,11 +12,12 @@ import filecmp
 import subprocess
 import tempfile
 from pathlib import Path
-from tqdm import tqdm
-from config_global import AppConfig
-import toolbox_pb.video.func_video as func_vid
-import toolbox_pb.image.func_image as func_ima
-import func_global as func_glob
+from toolbox_pb.core.progress import progress
+from toolbox_pb.core.config_global import AppConfig
+import toolbox_pb.core.video.func_video as func_vid
+import toolbox_pb.core.image.func_image as func_ima
+import toolbox_pb.core.func_global as func_glob
+from toolbox_pb.core.events import emit
 
 
 def _is_unchanged_input_copy(input_path, output_path) -> bool:
@@ -33,7 +34,7 @@ def _is_unchanged_input_copy(input_path, output_path) -> bool:
 def _extract_and_filter_assembled_srt(assembled_video: Path) -> None:
     """Extract, de-duplicate and save the first subtitle stream of an assembly."""
     # launch the extraction of SRT subtitles if the flag is set
-    print(
+    emit(
         "\n✅ VIDEO_ASSEMBLOR_EXTRACT_AND_FILTER_DATES activé : "
         "extraction puis filtrage des sous-titres."
     )
@@ -42,7 +43,7 @@ def _extract_and_filter_assembled_srt(assembled_video: Path) -> None:
         extracted_video = temp_dir / assembled_video.name
         extracted_srt = temp_dir / f"{assembled_video.stem}.srt"
 
-        print("Lancement du Vidéo_srt_extractor après l'assemblage...")
+        emit("Lancement du Vidéo_srt_extractor après l'assemblage...")
         func_vid.extract_video_srt_ffmpeg(
             input_video=assembled_video,
             output_video=extracted_video,
@@ -53,11 +54,11 @@ def _extract_and_filter_assembled_srt(assembled_video: Path) -> None:
             ),
         )
         if not extracted_srt.exists() or not extracted_video.exists():
-            print("⚠️ Aucune piste de sous-titres n'a pu être extraite.")
+            emit("⚠️ Aucune piste de sous-titres n'a pu être extraite.")
             return
 
         # launch the filtering of SRT subtitles
-        print("Lancement du Vidéo_srt_date_filtrator après l'extraction...")
+        emit("Lancement du Vidéo_srt_date_filtrator après l'extraction...")
         subtitles = func_vid.parse_srt_cues(
             extracted_srt.read_text(encoding="utf-8-sig")
         )
@@ -69,7 +70,7 @@ def _extract_and_filter_assembled_srt(assembled_video: Path) -> None:
         func_vid.print_duplicate_srt_dates(subtitles)
         filtered_subtitles = func_vid.filter_duplicate_srt_dates(subtitles)
 
-        print()
+        emit()
         func_vid.print_srt_date_statistics(
             "Après filtrage", func_vid.get_srt_date_statistics(filtered_subtitles)
         )
@@ -83,7 +84,7 @@ def _extract_and_filter_assembled_srt(assembled_video: Path) -> None:
         # replace the original files with the filtered ones
         extracted_video.replace(assembled_video)
         extracted_srt.replace(assembled_video.with_suffix(".srt"))
-        print("✅ Extraction et filtrage des sous-titres terminés.")
+        emit("✅ Extraction et filtrage des sous-titres terminés.")
 
 
 @func_glob.measure_time
@@ -110,7 +111,7 @@ def video_encodor(cfg: AppConfig) -> bool:
     unchanged_videos = 0
     already_encoded_videos = 0
     failed_videos = 0
-    for input_file in tqdm(video_files, desc="Video_encodor", unit="vidéo"):
+    for input_file in progress(video_files, desc="Video_encodor", unit="vidéo"):
 
         # --- CREATE OUTPUT SUBDIR STRUCTURE BASED ON INPUT FILE PATH ---
         output_subdir = func_glob.build_output_subdir_from_input(
@@ -132,11 +133,11 @@ def video_encodor(cfg: AppConfig) -> bool:
 
         # Check if already encoded
         if output_path.exists() and not _is_unchanged_input_copy(input_file, output_path):
-            print("Encodage déjà réalisé.")
+            emit("Encodage déjà réalisé.")
             already_encoded_videos += 1
         else:
             if output_path.exists():
-                print("Copie intacte détectée. Encodage de la vidéo...")
+                emit("Copie intacte détectée. Encodage de la vidéo...")
             try:
                 func_vid.encode_full_video(
                     input_path=input_file,
@@ -151,7 +152,7 @@ def video_encodor(cfg: AppConfig) -> bool:
                 failed_videos += 1
                 if output_path.exists():
                     output_path.unlink()
-                print(f"Vidéo ignorée : {input_file.name} ({exc})")
+                emit(f"Vidéo ignorée : {input_file.name} ({exc})")
                 continue
             encoded_videos += 1
 
@@ -164,10 +165,10 @@ def video_encodor(cfg: AppConfig) -> bool:
 
         # Print all metadata if flag is set
         if config["print_all_keys"]:
-            print("Méta avant l'encodage :")
+            emit("Méta avant l'encodage :")
             func_vid.print_metadata_summary_all_keys(meta_before)
             
-            print("\nMéta après l'encodage :")
+            emit("\nMéta après l'encodage :")
             func_vid.print_metadata_summary_all_keys(meta_after)
         
         # Print metadata differences
@@ -179,7 +180,7 @@ def video_encodor(cfg: AppConfig) -> bool:
 
     # print summary of encoding results
     if video_files:
-        print(
+        emit(
             "\nRésumé Video_encodor : "
             f"{encoded_videos} vidéo(s) compressée(s), "
             f"{unchanged_videos} laissée(s) intacte(s), "
@@ -210,7 +211,7 @@ def video_assemblor(cfg: AppConfig) -> bool:
 
     # Check if already encoded
     if output_path.exists():
-        print("Encodage déjà réalisé.")
+        emit("Encodage déjà réalisé.")
         is_empty_folder = False
     else:
         # Check for video files in the input directory
@@ -230,9 +231,9 @@ def video_assemblor(cfg: AppConfig) -> bool:
         segments_csv = cfg.SEGMENT_DIR / "segments.csv"
         if segments_csv.exists():
             segments = func_vid.load_segments_csv(segments_csv)
-            print(f"\nSegments chargés depuis '{segments_csv}'.\n")
+            emit(f"\nSegments chargés depuis '{segments_csv}'.\n")
         else:
-            print(
+            emit(
                 "\nFichier 'segments.csv' non trouvé,"
                 "tous les fichiers sont assemblés.\n"
             )
@@ -249,10 +250,10 @@ def video_assemblor(cfg: AppConfig) -> bool:
         for file in sequence:
             if file["path"].name not in input_files:
                 input_files.append(file["path"].name)
-        print(f"input_files used :")
+        emit(f"input_files used :")
         for file in input_files:
-            print(f"- {file}")
-        print()
+            emit(f"- {file}")
+        emit()
 
         # Create a temporary directory for intermediate files
         source_temp_dir = tempfile.TemporaryDirectory(
@@ -283,7 +284,7 @@ def video_assemblor(cfg: AppConfig) -> bool:
         duration_clips = []
         try:
             # Outer bar counts finished videos, one step per source
-            with tqdm(
+            with progress(
                 total=len(sequence),
                 unit="vidéo",
                 desc="Progression globale",
@@ -340,7 +341,7 @@ def video_assemblor(cfg: AppConfig) -> bool:
                     ):
                         subtitle_paths.append(candidate_path)
                     else:
-                        print("Aucune date valide trouvée dans les noms des vidéos.")
+                        emit("Aucune date valide trouvée dans les noms des vidéos.")
 
                 # Stream-copy every normalized source into the final file
                 func_vid.concat_normalized_clips_ffmpeg(
@@ -366,7 +367,7 @@ def video_assemblor(cfg: AppConfig) -> bool:
 
         # isolate first input file for metadata comparison
         input_file = sequence[0]["path"]
-        print(f"input_file pour la comparaison : {input_file.name}\n")
+        emit(f"input_file pour la comparaison : {input_file.name}\n")
 
         # Get metadata before and after encoding
         meta_before = func_vid.get_all_metadata(input_file)
@@ -399,7 +400,7 @@ def video_assemblor(cfg: AppConfig) -> bool:
 
 
 @func_glob.measure_time
-def video_audio_decalator(cfg: AppConfig) -> bool:
+def video_audio_decalator(cfg: AppConfig, delay: float | None = None) -> bool:
     """
     Shift audio of video files in the input directory by a specified delay
     without re-encoding the video stream.
@@ -407,17 +408,8 @@ def video_audio_decalator(cfg: AppConfig) -> bool:
     # Import configuration
     config = func_glob.parse_config(cfg)
     
-    # Input the delay in seconds
-    while True:
-        user_input = input(
-            "Entrez le délai de décalage audio en secondes"
-            "(ex: -0.5 pour avancer de 0.5s, 0.5 pour retarder de 0.5s) : "
-            )
-        try:
-            delay = float(user_input)
-            break
-        except ValueError:
-            print("Format invalide. Entrer un nombre valide (ex : -0.5, 0.5).")
+    if delay is None:
+        raise ValueError("Un délai de décalage audio doit être fourni.")
 
     # ------------- LOOP THROUGH ALL FILES IN INPUT DIR -------------
     is_empty_folder = True
@@ -443,7 +435,7 @@ def video_audio_decalator(cfg: AppConfig) -> bool:
 
         # Check if already decalated
         if output_path.exists():
-            print("Décalage déjà réalisé.")
+            emit("Décalage déjà réalisé.")
         else:
             func_vid.shift_audio_no_reencode(
                 input_video=input_file,
@@ -471,7 +463,7 @@ def video_volume_adjust(cfg: AppConfig) -> bool:
     # Check if segments CSV exists
     segments_csv = cfg.SEGMENT_DIR / "boosts.csv"
     if not segments_csv.exists():
-        print(f"⚠️ Fichier de segments introuvable : {segments_csv}")
+        emit(f"⚠️ Fichier de segments introuvable : {segments_csv}")
         return True
 
     boosts = func_vid.load_boost_csv(segments_csv)
@@ -495,7 +487,7 @@ def video_volume_adjust(cfg: AppConfig) -> bool:
 
         # Check if already boosted
         if output_path.exists():
-            print("Ajustement déjà réalisé.")
+            emit("Ajustement déjà réalisé.")
         else:
             func_vid.apply_audio_boosts_ffmpeg(
                 input_video=input_file,
@@ -541,7 +533,7 @@ def video_srt_extractor(cfg: AppConfig) -> bool:
 
         # Check if already extracted
         if output_path.exists():
-            print("Extraction des sous-titres déjà réalisée.")
+            emit("Extraction des sous-titres déjà réalisée.")
         else:
             func_vid.extract_video_srt_ffmpeg(
                 input_video=input_file,
@@ -597,7 +589,7 @@ def video_srt_date_filtrator(
 
         # if the output file already exists and overwrite is False, skip filtering
         if output_path.exists() and not overwrite:
-            print("Filtrage des dates déjà réalisé.")
+            emit("Filtrage des dates déjà réalisé.")
             filtered_subtitles = func_vid.parse_srt_cues(
                 output_path.read_text(encoding="utf-8-sig")
             )
@@ -609,7 +601,7 @@ def video_srt_date_filtrator(
             )
 
         # print statistics after filtering
-        print()
+        emit()
         func_vid.print_srt_date_statistics(
             "Après filtrage", func_vid.get_srt_date_statistics(filtered_subtitles)
         )
@@ -625,7 +617,7 @@ def video_convert_srt_to_ass(cfg: AppConfig) -> bool:
     # Check if template ASS file exists
     template_path = cfg.ROOT / "data" / "template" / "template_sous_titre.ass"
     if not template_path.is_file():
-        print(f"⚠️ Modèle ASS introuvable : {template_path}")
+        emit(f"⚠️ Modèle ASS introuvable : {template_path}")
         return True
 
     # loop through all SRT files in the input directory and convert them to ASS
@@ -636,7 +628,7 @@ def video_convert_srt_to_ass(cfg: AppConfig) -> bool:
 
         output_path = cfg.OUTPUT_DIR / f"{input_file.stem}.ass"
         if output_path.exists():
-            print("Conversion SRT vers ASS déjà réalisée.")
+            emit("Conversion SRT vers ASS déjà réalisée.")
         else:
             func_vid.convert_srt_to_ass(
                 input_file,
@@ -667,7 +659,7 @@ def video_ass_hard_integrator(cfg: AppConfig) -> bool:
     if not video_files:
         return True
     if not srt_files and not ass_files:
-        print("⚠️ Aucun fichier SRT ou ASS trouvé dans le dossier d'entrée.")
+        emit("⚠️ Aucun fichier SRT ou ASS trouvé dans le dossier d'entrée.")
         return True
 
     # Create a mapping of subtitle files by their stem (filename without extension)
@@ -678,7 +670,7 @@ def video_ass_hard_integrator(cfg: AppConfig) -> bool:
     shared_subtitle_path = subtitle_files[0] if len(subtitle_files) == 1 else None
     template_path = cfg.ROOT / "data" / "template" / "template_sous_titre.ass"
     if srt_files and not template_path.is_file():
-        print(f"⚠️ Modèle ASS introuvable : {template_path}")
+        emit(f"⚠️ Modèle ASS introuvable : {template_path}")
         return True
 
     # loop through all video files and integrate the corresponding ASS subtitles
@@ -689,7 +681,7 @@ def video_ass_hard_integrator(cfg: AppConfig) -> bool:
 
         # If there are SRT files, convert them to ASS using the template
         if srt_files:
-            print("\n    ==> Lancement intégré du Vidéo_convert_srt_to_ass...\n")
+            emit("\n    ==> Lancement intégré du Vidéo_convert_srt_to_ass...\n")
             for srt_file in srt_files:
                 ass_path = temp_dir / f"{srt_file.stem}.ass"
                 func_vid.convert_srt_to_ass(
@@ -702,14 +694,14 @@ def video_ass_hard_integrator(cfg: AppConfig) -> bool:
                     subtitle_fade_duration_ms=cfg.ASS_SUBTITLE_FADE_DURATION_MS,
                 )
                 converted_ass_paths[srt_file] = ass_path
-            print("    ✅ Conversion SRT vers ASS terminée.\n")
+            emit("    ✅ Conversion SRT vers ASS terminée.\n")
 
         for input_file in video_files:
             subtitle_path = shared_subtitle_path or subtitle_by_stem.get(
                 input_file.stem.lower()
             )
             if subtitle_path is None:
-                print(f"⚠️ Aucun fichier SRT ou ASS associé à : {input_file.name}")
+                emit(f"⚠️ Aucun fichier SRT ou ASS associé à : {input_file.name}")
                 continue
             ass_path = converted_ass_paths.get(subtitle_path, subtitle_path)
 
@@ -726,7 +718,7 @@ def video_ass_hard_integrator(cfg: AppConfig) -> bool:
             )
             # integrate ASS subtitles into the video using FFmpeg
             if output_path.exists():
-                print("Incrustation ASS déjà réalisée.")
+                emit("Incrustation ASS déjà réalisée.")
             else:
                 func_vid.integrate_ass_hard_ffmpeg(
                     input_video=input_file,
@@ -755,7 +747,7 @@ def video_srt_integrator(cfg: AppConfig) -> bool:
     # Check if segments CSV exists
     segments_csv = cfg.SEGMENT_DIR / "sous_titre.srt"
     if not segments_csv.exists():
-        print(f"⚠️ Fichier de sous_titre introuvable : {segments_csv}")
+        emit(f"⚠️ Fichier de sous_titre introuvable : {segments_csv}")
         return True
 
     # ------------- LOOP THROUGH ALL FILES IN INPUT DIR -------------
@@ -774,7 +766,7 @@ def video_srt_integrator(cfg: AppConfig) -> bool:
 
         # Check if already boosted
         if output_path.exists():
-            print("Ajout de sous-titres déjà réalisé.")
+            emit("Ajout de sous-titres déjà réalisé.")
         else:
             func_vid.apply_video_srt_ffmpeg(
                 input_video=input_file,
@@ -850,7 +842,7 @@ def image_diapo_video_creator(cfg: AppConfig) -> bool:
     if srt_output_path.exists():
         srt_output_path.unlink()
     if output_path.exists():
-        print("\nCréation du diaporama déjà réalisée.")
+        emit("\nCréation du diaporama déjà réalisée.")
         return False
 
     # ------------ CREATE SLIDESHOW VIDEO -------------

@@ -13,12 +13,13 @@ from pathlib import Path
 import subprocess
 import shlex
 from PIL import Image, ImageOps, PngImagePlugin
-from func_global import (
+from toolbox_pb.core.func_global import (
     build_processing_comment,
     consume_ffmpeg_progress,
     get_mobile_video_output_options,
     preserve_file_modification_time,
 )
+from toolbox_pb.core.events import emit
 
 
 def _read_exif_comment(exif) -> str | None:
@@ -489,7 +490,7 @@ def generate_image_defilor(
         )
 
         # Parse FFmpeg progress output with the shared progress helper.
-        print()
+        emit()
         desc = f"Image defilor: {image_path.name}"
         error_lines = consume_ffmpeg_progress(
             proc,
@@ -517,15 +518,15 @@ def generate_image_defilor(
         ) from exc
 
     # Print a summary of the created video with key parameters and values.
-    print("\nVideo created successfully:")
-    print(f"- Source image : {image_path}")
-    print(f"- Output       : {output_path}")
-    print(f"- Video width  : {image_width}px (full source width)")
-    print(f"- Video height : {output_height}px")
-    print(f"- Scroll speed : {scroll_speed_px_s:.2f} px/s")
-    print(f"- FPS          : {fps}")
-    print(f"- hold-start   : {hold_start} s")
-    print(f"- hold-end     : {hold_end} s")
-    print(f"- codec        : {codec}")
-    print(f"- crf          : {crf}")
-    print(f"- Total length : {duration:.2f} s")
+    emit("\nVideo created successfully:")
+    emit(f"- Source image : {image_path}")
+    emit(f"- Output       : {output_path}")
+    emit(f"- Video width  : {image_width}px (full source width)")
+    emit(f"- Video height : {output_height}px")
+    emit(f"- Scroll speed : {scroll_speed_px_s:.2f} px/s")
+    emit(f"- FPS          : {fps}")
+    emit(f"- hold-start   : {hold_start} s")
+    emit(f"- hold-end     : {hold_end} s")
+    emit(f"- codec        : {codec}")
+    emit(f"- crf          : {crf}")
+    emit(f"- Total length : {duration:.2f} s")
