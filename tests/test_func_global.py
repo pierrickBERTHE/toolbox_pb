@@ -261,6 +261,17 @@ def test_print_step(capsys):
     assert "Test step" in captured.out
 
 
+def test_print_section(capsys):
+    """Test the compact heading used for one processing item."""
+    func_global.print_section("Encodage de la vidéo : test.mp4")
+
+    captured = capsys.readouterr()
+
+    assert "STEP" not in captured.out
+    assert "==> Encodage de la vidéo : test.mp4 <==" in captured.out
+    assert captured.out.count("*" * 100) == 2
+
+
 # ==========================================================
 # Tests print_json
 # ==========================================================

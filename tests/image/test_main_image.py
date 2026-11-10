@@ -25,8 +25,8 @@ def build_fake_cfg(tmp_path):
         INPUT_ACCEPTED_PDF_FILES={".pdf"},
         SUFFIX_OUTPUT_VIDEO=".mp4",
         ADD_CODEC_NAME_IN_OUTPUT=True,
-        ADD_WITHOUTBG_IN_NAME_IN_OUTPUT=True,
-        ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT=False,
+        IMAGE_WITHOUTBG_ADD_WITHOUTBG_IN_NAME_IN_OUTPUT=True,
+        IMAGE_REDUCTOR_ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT=False,
         IMAGE_REDUCTOR_JPEG_QUALITY=95,
         INPUT_DIR=tmp_path / "input",
         OUTPUT_DIR=tmp_path / "output",
@@ -271,7 +271,7 @@ def test_image_reductor_mirrors_subdirectories_and_skips_existing(tmp_path):
 def test_image_reductor_adds_compress_and_jpeg_quality_suffix_when_enabled(tmp_path):
     """A reduced JPEG is marked with its configured compression quality."""
     cfg = build_fake_cfg(tmp_path)
-    cfg.ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT = True
+    cfg.IMAGE_REDUCTOR_ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT = True
     cfg.INPUT_DIR.mkdir(parents=True)
     source = cfg.INPUT_DIR / "photo.jpg"
     source.touch()
@@ -391,7 +391,7 @@ def test_image_withoutbg_continues_after_one_image_failure(tmp_path, capsys):
 def test_image_withoutbg_can_omit_output_suffix(tmp_path):
     """The output suffix should follow the dedicated configuration flag."""
     cfg = build_fake_cfg(tmp_path)
-    cfg.ADD_WITHOUTBG_IN_NAME_IN_OUTPUT = False
+    cfg.IMAGE_WITHOUTBG_ADD_WITHOUTBG_IN_NAME_IN_OUTPUT = False
     cfg.INPUT_DIR.mkdir(parents=True)
     source = cfg.INPUT_DIR / "portrait.jpg"
     source.touch()

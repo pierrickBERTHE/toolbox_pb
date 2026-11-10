@@ -47,7 +47,7 @@ def fake_config(tmp_path):
         SEGMENT_DIR=segment_dir,
         LOG_TO_FILE=False,
         ADD_CODEC_NAME_IN_OUTPUT=False,
-        PRINT_ALL_KEYS_IN_METADATA_SUMMARY=False,
+        VIDEO_ENCODOR_PRINT_ALL_KEYS_IN_METADATA_SUMMARY=False,
     )
 
 

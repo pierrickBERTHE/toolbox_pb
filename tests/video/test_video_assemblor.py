@@ -81,7 +81,7 @@ def fake_config(tmp_path):
         SEGMENT_DIR=segment_dir,
         LOG_TO_FILE=False,
         ADD_CODEC_NAME_IN_OUTPUT=False,
-        PRINT_ALL_KEYS_IN_METADATA_SUMMARY=False,
+        VIDEO_ENCODOR_PRINT_ALL_KEYS_IN_METADATA_SUMMARY=False,
         VIDEO_ASSEMBLOR_ADD_DATE_SUBTITLES=False,
         IMAGE_DIAPO_MAX_HEIGHT=1080,
     )
@@ -480,11 +480,21 @@ def test_video_assemblor_metadata_and_compression(fake_config):
         mock.patch(
             "toolbox_pb.core.video.main_video.func_vid.print_size_reduction"
         ) as mock_print_reduction,
+
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_glob.print_section"
+        ) as mock_print_section,
+
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_glob.print_step"
+        ) as mock_print_step,
     ):
 
         result = video_assemblor(fake_config)
 
     assert result is False
+    mock_print_section.assert_called_once_with("Assemblage des vidéos")
+    mock_print_step.assert_not_called()
 
     # get_all_metadata :
     #   1. premier fichier d'entrée

@@ -83,12 +83,12 @@ def test_main_prints_config_flags(monkeypatch):
             flag_names=[
                 "LOG_TO_FILE",
                 "ADD_CODEC_NAME_IN_OUTPUT",
-                "ADD_WITHOUTBG_IN_NAME_IN_OUTPUT",
-                "ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT",
+                "IMAGE_WITHOUTBG_ADD_WITHOUTBG_IN_NAME_IN_OUTPUT",
+                "IMAGE_REDUCTOR_ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT",
                 "AUDIO_COMPRESSOR_MP3_BITRATE_KBPS",
                 "AUDIO_COMPRESSOR_COPY_JPEG_FILES",
                 "VIDEO_ASSEMBLOR_ADD_DATE_SUBTITLES",
                 "VIDEO_ASSEMBLOR_EXTRACT_AND_FILTER_DATES",
-                "PRINT_ALL_KEYS_IN_METADATA_SUMMARY",
+                "VIDEO_ENCODOR_PRINT_ALL_KEYS_IN_METADATA_SUMMARY",
             ]
         )

@@ -754,6 +754,7 @@ def test_print_size_reduction_nominal(capsys):
 
     assert "Réduction" in out
     assert "Mo" in out
+    assert "=" * 100 not in out
 
 
 def test_print_size_reduction_missing_data(capsys):
