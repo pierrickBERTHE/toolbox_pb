@@ -14,7 +14,6 @@ import time
 import json
 import subprocess
 import re
-import tempfile
 import numpy as np
 from pathlib import Path
 from datetime import date
@@ -31,7 +30,8 @@ import reportlab
 
 # Import custom librairies
 from toolbox_pb.core.config_global import AppConfig, DATE_PATTERNS
-from toolbox_pb.core.events import emit
+from toolbox_pb.core.events import emit, ui_only
+from toolbox_pb.core.cancellation import raise_if_cancelled
 
 
 def preserve_file_modification_time(source_path: Path, output_path: Path) -> None:
@@ -61,20 +61,19 @@ def extract_valid_dates(text: str) -> list[date]:
     return dates
 
 
-class Logger(object):
-    """
-    Logger class to redirect print statements to a file.
-    """
-    def __init__(self, log_path):
+class Logger:
+    """Legacy stdout tee retained for compatibility with external callers."""
+
+    def __init__(self, log_path: str) -> None:
         self.terminal = sys.stdout
         self.log = open(log_path, "a", encoding="utf-8")
 
-    def write(self, message):
+    def write(self, message: str) -> None:
         self.terminal.write(message)
         self.log.write(message)
         self.log.flush()
 
-    def flush(self):
+    def flush(self) -> None:
         self.terminal.flush()
         self.log.flush()
 
@@ -118,6 +117,7 @@ def format_git_version(version_str):
         return f"Version : {version_str}"
 
 
+@ui_only
 def print_system_info():
     """
     Affiche les versions de Python, des librairies principales
@@ -156,6 +156,7 @@ def print_system_info():
     emit("========================\n")
 
 
+@ui_only
 def print_config_flags(config, flag_names: list[str]):
     """
     Print selected configuration flags.
@@ -192,6 +193,7 @@ def measure_time(func):
     return wrapper
 
 
+@ui_only
 def print_step(step_num, message):
     """
     Print a formatted step message for process reporting.
@@ -199,6 +201,14 @@ def print_step(step_num, message):
     emit("\n\n" + "*" * 100)
     emit(f"==> STEP {step_num} : {message} <==")
     emit("*" * 100 + "\n")
+
+
+@ui_only
+def print_section(message: str) -> None:
+    """Print a compact section heading for a single processing item."""
+    emit("\n" + "*" * 100)
+    emit(f"==> {message} <==")
+    emit("*" * 100)
 
 
 def exit_toolbox():
@@ -209,6 +219,7 @@ def exit_toolbox():
     exit()
 
 
+@ui_only
 def print_json(obj, title=None):
     """
     Print a JSON object in a readable format.
@@ -285,41 +296,6 @@ def _read_video_comment(video_path: Path) -> str | None:
     except (FileNotFoundError, subprocess.CalledProcessError):
         return None
     return json.loads(result.stdout).get("format", {}).get("tags", {}).get("comment")
-
-
-def write_video_processing_comment(
-    video_path: Path,
-    feature: str,
-    video_codec: str | None = None,
-    audio_codec: str | None = None,
-) -> str | None:
-    """Embed an incremented standard comment tag in an output video.
-
-    FFmpeg remuxes the file without re-encoding, keeping the video and audio
-    streams intact while making the comment available to media property readers.
-    """
-    if not video_path.exists():
-        return None
-    comment = build_processing_comment(
-        _read_video_comment(video_path), feature, video_codec, audio_codec
-    )
-    with tempfile.NamedTemporaryFile(
-        suffix=video_path.suffix, dir=video_path.parent, delete=False
-    ) as temp_file:
-        temporary_path = Path(temp_file.name)
-    command = [
-        "ffmpeg", "-y", "-i", str(video_path), "-map", "0", "-c", "copy",
-        "-movflags", "use_metadata_tags", "-metadata", f"comment={comment}",
-        str(temporary_path),
-    ]
-    try:
-        subprocess.run(command, capture_output=True, text=True, check=True)
-        temporary_path.replace(video_path)
-    except (FileNotFoundError, subprocess.CalledProcessError, OSError) as exc:
-        temporary_path.unlink(missing_ok=True)
-        emit(f"Commentaire de traitement non écrit : {video_path.name} ({exc})")
-        return None
-    return comment
 
 
 def build_video_processing_comment(
@@ -404,6 +380,7 @@ def build_output_subdir_from_input(
     return output_subdir
 
 
+@ui_only
 def summarize_files(dir_path: Path, label: str) -> None:
     """
     Print a summary of files in a directory.
@@ -483,6 +460,7 @@ def consume_ffmpeg_progress(
 
     with progress(**tqdm_options) as pbar:
         for line in iter(proc.stdout.readline, ""):
+            raise_if_cancelled(proc)
             if not line:
                 break
 
@@ -540,7 +518,7 @@ def parse_config(cfg: AppConfig) -> dict:
         "input_dir": cfg.INPUT_DIR,
         "output_dir": cfg.OUTPUT_DIR,
         "add_codec": cfg.ADD_CODEC_NAME_IN_OUTPUT,
-        "print_all_keys": cfg.PRINT_ALL_KEYS_IN_METADATA_SUMMARY,
+        "print_all_keys": cfg.VIDEO_ENCODOR_PRINT_ALL_KEYS_IN_METADATA_SUMMARY,
     }
 
 

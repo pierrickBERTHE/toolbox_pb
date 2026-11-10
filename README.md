@@ -502,7 +502,7 @@ intactes :
 
 - `ADD_CODEC_NAME_IN_OUTPUT=True` ajoute uniquement le codec vidéo avant
   l'extension des vidéos réencodées, par exemple `clip_libx265.mp4`.
-- `ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT=True` ajoute `_compress_<qualité>`
+- `IMAGE_REDUCTOR_ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT=True` ajoute `_compress_<qualité>`
   avant l'extension des JPEG effectivement réduits, par exemple
   `photo_compress_95.jpg`. Les PNG gardent le suffixe `_compress` car ils ne
   reçoivent pas de qualité JPEG.
@@ -546,9 +546,9 @@ Flags disponibles :
 - `LOG_TO_FILE` : redirige les sorties console vers `log/process_log.txt`
 - `ADD_CODEC_NAME_IN_OUTPUT` : ajoute le codec vidéo au nom des vidéos
   réencodées
-- `ADD_WITHOUTBG_IN_NAME_IN_OUTPUT` : ajoute `_WithoutBG` au nom des PNG
+- `IMAGE_WITHOUTBG_ADD_WITHOUTBG_IN_NAME_IN_OUTPUT` : ajoute `_WithoutBG` au nom des PNG
   produits par `Image_withoutbg`
-- `ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT` : ajoute `_compress_<qualité>` aux
+- `IMAGE_REDUCTOR_ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT` : ajoute `_compress_<qualité>` aux
   JPEG réellement réduits et `_compress` aux PNG
 - `IMAGE_REDUCTOR_JPEG_QUALITY` : règle la qualité JPEG du réducteur, de `0`
   à `100`
@@ -556,7 +556,7 @@ Flags disponibles :
   defaut `160` kb/s
 - `AUDIO_COMPRESSOR_COPY_JPEG_FILES` : copie une jaquette JPEG par dossier
   audio lorsque sa valeur est `True`
-- `PRINT_ALL_KEYS_IN_METADATA_SUMMARY` : affiche toutes les metadonnees FFprobe
+- `VIDEO_ENCODOR_PRINT_ALL_KEYS_IN_METADATA_SUMMARY` : affiche toutes les metadonnees FFprobe
 - `VIDEO_ASSEMBLOR_ADD_DATE_SUBTITLES` : ajoute une piste SRT de date au fichier
   assemble. Chaque date trouvee dans le nom d'une video source est affichee au
   debut de son clip pendant cinq secondes, au format `JJ/MM/AAAA`. Les pistes

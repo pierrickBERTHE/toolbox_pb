@@ -9,6 +9,7 @@ Décembre 2025
 """
 # import custom librairies
 import filecmp
+import logging
 import subprocess
 import tempfile
 from pathlib import Path
@@ -58,6 +59,7 @@ def _extract_and_filter_assembled_srt(assembled_video: Path) -> None:
             return
 
         # launch the filtering of SRT subtitles
+        emit()
         emit("Lancement du Vidéo_srt_date_filtrator après l'extraction...")
         subtitles = func_vid.parse_srt_cues(
             extracted_srt.read_text(encoding="utf-8-sig")
@@ -70,7 +72,6 @@ def _extract_and_filter_assembled_srt(assembled_video: Path) -> None:
         func_vid.print_duplicate_srt_dates(subtitles)
         filtered_subtitles = func_vid.filter_duplicate_srt_dates(subtitles)
 
-        emit()
         func_vid.print_srt_date_statistics(
             "Après filtrage", func_vid.get_srt_date_statistics(filtered_subtitles)
         )
@@ -129,7 +130,7 @@ def video_encodor(cfg: AppConfig) -> bool:
 
 
         # ------------- ENCODE VIDEO IF NOT ALREADY DONE -------------
-        func_glob.print_step(1, f"Encodage de la vidéo : {input_file.name}")
+        func_glob.print_section(f"Encodage de la vidéo : {input_file.name}")
 
         # Check if already encoded
         if output_path.exists() and not _is_unchanged_input_copy(input_file, output_path):
@@ -152,23 +153,24 @@ def video_encodor(cfg: AppConfig) -> bool:
                 failed_videos += 1
                 if output_path.exists():
                     output_path.unlink()
-                emit(f"Vidéo ignorée : {input_file.name} ({exc})")
+                emit(
+                    f"Vidéo ignorée : {input_file.name} ({exc})",
+                    level=logging.ERROR,
+                )
                 continue
             encoded_videos += 1
 
         # ------------- COMPARE METADATA BEFORE/AFTER -------------
-        func_glob.print_step(2, "Comparaison des fichiers avant/après")
-        
         # Get metadata before and after encoding
         meta_before = func_vid.get_all_metadata(input_file)
         meta_after = func_vid.get_all_metadata(output_path)
 
         # Print all metadata if flag is set
         if config["print_all_keys"]:
-            emit("Méta avant l'encodage :")
+            emit("Méta avant l'encodage :", log=False)
             func_vid.print_metadata_summary_all_keys(meta_before)
             
-            emit("\nMéta après l'encodage :")
+            emit("\nMéta après l'encodage :", log=False)
             func_vid.print_metadata_summary_all_keys(meta_after)
         
         # Print metadata differences
@@ -207,7 +209,7 @@ def video_assemblor(cfg: AppConfig) -> bool:
     )
 
     # ------------- ENCODE AND ASSEMBLE VIDEOS -------------
-    func_glob.print_step(1, f"Encodage des vidéos à assembler")
+    func_glob.print_section("Assemblage des vidéos")
 
     # Check if already encoded
     if output_path.exists():
@@ -231,10 +233,10 @@ def video_assemblor(cfg: AppConfig) -> bool:
         segments_csv = cfg.SEGMENT_DIR / "segments.csv"
         if segments_csv.exists():
             segments = func_vid.load_segments_csv(segments_csv)
-            emit(f"\nSegments chargés depuis '{segments_csv}'.\n")
+            emit(f"Segments chargés depuis '{segments_csv}'.\n")
         else:
             emit(
-                "\nFichier 'segments.csv' non trouvé,"
+                "Fichier 'segments.csv' non trouvé ; "
                 "tous les fichiers sont assemblés.\n"
             )
 
@@ -250,7 +252,7 @@ def video_assemblor(cfg: AppConfig) -> bool:
         for file in sequence:
             if file["path"].name not in input_files:
                 input_files.append(file["path"].name)
-        emit(f"input_files used :")
+        emit("Fichiers source :")
         for file in input_files:
             emit(f"- {file}")
         emit()
@@ -363,11 +365,8 @@ def video_assemblor(cfg: AppConfig) -> bool:
         is_empty_folder = False
 
         # ------------- COMPARE METADATA BEFORE/AFTER -------------
-        func_glob.print_step(2, "Comparaison des fichiers avant/après")
-
         # isolate first input file for metadata comparison
         input_file = sequence[0]["path"]
-        emit(f"input_file pour la comparaison : {input_file.name}\n")
 
         # Get metadata before and after encoding
         meta_before = func_vid.get_all_metadata(input_file)

@@ -15,7 +15,6 @@ from tqdm import tqdm
 from toolbox_pb.core.video.main_video import (
     video_encodor,
     video_assemblor,
-    video_audio_decalator,
     video_srt_extractor,
     video_srt_date_filtrator,
     video_ass_hard_integrator,
@@ -28,14 +27,16 @@ from toolbox_pb.core.image.main_image import (
     image_reductor,
     image_withoutbg,
 )
-from toolbox_pb.core.pdf.main_pdf import pdf_assemblor, pdf_filigranor, pdf_page_alternator
+from toolbox_pb.core.pdf.main_pdf import (
+    pdf_assemblor, pdf_filigranor, pdf_page_alternator
+)
 from toolbox_pb.core.file.main_file import (
     cache_nettoyor, file_str_remover, file_timeline_sorter, folder_date_renammer
 )
 from toolbox_pb.core.audio.main_audio import audio_compressor
 from toolbox_pb.core.config_global import APP_CONFIG, AppConfig
 import toolbox_pb.core.func_global as func
-from toolbox_pb.core.events import use_message_sink
+from toolbox_pb.core.events import configure_file_logging, use_message_sink
 from toolbox_pb.core.progress import use_progress_factory
 from toolbox_pb.ui.cli_helpers import (
     run_image_defilor_interactive,
@@ -49,10 +50,12 @@ def main(cfg : AppConfig):
     Point d'entrée principal de la toolbox_pb
     """
     
-    # Redirect all prints to a log file
-    if cfg.LOG_TO_FILE:
-        log_path = cfg.LOG_DIR / "process_log.txt"
-        sys.stdout = func.Logger(str(log_path))
+    # Core messages are recorded by ``emit`` and still sent to this CLI.
+    configure_file_logging(
+        cfg.LOG_DIR,
+        enabled=cfg.LOG_TO_FILE,
+        level=cfg.LOG_LEVEL,
+    )
 
 
     # Print startup message
@@ -79,13 +82,13 @@ def main(cfg : AppConfig):
     func.print_config_flags(cfg, flag_names=[
         "LOG_TO_FILE",
         "ADD_CODEC_NAME_IN_OUTPUT",
-        "ADD_WITHOUTBG_IN_NAME_IN_OUTPUT",
-        "ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT",
+        "IMAGE_WITHOUTBG_ADD_WITHOUTBG_IN_NAME_IN_OUTPUT",
+        "IMAGE_REDUCTOR_ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT",
         "AUDIO_COMPRESSOR_MP3_BITRATE_KBPS",
         "AUDIO_COMPRESSOR_COPY_JPEG_FILES",
         "VIDEO_ASSEMBLOR_ADD_DATE_SUBTITLES",
         "VIDEO_ASSEMBLOR_EXTRACT_AND_FILTER_DATES",
-        "PRINT_ALL_KEYS_IN_METADATA_SUMMARY"
+        "VIDEO_ENCODOR_PRINT_ALL_KEYS_IN_METADATA_SUMMARY"
     ])
 
     # Print time

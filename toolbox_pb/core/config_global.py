@@ -82,6 +82,9 @@ CODEC_AUDIO = "aac"
 # Audio compressor
 AUDIO_COMPRESSOR_MP3_BITRATE_KBPS = 160
 
+# Logging
+LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR")
+
 # suffix
 SUFFIX_OUTPUT_VIDEO = ".mp4"
 SUFFIX_OUTPUT_AUDIO = ".mp3"
@@ -136,10 +139,11 @@ class AppConfig:
 
     # Flags — default values ​​can be changed here, and ONLY here
     LOG_TO_FILE: bool = True
+    LOG_LEVEL: str = "INFO"
     ADD_CODEC_NAME_IN_OUTPUT: bool = False
-    PRINT_ALL_KEYS_IN_METADATA_SUMMARY: bool = False
-    ADD_WITHOUTBG_IN_NAME_IN_OUTPUT: bool = False
-    ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT: bool = False
+    VIDEO_ENCODOR_PRINT_ALL_KEYS_IN_METADATA_SUMMARY: bool = False
+    IMAGE_WITHOUTBG_ADD_WITHOUTBG_IN_NAME_IN_OUTPUT: bool = False
+    IMAGE_REDUCTOR_ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT: bool = False
     IMAGE_REDUCTOR_JPEG_QUALITY: int = 75
     VIDEO_ASSEMBLOR_ADD_DATE_SUBTITLES: bool = True
     VIDEO_ASSEMBLOR_EXTRACT_AND_FILTER_DATES: bool = True
@@ -162,6 +166,14 @@ class AppConfig:
 
     def __post_init__(self) -> None:
         """Normalise les alias de configuration conservés pour compatibilité."""
+        log_level = self.LOG_LEVEL.upper()
+        if log_level not in LOG_LEVELS:
+            raise ValueError(
+                f"LOG_LEVEL invalide : {self.LOG_LEVEL}. "
+                f"Valeurs acceptées : {', '.join(LOG_LEVELS)}."
+            )
+        object.__setattr__(self, "LOG_LEVEL", log_level)
+
         accepted_files = self.INPUT_ACCEPTED_FILES
         media_files = self.INPUT_ACCEPTED_MEDIA_FILES
 

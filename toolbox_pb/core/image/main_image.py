@@ -75,7 +75,7 @@ def image_reductor(cfg: AppConfig, quality: int | None = None) -> bool:
 
         # Determine the output path for the reduced image
         compression_suffix = ""
-        if cfg.ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT:
+        if cfg.IMAGE_REDUCTOR_ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT:
             compression_suffix = "_compress"
             if input_file.suffix.lower() in {".jpg", ".jpeg"}:
                 compression_suffix += f"_{quality}"
@@ -177,7 +177,7 @@ def image_withoutbg(cfg: AppConfig) -> bool:
             input_file, cfg.INPUT_DIR, cfg.OUTPUT_DIR
         )
         withoutbg_suffix = (
-            "_WithoutBG" if cfg.ADD_WITHOUTBG_IN_NAME_IN_OUTPUT else ""
+            "_WithoutBG" if cfg.IMAGE_WITHOUTBG_ADD_WITHOUTBG_IN_NAME_IN_OUTPUT else ""
         )
         output_path = output_subdir / f"{input_file.stem}{withoutbg_suffix}.png"
 

@@ -33,7 +33,7 @@ from toolbox_pb.core.func_global import (
     extract_valid_dates,
     preserve_file_modification_time,
 )
-from toolbox_pb.core.events import emit
+from toolbox_pb.core.events import emit, ui_only
 
 
 class DurationClip(Protocol):
@@ -958,6 +958,7 @@ def _run_ffmpeg_silently(command: list[str]) -> None:
         )
 
 
+@ui_only
 def count_cpu_threads() -> int:
     """
     Returns the number of CPU threads available on the machine.
@@ -1152,6 +1153,7 @@ def get_all_metadata(video_path: Path) -> dict:
     return json.loads(proc.stdout)
 
 
+@ui_only
 def print_metadata_summary_all_keys(meta: dict):
     """
     Print ALL metadata keys and values from ffprobe output,
@@ -1238,6 +1240,7 @@ def split_streams_by_type(streams: list[dict]) -> dict:
     return out
 
 
+@ui_only
 def print_metadata_diff_summary(meta_before: dict, meta_after: dict):
     """
     Print a concise summary of key differences between two video metadata dicts.
@@ -1356,6 +1359,7 @@ def compute_size_reduction(meta_before: dict, meta_after: dict) -> dict:
     }
 
 
+@ui_only
 def print_size_reduction(stats: dict):
     """
     Pretty display of size reduction and compression ratio with units in 
@@ -1384,12 +1388,6 @@ def print_size_reduction(stats: dict):
         emit(f"Réduction : {red:.2f} %")
     if factor is not None:
         emit(f"Facteur de compression : x{factor:.2f}")
-    
-    # Print delimiter
-    emit("\n"* 5)
-    emit("=" * 100 + "\n")
-    emit("=" * 100)
-    emit("\n"* 3)
 
 
 def to_seconds(time_str: str) -> float:

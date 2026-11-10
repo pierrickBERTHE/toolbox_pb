@@ -6,7 +6,6 @@ import sys
 import time
 from pathlib import Path
 from typing import Any
-import toolbox_pb.core.func_global as func_glob
 
 
 def _read_timed_confirmation(timeout_seconds: int) -> str | None:
@@ -165,7 +164,9 @@ def _run_complementary_reductor(
 
     # Do not prompt unnecessarily when the complementary file type is absent.
     # The same branch handles an explicit refusal from the user.
-    if not files or not _ask_to_run_complementary_reductor(tool_name):
+    if not files:
+        return None
+    if not _ask_to_run_complementary_reductor(tool_name):
         return None
 
     # Start the chosen reducer with the exact configuration selected at launch.
