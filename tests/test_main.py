@@ -160,8 +160,8 @@ def test_main_srt_extractor_offers_date_filtering(monkeypatch, tmp_path):
 
 
 def test_main_image_diapo_video_creator_called(monkeypatch):
-    """Test that choosing option '11' calls the image slideshow creator."""
-    monkeypatch.setattr('builtins.input', lambda _: '11')
+    """Test that choosing option '12' calls the image slideshow creator."""
+    monkeypatch.setattr('builtins.input', lambda _: '12')
 
     with mock.patch('toolbox_pb.ui.cli.image_diapo_video_creator', return_value=False) as mock_diapo, \
         mock.patch('toolbox_pb.core.func_global.get_git_version', return_value="git123"), \
@@ -176,8 +176,8 @@ def test_main_image_diapo_video_creator_called(monkeypatch):
 
 
 def test_main_image_reductor_called(monkeypatch):
-    """Test that choosing option '10' calls image_reductor."""
-    monkeypatch.setattr("builtins.input", lambda _: "10")
+    """Test that choosing option '11' calls image_reductor."""
+    monkeypatch.setattr("builtins.input", lambda _: "11")
 
     with mock.patch("toolbox_pb.ui.cli.image_reductor", return_value=False) as mock_reductor, \
         mock.patch("toolbox_pb.ui.cli.find_files_by_extensions", return_value=[]), \
@@ -194,7 +194,7 @@ def test_main_image_reductor_called(monkeypatch):
 @pytest.mark.parametrize(
     ("choice", "primary", "secondary", "extensions"),
     [
-        ("10", "image_reductor", "video_encodor", [".mp4"]),
+        ("11", "image_reductor", "video_encodor", [".mp4"]),
         ("1", "video_encodor", "image_reductor", [".jpg"]),
     ],
 )
@@ -222,7 +222,7 @@ def test_main_offers_and_runs_complementary_reductor(
 
 def test_main_does_not_offer_complementary_reductor_without_matching_files(monkeypatch):
     """No extra prompt should appear when the other file type is absent."""
-    monkeypatch.setattr("builtins.input", lambda _: "10")
+    monkeypatch.setattr("builtins.input", lambda _: "11")
 
     with mock.patch("toolbox_pb.ui.cli.image_reductor", return_value=False), \
         mock.patch("toolbox_pb.ui.cli.video_encodor", return_value=False) as video_mock, \
@@ -238,8 +238,8 @@ def test_main_does_not_offer_complementary_reductor_without_matching_files(monke
 
 
 def test_main_image_withoutbg_called(monkeypatch):
-    """Test that choosing option '12' calls image_withoutbg."""
-    monkeypatch.setattr("builtins.input", lambda _: "12")
+    """Test that choosing option '13' calls image_withoutbg."""
+    monkeypatch.setattr("builtins.input", lambda _: "13")
 
     with mock.patch("toolbox_pb.ui.cli.image_withoutbg", return_value=False) as mock_withoutbg, \
         mock.patch("toolbox_pb.core.func_global.get_git_version", return_value="git123"), \
@@ -253,8 +253,8 @@ def test_main_image_withoutbg_called(monkeypatch):
 
 
 def test_main_audio_compressor_called(monkeypatch):
-    """Test that choosing option '13' calls audio_compressor."""
-    monkeypatch.setattr('builtins.input', lambda _: '13')
+    """Test that choosing option '14' calls audio_compressor."""
+    monkeypatch.setattr('builtins.input', lambda _: '14')
 
     with mock.patch('toolbox_pb.ui.cli.audio_compressor', autospec=True) as mock_audio, \
         mock.patch('toolbox_pb.core.func_global.get_git_version', return_value="git123"), \
@@ -267,8 +267,8 @@ def test_main_audio_compressor_called(monkeypatch):
 
 
 def test_main_pdf_filigranor_called(monkeypatch):
-    """Test that choosing option '14' calls pdf_filigranor."""
-    answers = iter(['14', 'Destinataire'])
+    """Test that choosing option '15' calls pdf_filigranor."""
+    answers = iter(['15', 'Destinataire'])
     monkeypatch.setattr('builtins.input', lambda _: next(answers))
 
     with mock.patch('toolbox_pb.ui.cli.pdf_filigranor', autospec=True) as mock_pdf, \
@@ -283,8 +283,8 @@ def test_main_pdf_filigranor_called(monkeypatch):
 
 
 def test_main_pdf_assemblor_called(monkeypatch):
-    """Test that choosing option '15' calls pdf_assemblor."""
-    monkeypatch.setattr("builtins.input", lambda _: "15")
+    """Test that choosing option '16' calls pdf_assemblor."""
+    monkeypatch.setattr("builtins.input", lambda _: "16")
 
     with mock.patch("toolbox_pb.ui.cli.pdf_assemblor", return_value=False) as mock_pdf, \
         mock.patch("toolbox_pb.core.func_global.get_git_version", return_value="git123"), \
@@ -298,8 +298,8 @@ def test_main_pdf_assemblor_called(monkeypatch):
 
 
 def test_main_file_timeline_sorter_called(monkeypatch):
-    """Test that choosing option '17' calls file_timeline_sorter."""
-    monkeypatch.setattr("builtins.input", lambda _: "17")
+    """Test that choosing option '18' calls file_timeline_sorter."""
+    monkeypatch.setattr("builtins.input", lambda _: "18")
 
     with mock.patch("toolbox_pb.ui.cli.file_timeline_sorter", return_value=False) as mock_sorter, \
         mock.patch("toolbox_pb.core.func_global.get_git_version", return_value="git123"), \
@@ -313,8 +313,8 @@ def test_main_file_timeline_sorter_called(monkeypatch):
 
 
 def test_main_file_str_remover_called(monkeypatch):
-    """Test that choosing option '18' calls file_str_remover."""
-    answers = iter(["18", "_compressed_90"])
+    """Test that choosing option '19' calls file_str_remover."""
+    answers = iter(["19", "_compressed_90"])
     monkeypatch.setattr("builtins.input", lambda _: next(answers))
 
     with mock.patch("toolbox_pb.ui.cli.file_str_remover", return_value=False) as mock_remover, \
@@ -329,8 +329,8 @@ def test_main_file_str_remover_called(monkeypatch):
 
 
 def test_main_folder_date_renammer_called(monkeypatch):
-    """Test that choosing option '19' calls folder_date_renammer."""
-    monkeypatch.setattr("builtins.input", lambda _: "19")
+    """Test that choosing option '20' calls folder_date_renammer."""
+    monkeypatch.setattr("builtins.input", lambda _: "20")
 
     with mock.patch("toolbox_pb.ui.cli.folder_date_renammer", return_value=False) as mock_renammer, \
         mock.patch("toolbox_pb.core.func_global.get_git_version", return_value="git123"), \
@@ -349,17 +349,18 @@ def test_main_folder_date_renammer_called(monkeypatch):
     ("6", "Video_srt_integrator"),
     ("7", "Vidéo_srt_date_filtrator"),
     ("8", "Vidéo_ass_hard_integrator"),
-    ("9", "Image_defilor"),
-    ("10", "Image_reductor"),
-    ("11", "Image_diapo_video_creator"),
-    ("12", "Image_withoutbg"),
-    ("13", "Audio_compressor"),
-    ("14", "PDF_filigranor"),
-    ("15", "PDF_assemblor"),
-    ("16", "PDF_page_alternator"),
-    ("17", "File_timeline_sorter"),
-    ("18", "File_str_remover"),
-    ("19", "Folder_date_renammer"),
+    ("9", "Vidéo_rotator"),
+    ("10", "Image_defilor"),
+    ("11", "Image_reductor"),
+    ("12", "Image_diapo_video_creator"),
+    ("13", "Image_withoutbg"),
+    ("14", "Audio_compressor"),
+    ("15", "PDF_filigranor"),
+    ("16", "PDF_assemblor"),
+    ("17", "PDF_page_alternator"),
+    ("18", "File_timeline_sorter"),
+    ("19", "File_str_remover"),
+    ("20", "Folder_date_renammer"),
 ])
 def test_other_menu_choices(monkeypatch, capsys, choice, msg):
     """Test that other menu choices print the correct launch message."""
@@ -368,6 +369,11 @@ def test_other_menu_choices(monkeypatch, capsys, choice, msg):
 
     # Mock others functions to avoid side effects
     cfg = APP_CONFIG
+    monkeypatch.setattr(
+        main,
+        "run_video_rotator_interactive",
+        mock.Mock(return_value=False),
+    )
 
     with mock.patch('toolbox_pb.ui.cli.video_encodor', return_value=False), \
         mock.patch('toolbox_pb.ui.cli.video_srt_extractor', return_value=False), \
@@ -403,8 +409,8 @@ def test_other_menu_choices(monkeypatch, capsys, choice, msg):
         assert msg in captured.out
 
 
-# Decorator to parametrize invalid choices (not in 1-16)
-@pytest.mark.parametrize("choice", ["invalid", "", "0", "22", "-1", "abc"])
+# Decorator to parametrize invalid choices (not in 1-22)
+@pytest.mark.parametrize("choice", ["invalid", "", "0", "23", "-1", "abc"])
 def test_main_invalid_choice(monkeypatch, capsys, choice):
     """Test that invalid choices are handled properly.
     Args:
@@ -433,8 +439,8 @@ def test_main_invalid_choice(monkeypatch, capsys, choice):
 
 
 def test_main_cache_nettoyor(monkeypatch):
-    """Option 20 runs the cache cleaner without input/output summaries."""
-    monkeypatch.setattr("builtins.input", lambda _: "20")
+    """Option 21 runs the cache cleaner without input/output summaries."""
+    monkeypatch.setattr("builtins.input", lambda _: "21")
     with (
         mock.patch("toolbox_pb.ui.cli.cache_nettoyor") as cleaner,
         mock.patch("toolbox_pb.core.func_global.summarize_files") as summary
@@ -445,8 +451,8 @@ def test_main_cache_nettoyor(monkeypatch):
 
 
 def test_main_quit(monkeypatch):
-    """Test that choosing option '21' exits the program."""
-    monkeypatch.setattr('builtins.input', lambda _: '21')
+    """Test that choosing option '22' exits the program."""
+    monkeypatch.setattr('builtins.input', lambda _: '22')
 
     # Mock python sys.exit to raise SystemExit
     with pytest.raises(SystemExit):
@@ -454,8 +460,8 @@ def test_main_quit(monkeypatch):
 
 
 def test_main_called(monkeypatch):
-    """Test that main runs without errors for choice '21' (quit)."""
-    monkeypatch.setattr("builtins.input", lambda _: "21")
+    """Test that main runs without errors for choice '22' (quit)."""
+    monkeypatch.setattr("builtins.input", lambda _: "22")
 
     # Mock others functions to avoid side effects
     with (
@@ -479,7 +485,7 @@ def test_pdf_page_alternator_missing_files_can_retry(monkeypatch, capsys, tmp_pa
     from types import SimpleNamespace
     cfg = SimpleNamespace(**vars(APP_CONFIG))
     cfg.INPUT_DIR = tmp_path
-    answers = iter(["16", ""])
+    answers = iter(["17", ""])
     def answer(prompt):
         value = next(answers)
         if not value:
@@ -511,7 +517,7 @@ def test_pdf_page_alternator_missing_files_can_quit(monkeypatch, capsys, tmp_pat
     from types import SimpleNamespace
     cfg = SimpleNamespace(**vars(APP_CONFIG))
     cfg.INPUT_DIR = tmp_path
-    answers = iter(["16", "q"])
+    answers = iter(["17", "q"])
     monkeypatch.setattr("builtins.input", lambda _: next(answers))
     with mock.patch("toolbox_pb.ui.cli.pdf_page_alternator", side_effect=FileNotFoundError("Fichiers manquants")) as run, \
         mock.patch("toolbox_pb.core.func_global.get_git_version", return_value="git123"), \

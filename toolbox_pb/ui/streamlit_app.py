@@ -69,6 +69,7 @@ from toolbox_pb.core.video.main_video import (
     video_srt_extractor,
     video_srt_integrator,
     video_volume_adjust,
+    video_rotator,
 )
 from toolbox_pb.ui.reductor_workflow import _run_complementary_reductor
 
@@ -81,6 +82,7 @@ LEGACY_CLI_LOGO = PROJECT_DIR / "image" / "legacy" / "logo_a_l'ancienne.png"
 # Boolean settings exposed as per-browser-session controls in the sidebar.
 SESSION_FLAGS = (
     "LOG_TO_FILE",
+    "OPEN_OUTPUT_DIR_AFTER_TREATMENT",
     "ADD_CODEC_NAME_IN_OUTPUT",
     "VIDEO_ENCODOR_PRINT_ALL_KEYS_IN_METADATA_SUMMARY",
     "IMAGE_WITHOUTBG_ADD_WITHOUTBG_IN_NAME_IN_OUTPUT",
@@ -109,6 +111,7 @@ TOOL_NUMBERS = {
     "video_srt_integrator": 6,
     "video_srt_date_filtrator": 7,
     "video_ass_hard_integrator": 8,
+    "video_rotator": 9,
     "image_defilor": 1,
     "image_reductor": 2,
     "image_diapo_video_creator": 3,
@@ -178,6 +181,9 @@ class TreatmentJob:
     is_empty_folder: bool | None = None
     error: str | None = None
     worker: Thread | None = None
+    output_dir: Path | None = None
+    output_folder_opened: bool = False
+    open_output_on_success: bool = True
 
 
 class QueuedProgress:
@@ -336,6 +342,13 @@ def _drain_treatment_events(job: TreatmentJob) -> None:
             job.status = "done"
             job.is_empty_folder = bool(payload)
             job.output += f"Traitement terminé : {job.tool_name}\n"
+            if (
+                job.open_output_on_success
+                and job.output_dir is not None
+                and not job.output_folder_opened
+            ):
+                _open_in_file_explorer(job.output_dir, "de sortie")
+                job.output_folder_opened = True
         elif event == "cancelled":
             job.status = "cancelled"
             job.output += (
@@ -460,7 +473,14 @@ def _run_tool(tool_name: str, runner: ToolRunner) -> None:
         ),
         level=st.session_state.get("value_LOG_LEVEL", APP_CONFIG.LOG_LEVEL),
     )
-    job = TreatmentJob(tool_name=tool_name)
+    job = TreatmentJob(
+        tool_name=tool_name,
+        output_dir=APP_CONFIG.OUTPUT_DIR,
+        open_output_on_success=st.session_state.get(
+            "flag_OPEN_OUTPUT_DIR_AFTER_TREATMENT",
+            APP_CONFIG.OPEN_OUTPUT_DIR_AFTER_TREATMENT,
+        ),
+    )
     worker = Thread(
         target=_run_treatment_worker,
         args=(job, runner),
@@ -493,10 +513,8 @@ def _open_in_file_explorer(path: Path, label: str) -> None:
         st.error(f"Le dossier {label.lower()} n’existe pas : {path}")
         return
     try:
-        # The helper waits briefly for the new Explorer window in order to
-        # bring it forward.  Do not wait for that cosmetic step from the UI:
-        # Explorer itself is launched immediately and the Streamlit rerun must
-        # remain responsive.
+        # The helper PowerShell script is used to focus the Explorer window
+        # on the folder.
         subprocess.Popen(
             (
                 "powershell.exe",
@@ -550,7 +568,9 @@ def _tool_card(
     input_help: str | None = None,
     input_caption: str | None = None,
     input_type: str = "text",
+    input_options: tuple[int, ...] | None = None,
     input_required: bool = False,
+    icon_key: str | None = None,
 ) -> None:
     """Render one expandable sub-category and its action button."""
     expanded_key = f"{key}_expanded"
@@ -559,11 +579,11 @@ def _tool_card(
         [2.1, 7.9], gap=None, vertical_alignment="center"
     )
     with header_icon_column:
-        st.image(_tool_icon(key), width=208)
+        st.image(_tool_icon(icon_key or key), width=208)
     with header_button_column:
         marker = "▾" if is_expanded else "▸"
         label = f"{marker} {TOOL_NUMBERS[title]}. {title}"
-        if st.button(label, key=f"{key}_toggle", use_container_width=True):
+        if st.button(label, key=f"{key}_toggle", width="stretch"):
             st.session_state[expanded_key] = not is_expanded
 
     if not st.session_state.get(expanded_key, False):
@@ -600,6 +620,15 @@ def _tool_card(
                     value=0.0,
                     step=0.1,
                     format="%.2f",
+                    key=f"{key}_value",
+                    help=input_help,
+                )
+            elif input_type == "select":
+                if input_options is None:
+                    raise ValueError("Les options du sélecteur sont requises.")
+                value = st.selectbox(
+                    input_label,
+                    options=input_options,
                     key=f"{key}_value",
                     help=input_help,
                 )
@@ -781,6 +810,26 @@ def _category_video(cfg: AppConfig) -> None:
 - Lecture : toujours visibles, non désactivables""",
         lambda: video_ass_hard_integrator(cfg),
         key="video_ass",
+    )
+    _tool_card(
+        "video_rotator",
+        (
+            "Fait pivoter l’image de chaque vidéo dans le sens horaire. "
+            "Seuls les angles 90°, 180° et 270° sont acceptés."
+        ),
+        (
+            "`portrait_mal_orienté.mp4`\n\n- Orientation : paysage\n"
+            "- Image : couchée"
+        ),
+        "`portrait.mp4`\n\n- Rotation : 270°\n- Image : redressée",
+        lambda angle="": video_rotator(cfg, angle),
+        key="video_rotator",
+        before_image=IMAGE_EXAMPLE_DIR / "video_rotator_before.png",
+        after_image=IMAGE_EXAMPLE_DIR / "video_rotator_after.png",
+        input_label="Angle de rotation (90°, 180° ou 270°)",
+        input_help="La rotation est horaire.",
+        input_type="select",
+        input_options=(90, 180, 270),
     )
 
 
@@ -1101,7 +1150,7 @@ def main() -> None:
         if st.button(
             "Ouvrir le dossier d’entrée",
             key="open_input",
-            use_container_width=True,
+            width="stretch",
         ):
             _open_in_file_explorer(cfg.INPUT_DIR, "d’entrée")
         st.markdown(":blue[**Sortie**]")
@@ -1115,7 +1164,7 @@ def main() -> None:
         if st.button(
             "Ouvrir le dossier de sortie",
             key="open_output",
-            use_container_width=True,
+            width="stretch",
         ):
             _open_in_file_explorer(cfg.OUTPUT_DIR, "de sortie")
         st.divider()

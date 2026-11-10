@@ -41,6 +41,7 @@ from toolbox_pb.core.progress import use_progress_factory
 from toolbox_pb.ui.cli_helpers import (
     run_image_defilor_interactive,
     run_video_audio_decalator_interactive,
+    run_video_rotator_interactive,
 )
 from toolbox_pb.ui import reductor_workflow
 
@@ -106,26 +107,27 @@ def main(cfg : AppConfig):
     print("06. Vidéo_srt_integrator")
     print("07. Vidéo_srt_date_filtrator")
     print("08. Vidéo_ass_hard_integrator")
+    print("09. Vidéo_rotator")
     print("\n-- IMAGE --")
-    print("09. Image_defilor")
-    print("10. Image_reductor")
-    print("11. Image_diapo_video_creator")
-    print("12. Image_withoutbg")
+    print("10. Image_defilor")
+    print("11. Image_reductor")
+    print("12. Image_diapo_video_creator")
+    print("13. Image_withoutbg")
     print("\n-- AUDIO --")
-    print("13. Audio_compressor")
+    print("14. Audio_compressor")
     print("\n-- PDF --")
-    print("14. PDF_filigranor")
-    print("15. PDF_assemblor")
-    print("16. PDF_page_alternator")
+    print("15. PDF_filigranor")
+    print("16. PDF_assemblor")
+    print("17. PDF_page_alternator")
     print("\n-- FILE --")
-    print("17. File_timeline_sorter")
-    print("18. File_str_remover")
-    print("19. Folder_date_renammer")
-    print("20. Cache_nettoyor")
-    print("\n21. Quitter")
+    print("18. File_timeline_sorter")
+    print("19. File_str_remover")
+    print("20. Folder_date_renammer")
+    print("21. Cache_nettoyor")
+    print("\n22. Quitter")
 
     # Get user choice
-    choix = input("\nSélectionnez une option (1-21) : ")
+    choix = input("\nSélectionnez une option (1-22) : ")
     # choix = "5"
 
     # Default value if selected action does not return a folder-state flag.
@@ -196,10 +198,14 @@ def main(cfg : AppConfig):
             is_empty_folder = video_ass_hard_integrator(cfg)
 
         case "9":
+            print("\nLancement du Vidéo_rotator...")
+            is_empty_folder = run_video_rotator_interactive(cfg)
+
+        case "10":
             print("\nLancement du Image_defilor...")
             is_empty_folder = run_image_defilor_interactive(cfg)
 
-        case "10":
+        case "11":
             print("\nLancement du Image_reductor...")
             is_empty_folder = image_reductor(cfg)
             complementary_is_empty = reductor_workflow._run_complementary_reductor(
@@ -208,30 +214,30 @@ def main(cfg : AppConfig):
             if complementary_is_empty is not None:
                 is_empty_folder = is_empty_folder and complementary_is_empty
 
-        case "11":
+        case "12":
             print("\nLancement du Image_diapo_video_creator...")
             is_empty_folder = image_diapo_video_creator(cfg)
 
-        case "12":
+        case "13":
             print("\nLancement du Image_withoutbg...")
             is_empty_folder = image_withoutbg(cfg)
 
-        case "13":
+        case "14":
             print("\nLancement du Audio_compressor...")
             is_empty_folder = audio_compressor(cfg)
 
-        case "14":
+        case "15":
             print("\nLancement du PDF_filigranor...")
             watermark_recipient = input(
                 "\nEntrez le nom du destinataire du filigrane: "
             ).strip()
             is_empty_folder = pdf_filigranor(cfg, watermark_recipient)
 
-        case "15":
+        case "16":
             print("\nLancement du PDF_assemblor...")
             is_empty_folder = pdf_assemblor(cfg)
 
-        case "16":
+        case "17":
             print("\nLancement du PDF_page_alternator...")
             while True:
                 try:
@@ -245,11 +251,11 @@ def main(cfg : AppConfig):
                     if answer.strip().lower() == "q":
                         return
 
-        case "17":
+        case "18":
             print("\nLancement du File_timeline_sorter...")
             is_empty_folder = file_timeline_sorter(cfg)
 
-        case "18":
+        case "19":
             print("\nLancement du File_str_remover...")
             string_to_remove = input(
                 "\nEntrez la chaîne à supprimer des noms de fichiers : "
@@ -259,16 +265,16 @@ def main(cfg : AppConfig):
                 return
             is_empty_folder = file_str_remover(cfg, string_to_remove)
 
-        case "19":
+        case "20":
             print("\nLancement du Folder_date_renammer...")
             is_empty_folder = folder_date_renammer(cfg)
 
-        case "20":
+        case "21":
             print("\nLancement du Cache_nettoyor...")
             cache_nettoyor()
             return
 
-        case "21":
+        case "22":
             print("Quitter l'application. Au revoir !")
             sys.exit(0)
 
