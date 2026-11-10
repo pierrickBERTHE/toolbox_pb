@@ -160,17 +160,55 @@ def test_queued_progress_and_worker_cover_all_terminal_states(monkeypatch):
     assert progress_job.progress[1][0] == 100
 
 
+def test_completed_treatment_opens_output_folder_once(monkeypatch, tmp_path):
+    """Every successful UI treatment reveals its output exactly once."""
+    job = TreatmentJob(tool_name="demo", output_dir=tmp_path)
+    job.events.put(("done", False))
+    open_output = mock.Mock()
+    monkeypatch.setattr(streamlit_app, "_open_in_file_explorer", open_output)
+
+    _drain_treatment_events(job)
+    _drain_treatment_events(job)
+
+    open_output.assert_called_once_with(tmp_path, "de sortie")
+    assert job.output_folder_opened is True
+
+
+def test_completed_treatment_keeps_output_folder_closed_when_disabled(
+    monkeypatch, tmp_path
+):
+    """The session flag can suppress automatic Explorer launch."""
+    job = TreatmentJob(
+        tool_name="demo",
+        output_dir=tmp_path,
+        open_output_on_success=False,
+    )
+    job.events.put(("done", False))
+    open_output = mock.Mock()
+    monkeypatch.setattr(streamlit_app, "_open_in_file_explorer", open_output)
+
+    _drain_treatment_events(job)
+
+    open_output.assert_not_called()
+    assert job.output_folder_opened is False
+
+
 def test_runtime_reports_and_tool_launcher_use_session_values(monkeypatch):
     """Session settings are copied to the runtime config and jobs start once."""
     fake_st = _FakeStreamlit(
         session_state=_FakeSessionState(
-            {"flag_LOG_TO_FILE": False, "value_LOG_LEVEL": "DEBUG"}
+            {
+                "flag_LOG_TO_FILE": False,
+                "flag_OPEN_OUTPUT_DIR_AFTER_TREATMENT": False,
+                "value_LOG_LEVEL": "DEBUG",
+            }
         )
     )
     monkeypatch.setattr(streamlit_app, "st", fake_st)
     cfg = streamlit_app._runtime_config()
     assert cfg.LOG_TO_FILE is False
     assert cfg.LOG_LEVEL == "DEBUG"
+    assert cfg.OPEN_OUTPUT_DIR_AFTER_TREATMENT is False
 
     monkeypatch.setattr(streamlit_app, "configure_file_logging", mock.Mock())
     started = []
@@ -185,6 +223,11 @@ def test_runtime_reports_and_tool_launcher_use_session_values(monkeypatch):
     monkeypatch.setattr(streamlit_app, "Thread", _Thread)
     streamlit_app._run_tool("demo", lambda: False)
     assert fake_st.session_state.active_treatment.tool_name == "demo"
+    assert (
+        fake_st.session_state.active_treatment.output_dir
+        == streamlit_app.APP_CONFIG.OUTPUT_DIR
+    )
+    assert fake_st.session_state.active_treatment.open_output_on_success is False
     assert started
 
     streamlit_app._run_tool("other", lambda: False)
