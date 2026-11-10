@@ -2,11 +2,11 @@
 
 Boite a outils Python pour automatiser des traitements multimedia, principalement autour de la video et de l'image.
 
-Le projet fournit une interface console interactive qui lit les fichiers depuis `data/input`, ecrit les resultats dans `data/output`, et s'appuie sur `FFmpeg`/`FFprobe` pour les operations de traitement.
+Le projet fournit une interface Streamlit qui lit les fichiers depuis `data/input`, ecrit les resultats dans `data/output`, et s'appuie sur `FFmpeg`/`FFprobe` pour les operations de traitement.
 
 ## Fonctionnalites
 
-Fonctionnalites actuellement disponibles dans le menu principal :
+Fonctionnalites disponibles dans l'interface :
 `-- VIDEO --`
 - `Video_encodor` : reencode chaque video du dossier d'entree avec les codecs configures. Une barre de progression, les comparaisons de taille et un bilan global sont affiches. Il ne copie pas les images : elles sont reservees a `Image_reductor`. Le MP4 de sortie contient un commentaire de suivi de traitement.
 - `Video_assemblor` : assemble plusieurs videos en un seul fichier. Si `data/segment/segments.csv` existe, il definit l'ordre des clips et leurs points de debut/fin ; sinon, les videos sont assemblees dans l'ordre des noms de fichiers. Chaque clip est redimensionne sans deformation pour remplir toute la hauteur de la trame commune ; les formats portrait et paysage peuvent donc etre assembles sans bandes en haut ou en bas. Les sous-titres deja integres aux sources sont conserves et leurs timings sont recalcules ; une piste de dates est ajoutee si le flag correspondant est active. Le MP4 assemble contient un commentaire de suivi de traitement.
@@ -58,7 +58,13 @@ poetry run pytest
 Depuis la racine du projet :
 
 ```bash
-poetry run python toolbox_pb/main.py
+poetry run streamlit run toolbox_pb/ui/streamlit_app.py
+```
+
+Pour utiliser le menu historique dans le terminal :
+
+```bash
+poetry run python -m toolbox_pb.ui.cli
 ```
 
 Sous Windows, un lanceur est aussi present :
@@ -78,7 +84,7 @@ installation de Python, Poetry ou FFmpeg n'est necessaire sur le PC cible.
 3. Ouvrir PowerShell dans le dossier du projet et lancer :
 
    ```powershell
-   docker compose run --rm --build toolbox
+   docker compose run --service-ports --rm --build toolbox
    ```
 
    Au premier lancement, Docker construit l'image et telecharge les dependances.
@@ -87,7 +93,7 @@ installation de Python, Poetry ou FFmpeg n'est necessaire sur le PC cible.
 
 Les dossiers locaux `data/input`, `data/output`, `data/segment` et `log` sont
 montes dans le conteneur. Deposez donc les fichiers sources dans `data/input`
-sur Windows, utilisez le menu dans la console, puis recuperer les fichiers
+sur Windows, ouvrez `http://localhost:8501`, puis recuperer les fichiers
 generes dans `data/output` sur Windows.
 
 Pour reconstruire l'image apres une mise a jour du code :
@@ -114,7 +120,7 @@ Sur le PC cible, dans PowerShell, telechargez et utilisez l'image publiee :
 docker login  # seulement si le depot Docker Hub est prive
 $env:TOOLBOX_IMAGE = "MON_COMPTE/toolbox-pb:1.0.0"
 docker compose pull
-docker compose run --rm toolbox
+docker compose run --service-ports --rm toolbox
 ```
 
 Le nom de l'image peut etre rendu permanent sur le PC cible en creant un
@@ -129,25 +135,30 @@ TOOLBOX_IMAGE=MON_COMPTE/toolbox-pb:1.0.0
 ```text
 toolbox_pb/
 ├── toolbox_pb/
-│   ├── main.py                 # menu et routage des options 1 a 21
-│   ├── config_global.py        # chemins, extensions, codecs et flags
-│   ├── func_global.py          # fonctions communes a toute l'application
-│   ├── reductor_workflow.py    # enchainement Video_encodor / Image_reductor
-│   ├── video/
-│   │   ├── main_video.py       # options 1 a 8 et 11
-│   │   └── func_video.py       # traitements FFmpeg et SRT
-│   ├── image/
-│   │   ├── main_image.py       # options 9, 10 et 12
-│   │   └── func_image.py       # traitements et metadonnees image
-│   ├── audio/
-│   │   ├── main_audio.py       # option 13 : compression audio MP3
-│   │   └── func_audio.py       # encodage et metadonnees MP3
-│   ├── pdf/
-│   │   ├── main_pdf.py         # options 14 a 16
-│   │   └── func_pdf.py         # filigrane et fusion PDF
-│   └── file/
-│       ├── main_file.py        # options 15 a 17
-│       └── func_file.py        # datation et copie des fichiers
+│   ├── core/                   # traitements, independants des interfaces
+│   │   ├── config_global.py    # chemins, extensions, codecs et flags
+│   │   ├── func_global.py      # fonctions communes a toute l'application
+│   │   ├── events.py           # messages neutres emis par le coeur metier
+│   │   ├── progress.py         # progression neutre rendue par chaque interface
+│   │   ├── video/
+│   │   │   ├── main_video.py   # options 1 a 8 et 11
+│   │   │   └── func_video.py   # traitements FFmpeg et SRT
+│   │   ├── image/
+│   │   │   ├── main_image.py   # options 9, 10 et 12
+│   │   │   └── func_image.py   # traitements et metadonnees image
+│   │   ├── audio/
+│   │   │   ├── main_audio.py   # option 13 : compression audio MP3
+│   │   │   └── func_audio.py   # encodage et metadonnees MP3
+│   │   ├── pdf/
+│   │   │   ├── main_pdf.py     # options 14 a 16
+│   │   │   └── func_pdf.py     # filigrane et fusion PDF
+│   │   └── file/
+│   │       ├── main_file.py    # options 15 a 17
+│   │       └── func_file.py    # datation et copie des fichiers
+│   └── ui/
+│       ├── cli.py              # menu interactif historique
+│       ├── streamlit_app.py    # interface web Streamlit
+│       └── reductor_workflow.py # interactions reservees au CLI
 ├── data/
 │   ├── input/                  # fichiers sources a traiter
 │   ├── output/                 # fichiers generes (jamais relus comme entree)
@@ -491,7 +502,7 @@ intactes :
 
 - `ADD_CODEC_NAME_IN_OUTPUT=True` ajoute uniquement le codec vidéo avant
   l'extension des vidéos réencodées, par exemple `clip_libx265.mp4`.
-- `ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT=True` ajoute `_compress_<qualité>`
+- `IMAGE_REDUCTOR_ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT=True` ajoute `_compress_<qualité>`
   avant l'extension des JPEG effectivement réduits, par exemple
   `photo_compress_95.jpg`. Les PNG gardent le suffixe `_compress` car ils ne
   reçoivent pas de qualité JPEG.
@@ -535,9 +546,9 @@ Flags disponibles :
 - `LOG_TO_FILE` : redirige les sorties console vers `log/process_log.txt`
 - `ADD_CODEC_NAME_IN_OUTPUT` : ajoute le codec vidéo au nom des vidéos
   réencodées
-- `ADD_WITHOUTBG_IN_NAME_IN_OUTPUT` : ajoute `_WithoutBG` au nom des PNG
+- `IMAGE_WITHOUTBG_ADD_WITHOUTBG_IN_NAME_IN_OUTPUT` : ajoute `_WithoutBG` au nom des PNG
   produits par `Image_withoutbg`
-- `ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT` : ajoute `_compress_<qualité>` aux
+- `IMAGE_REDUCTOR_ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT` : ajoute `_compress_<qualité>` aux
   JPEG réellement réduits et `_compress` aux PNG
 - `IMAGE_REDUCTOR_JPEG_QUALITY` : règle la qualité JPEG du réducteur, de `0`
   à `100`
@@ -545,7 +556,7 @@ Flags disponibles :
   defaut `160` kb/s
 - `AUDIO_COMPRESSOR_COPY_JPEG_FILES` : copie une jaquette JPEG par dossier
   audio lorsque sa valeur est `True`
-- `PRINT_ALL_KEYS_IN_METADATA_SUMMARY` : affiche toutes les metadonnees FFprobe
+- `VIDEO_ENCODOR_PRINT_ALL_KEYS_IN_METADATA_SUMMARY` : affiche toutes les metadonnees FFprobe
 - `VIDEO_ASSEMBLOR_ADD_DATE_SUBTITLES` : ajoute une piste SRT de date au fichier
   assemble. Chaque date trouvee dans le nom d'une video source est affichee au
   debut de son clip pendant cinq secondes, au format `JJ/MM/AAAA`. Les pistes

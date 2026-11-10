@@ -1,0 +1,226 @@
+"""
+Fichier de configuration pour le projet toolbox_pb
+
+Auteur :
+Pierrick BERTHE
+mail : pierrick.berthe@gmx.fr
+Septembre 2026
+"""
+
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import List
+
+# -----------------------------
+# CONFIGURATION CONSTANTS
+# -----------------------------
+
+# paths (depend of the execution path)
+ROOT = Path(__file__).resolve().parents[2]
+LOG_DIR = ROOT / "log"
+INPUT_DIR = ROOT / "data" / "input"
+OUTPUT_DIR = ROOT / "data" / "output"
+SEGMENT_DIR = ROOT / "data" / "segment"
+
+# Cache-cleaning configuration
+HOME = Path.home()
+LOCAL = HOME / "AppData" / "Local"
+ROAMING = HOME / "AppData" / "Roaming"
+
+# List of known safe cache folders to empty
+CACHE_FOLDERS = [
+    LOCAL / "pypoetry" / "Cache" / "artifacts",
+    LOCAL / "pypoetry" / "Cache" / "cache",
+    LOCAL / "npm-cache",
+    LOCAL / "Temp",
+    LOCAL / "Microsoft" / "Office" / "16.0" / "OfficeFileCache",
+    LOCAL / "Google" / "Chrome" / "User Data" / "Default" / "Cache",
+    LOCAL / "Google" / "Chrome" / "User Data" / "Default" / "Code Cache",
+    ROAMING / "Microsoft" / "Teams" / "Cache",
+    # Firefox cache2 lives inside a randomly named profile subfolder
+    *[
+        p / "cache2"
+        for p in (LOCAL / "Mozilla" / "Firefox" / "Profiles").glob("*")
+        if (p / "cache2").is_dir()
+    ]
+]
+
+# External CLI commands used to clean caches through their own tool
+# (cleaner than deleting their folders by hand)
+CLI_CLEAN_COMMANDS = [
+    ("pip", ["pip", "cache", "dir"], ["pip", "cache", "purge"]),
+    ("uv", ["uv", "cache", "dir"], ["uv", "cache", "clean"]),
+]
+
+
+# Date formats shared by filename and subtitle processing
+DATE_PATTERNS = (
+    (r"(?<!\d)(\d{4})[-_./\s]?(\d{1,2})[-_./\s]?(\d{1,2})(?!\d)", "ymd"),
+    (r"(?<!\d)(\d{1,2})[-_./\s]?(\d{1,2})[-_./\s]?(\d{4})(?!\d)", "dmy"),
+)
+
+# Accepted files
+INPUT_ACCEPTED_VIDEO_FILES = [
+    ".avi", ".m4v", ".mkv", ".mod", ".mov", ".mp4", ".mpg", ".mts", ".vob", ".webm"
+]
+INPUT_ACCEPTED_IMAGE_FILES = [".jpeg", ".jpg", ".png"]
+INPUT_ACCEPTED_AUDIO_FILES = [
+    ".aac", ".flac", ".m4a", ".mp3", ".ogg", ".opus", ".wav", ".wma"
+]
+INPUT_ACCEPTED_MEDIA_FILES = [
+    *INPUT_ACCEPTED_VIDEO_FILES,
+    *INPUT_ACCEPTED_IMAGE_FILES,
+    *INPUT_ACCEPTED_AUDIO_FILES,
+]
+INPUT_ACCEPTED_PDF_FILES = [".pdf"]
+
+# Codecs ("h264_amf", "hevc_amf" sont pour les GPU AMD)
+CODEC_VIDEO_LIST = ["libx264", "libx265", "h264_amf", "hevc_amf"]
+CODEC_VIDEO = CODEC_VIDEO_LIST[1]
+CODEC_AUDIO = "aac"
+
+# Audio compressor
+AUDIO_COMPRESSOR_MP3_BITRATE_KBPS = 160
+
+# Logging
+LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR")
+
+# suffix
+SUFFIX_OUTPUT_VIDEO = ".mp4"
+SUFFIX_OUTPUT_AUDIO = ".mp3"
+SUFFIX_OUTPUT_IMAGE = ".jpg"
+SUFFIX_OUTPUT_PDF = ".pdf"
+SUFFIX_OUTPUT = [
+    SUFFIX_OUTPUT_VIDEO, SUFFIX_OUTPUT_IMAGE, SUFFIX_OUTPUT_PDF
+]
+
+# Define a constant for the mandatory prefix in the watermark text for PDFs
+WATERMARK_PREFIX = "document exclusivement destiné à "
+
+# -----------------------------
+# TYPING AND CONFIGURATION CLASSES
+# -----------------------------
+
+@dataclass(frozen=True)
+class AppConfig:
+    # Accepted files
+    INPUT_ACCEPTED_VIDEO_FILES: List[str]
+    INPUT_ACCEPTED_IMAGE_FILES: List[str]
+    INPUT_ACCEPTED_PDF_FILES: List[str]
+
+    # Codecs
+    CODEC_VIDEO_LIST: List[str]
+    CODEC_VIDEO: str
+    CODEC_AUDIO: str
+
+    # Suffix
+    SUFFIX_OUTPUT: List[str]
+    SUFFIX_OUTPUT_VIDEO: str
+    SUFFIX_OUTPUT_IMAGE: str
+    SUFFIX_OUTPUT_PDF: str
+
+    # Paths
+    ROOT: Path
+    LOG_DIR: Path
+    INPUT_DIR: Path
+    OUTPUT_DIR: Path
+    SEGMENT_DIR: Path
+
+    # Accepted files (legacy fields for backward compatibility)
+    INPUT_ACCEPTED_FILES: List[str] | None = None
+    INPUT_ACCEPTED_MEDIA_FILES: List[str] | None = None
+    INPUT_ACCEPTED_AUDIO_FILES: List[str] = field(
+        default_factory=lambda: list(INPUT_ACCEPTED_AUDIO_FILES)
+    )
+
+    # Suffix retained as an optional field so legacy AppConfig constructors
+    # that predate audio support remain valid.
+    SUFFIX_OUTPUT_AUDIO: str = ".mp3"
+
+    # Flags — default values ​​can be changed here, and ONLY here
+    LOG_TO_FILE: bool = True
+    LOG_LEVEL: str = "INFO"
+    ADD_CODEC_NAME_IN_OUTPUT: bool = False
+    VIDEO_ENCODOR_PRINT_ALL_KEYS_IN_METADATA_SUMMARY: bool = False
+    IMAGE_WITHOUTBG_ADD_WITHOUTBG_IN_NAME_IN_OUTPUT: bool = False
+    IMAGE_REDUCTOR_ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT: bool = False
+    IMAGE_REDUCTOR_JPEG_QUALITY: int = 75
+    VIDEO_ASSEMBLOR_ADD_DATE_SUBTITLES: bool = True
+    VIDEO_ASSEMBLOR_EXTRACT_AND_FILTER_DATES: bool = True
+    SRT_DURATION_SECONDS: float = 10.0
+
+    # ASS subtitle conversion
+    ASS_TITLE_DURATION_SECONDS: float = 5.0
+    ASS_SUBTITLE_DURATION_SECONDS: float = 10.0
+    ASS_TITLE_FADE_DURATION_MS: int = 1000
+    ASS_SUBTITLE_FADE_DURATION_MS: int = 500
+
+    # Image slideshow
+    IMAGE_DIAPO_DURATION_SECONDS: float = 5.0
+    IMAGE_DIAPO_FPS: int = 24
+    IMAGE_DIAPO_MAX_HEIGHT: int = 2160
+
+    # Audio compressor (MP3 output)
+    AUDIO_COMPRESSOR_MP3_BITRATE_KBPS: int = AUDIO_COMPRESSOR_MP3_BITRATE_KBPS
+    AUDIO_COMPRESSOR_COPY_JPEG_FILES: bool = True
+
+    def __post_init__(self) -> None:
+        """Normalise les alias de configuration conservés pour compatibilité."""
+        log_level = self.LOG_LEVEL.upper()
+        if log_level not in LOG_LEVELS:
+            raise ValueError(
+                f"LOG_LEVEL invalide : {self.LOG_LEVEL}. "
+                f"Valeurs acceptées : {', '.join(LOG_LEVELS)}."
+            )
+        object.__setattr__(self, "LOG_LEVEL", log_level)
+
+        accepted_files = self.INPUT_ACCEPTED_FILES
+        media_files = self.INPUT_ACCEPTED_MEDIA_FILES
+
+        if accepted_files is None:
+            accepted_files = media_files or [
+                *self.INPUT_ACCEPTED_VIDEO_FILES,
+                *self.INPUT_ACCEPTED_IMAGE_FILES,
+                *self.INPUT_ACCEPTED_AUDIO_FILES,
+            ]
+            object.__setattr__(self, "INPUT_ACCEPTED_FILES", accepted_files)
+
+        if media_files is None:
+            object.__setattr__(self, "INPUT_ACCEPTED_MEDIA_FILES", accepted_files)
+
+
+# -----------------------------
+# UNIQUE INSTANCE OF AppConfig
+# -----------------------------
+# flags and configuration constants are set above, and the AppConfig instance 
+# is created here for use throughout the project.
+
+APP_CONFIG = AppConfig(
+    # Accepted files
+    INPUT_ACCEPTED_MEDIA_FILES=INPUT_ACCEPTED_MEDIA_FILES,
+    INPUT_ACCEPTED_FILES=INPUT_ACCEPTED_MEDIA_FILES,
+    INPUT_ACCEPTED_VIDEO_FILES=INPUT_ACCEPTED_VIDEO_FILES,
+    INPUT_ACCEPTED_IMAGE_FILES=INPUT_ACCEPTED_IMAGE_FILES,
+    INPUT_ACCEPTED_AUDIO_FILES=INPUT_ACCEPTED_AUDIO_FILES,
+    INPUT_ACCEPTED_PDF_FILES=INPUT_ACCEPTED_PDF_FILES,
+
+    # Codecs
+    CODEC_VIDEO_LIST=CODEC_VIDEO_LIST,
+    CODEC_VIDEO=CODEC_VIDEO,
+    CODEC_AUDIO=CODEC_AUDIO,
+    AUDIO_COMPRESSOR_MP3_BITRATE_KBPS=AUDIO_COMPRESSOR_MP3_BITRATE_KBPS,
+
+    # suffix
+    SUFFIX_OUTPUT=SUFFIX_OUTPUT,
+    SUFFIX_OUTPUT_VIDEO=SUFFIX_OUTPUT_VIDEO,
+    SUFFIX_OUTPUT_AUDIO=SUFFIX_OUTPUT_AUDIO,
+    SUFFIX_OUTPUT_IMAGE=SUFFIX_OUTPUT_IMAGE,
+    SUFFIX_OUTPUT_PDF=SUFFIX_OUTPUT_PDF,
+
+    # Paths
+    ROOT=ROOT,
+    LOG_DIR=LOG_DIR,
+    INPUT_DIR=INPUT_DIR,
+    OUTPUT_DIR=OUTPUT_DIR,
+    SEGMENT_DIR=SEGMENT_DIR,
+)

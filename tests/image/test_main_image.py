@@ -11,9 +11,10 @@ from unittest import mock
 sys.path.append(str(Path(__file__).resolve().parents[2] / "toolbox_pb"))
 
 # Imports local
-from image.main_image import (
-    image_defilor, image_reductor, image_withoutbg, run_image_defilor_interactive
+from toolbox_pb.core.image.main_image import (
+    image_defilor, image_reductor, image_withoutbg
 )
+from toolbox_pb.ui.cli_helpers import run_image_defilor_interactive
 
 
 def build_fake_cfg(tmp_path):
@@ -24,8 +25,8 @@ def build_fake_cfg(tmp_path):
         INPUT_ACCEPTED_PDF_FILES={".pdf"},
         SUFFIX_OUTPUT_VIDEO=".mp4",
         ADD_CODEC_NAME_IN_OUTPUT=True,
-        ADD_WITHOUTBG_IN_NAME_IN_OUTPUT=True,
-        ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT=False,
+        IMAGE_WITHOUTBG_ADD_WITHOUTBG_IN_NAME_IN_OUTPUT=True,
+        IMAGE_REDUCTOR_ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT=False,
         IMAGE_REDUCTOR_JPEG_QUALITY=95,
         INPUT_DIR=tmp_path / "input",
         OUTPUT_DIR=tmp_path / "output",
@@ -61,13 +62,13 @@ def test_image_defilor_processes_only_images_and_skips_existing(tmp_path):
     )
 
     # Mock the parser to return our params, and the output subdir builder to return our output dir
-    with mock.patch("image.main_image.func_ima.parse_defilor_extra_args", return_value=params), \
+    with mock.patch("toolbox_pb.core.image.main_image.func_ima.parse_defilor_extra_args", return_value=params), \
         mock.patch(
-            "image.main_image.func_glob.build_output_subdir_from_input",
+            "toolbox_pb.core.image.main_image.func_glob.build_output_subdir_from_input",
             return_value=cfg.OUTPUT_DIR
         ), \
-        mock.patch("image.main_image.func_ima.get_image_size", return_value=(800, 600)), \
-        mock.patch("image.main_image.func_ima.generate_image_defilor") as generate_mock:
+        mock.patch("toolbox_pb.core.image.main_image.func_ima.get_image_size", return_value=(800, 600)), \
+        mock.patch("toolbox_pb.core.image.main_image.func_ima.generate_image_defilor") as generate_mock:
         image_defilor(cfg)
 
     # Assert
@@ -97,12 +98,12 @@ def test_image_defilor_passes_extra_args_to_parser(tmp_path):
     raw = "--height 720 --speed 50"
 
     # Mock the parser to return our params, and the output subdir builder to return our output dir
-    with mock.patch("image.main_image.func_ima.parse_defilor_extra_args", return_value=params) as parse_mock, \
+    with mock.patch("toolbox_pb.core.image.main_image.func_ima.parse_defilor_extra_args", return_value=params) as parse_mock, \
         mock.patch(
-            "image.main_image.func_glob.build_output_subdir_from_input",
+            "toolbox_pb.core.image.main_image.func_glob.build_output_subdir_from_input",
             return_value=cfg.OUTPUT_DIR
         ), \
-        mock.patch("image.main_image.func_ima.generate_image_defilor"):
+        mock.patch("toolbox_pb.core.image.main_image.func_ima.generate_image_defilor"):
         image_defilor(cfg, extra_args=raw)
 
     # Assert
@@ -129,13 +130,13 @@ def test_image_defilor_keeps_explicit_height(tmp_path):
     )
 
     # Mock the parser to return our params, and the output subdir builder to return our output dir
-    with mock.patch("image.main_image.func_ima.parse_defilor_extra_args", return_value=params), \
+    with mock.patch("toolbox_pb.core.image.main_image.func_ima.parse_defilor_extra_args", return_value=params), \
         mock.patch(
-            "image.main_image.func_glob.build_output_subdir_from_input",
+            "toolbox_pb.core.image.main_image.func_glob.build_output_subdir_from_input",
             return_value=cfg.OUTPUT_DIR
         ), \
-        mock.patch("image.main_image.func_ima.get_image_size") as size_mock, \
-        mock.patch("image.main_image.func_ima.generate_image_defilor") as generate_mock:
+        mock.patch("toolbox_pb.core.image.main_image.func_ima.get_image_size") as size_mock, \
+        mock.patch("toolbox_pb.core.image.main_image.func_ima.generate_image_defilor") as generate_mock:
         image_defilor(cfg, extra_args="--height 1080")
 
     # Assert
@@ -167,17 +168,17 @@ def test_image_defilor_extracts_pdf_images(tmp_path):
     )
 
     # Mock PDF image extraction and video generation to avoid side effects
-    with mock.patch("image.main_image.func_ima.parse_defilor_extra_args", return_value=params), \
+    with mock.patch("toolbox_pb.core.image.main_image.func_ima.parse_defilor_extra_args", return_value=params), \
         mock.patch(
-            "image.main_image.func_glob.build_output_subdir_from_input",
+            "toolbox_pb.core.image.main_image.func_glob.build_output_subdir_from_input",
             return_value=cfg.OUTPUT_DIR
         ), \
         mock.patch(
-            "image.main_image.func_ima.extract_pdf_images_to_files",
+            "toolbox_pb.core.image.main_image.func_ima.extract_pdf_images_to_files",
             return_value=[page_1, page_2],
         ) as extract_mock, \
-        mock.patch("image.main_image.func_ima.get_image_size", return_value=(800, 600)), \
-        mock.patch("image.main_image.func_ima.generate_image_defilor") as generate_mock:
+        mock.patch("toolbox_pb.core.image.main_image.func_ima.get_image_size", return_value=(800, 600)), \
+        mock.patch("toolbox_pb.core.image.main_image.func_ima.generate_image_defilor") as generate_mock:
         is_empty = image_defilor(cfg)
 
     # Assert
@@ -199,7 +200,7 @@ def test_run_image_defilor_interactive_without_extra_args(monkeypatch):
     cfg = object()
     answers = iter(["n"])
     monkeypatch.setattr("builtins.input", lambda _: next(answers))
-    with mock.patch("image.main_image.image_defilor") as image_defilor_mock:
+    with mock.patch("toolbox_pb.ui.cli_helpers.image_defilor") as image_defilor_mock:
         run_image_defilor_interactive(cfg)
     image_defilor_mock.assert_called_once_with(cfg, extra_args=None)
 
@@ -209,7 +210,7 @@ def test_run_image_defilor_interactive_with_extra_args(monkeypatch):
     cfg = object()
     answers = iter(["o", "--height 720 --speed 50"])
     monkeypatch.setattr("builtins.input", lambda _: next(answers))
-    with mock.patch("image.main_image.image_defilor") as image_defilor_mock:
+    with mock.patch("toolbox_pb.ui.cli_helpers.image_defilor") as image_defilor_mock:
         run_image_defilor_interactive(cfg)
     image_defilor_mock.assert_called_once_with(
         cfg,
@@ -223,7 +224,7 @@ def test_run_image_defilor_interactive_catches_value_error(monkeypatch, capsys):
     answers = iter(["n"])
     monkeypatch.setattr("builtins.input", lambda _: next(answers))
     with mock.patch(
-        "image.main_image.image_defilor",
+        "toolbox_pb.ui.cli_helpers.image_defilor",
         side_effect=ValueError("bad args"),
     ):
         run_image_defilor_interactive(cfg)
@@ -245,13 +246,13 @@ def test_image_reductor_mirrors_subdirectories_and_skips_existing(tmp_path):
     existing.touch()
 
     with mock.patch(
-        "image.main_image.func_ima.reduce_image_for_screen",
+        "toolbox_pb.core.image.main_image.func_ima.reduce_image_for_screen",
         return_value=(1000, 400),
     ) as reduce_mock, \
         mock.patch(
-            "image.main_image.func_vid.compute_size_reduction", return_value={}
+            "toolbox_pb.core.image.main_image.func_vid.compute_size_reduction", return_value={}
         ) as compute_mock, \
-        mock.patch("image.main_image.func_vid.print_size_reduction") as print_mock:
+        mock.patch("toolbox_pb.core.image.main_image.func_vid.print_size_reduction") as print_mock:
         is_empty = image_reductor(cfg)
 
     assert is_empty is False
@@ -270,17 +271,17 @@ def test_image_reductor_mirrors_subdirectories_and_skips_existing(tmp_path):
 def test_image_reductor_adds_compress_and_jpeg_quality_suffix_when_enabled(tmp_path):
     """A reduced JPEG is marked with its configured compression quality."""
     cfg = build_fake_cfg(tmp_path)
-    cfg.ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT = True
+    cfg.IMAGE_REDUCTOR_ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT = True
     cfg.INPUT_DIR.mkdir(parents=True)
     source = cfg.INPUT_DIR / "photo.jpg"
     source.touch()
 
     with mock.patch(
-        "image.main_image.func_ima.reduce_image_for_screen",
+        "toolbox_pb.core.image.main_image.func_ima.reduce_image_for_screen",
         return_value=(1000, 400),
     ) as reduce_mock, \
-        mock.patch("image.main_image.func_vid.compute_size_reduction", return_value={}), \
-        mock.patch("image.main_image.func_vid.print_size_reduction"):
+        mock.patch("toolbox_pb.core.image.main_image.func_vid.compute_size_reduction", return_value={}), \
+        mock.patch("toolbox_pb.core.image.main_image.func_vid.print_size_reduction"):
         image_reductor(cfg)
 
     reduce_mock.assert_called_once_with(
@@ -303,7 +304,7 @@ def test_image_reductor_copies_unreducible_images_and_other_files(tmp_path, caps
     video.write_bytes(b"original video")
 
     with mock.patch(
-        "image.main_image.func_ima.reduce_image_for_screen", return_value=None
+        "toolbox_pb.core.image.main_image.func_ima.reduce_image_for_screen", return_value=None
     ):
         is_empty = image_reductor(cfg)
 
@@ -322,7 +323,7 @@ def test_image_reductor_skips_failed_images_and_continues(tmp_path, capsys):
     broken_image.write_bytes(b"truncated image bytes")
 
     with mock.patch(
-        "image.main_image.func_ima.reduce_image_for_screen",
+        "toolbox_pb.core.image.main_image.func_ima.reduce_image_for_screen",
         side_effect=RuntimeError(
             "Impossible de réduire l'image 'photo noel.jpg': "
             "image file is truncated"
@@ -349,9 +350,9 @@ def test_image_withoutbg_mirrors_subdirectories_and_skips_existing(tmp_path):
     (cfg.INPUT_DIR / "nested" / "already.png").touch()
 
     with mock.patch(
-        "image.main_image.func_ima.load_background_remover", return_value=mock.sentinel.remover
+        "toolbox_pb.core.image.main_image.func_ima.load_background_remover", return_value=mock.sentinel.remover
     ) as load_mock, mock.patch(
-        "image.main_image.func_ima.remove_image_background"
+        "toolbox_pb.core.image.main_image.func_ima.remove_image_background"
     ) as remove_mock:
         is_empty = image_withoutbg(cfg)
 
@@ -375,9 +376,9 @@ def test_image_withoutbg_continues_after_one_image_failure(tmp_path, capsys):
     valid.touch()
 
     with mock.patch(
-        "image.main_image.func_ima.load_background_remover", return_value=mock.sentinel.remover
+        "toolbox_pb.core.image.main_image.func_ima.load_background_remover", return_value=mock.sentinel.remover
     ), mock.patch(
-        "image.main_image.func_ima.remove_image_background",
+        "toolbox_pb.core.image.main_image.func_ima.remove_image_background",
         side_effect=[RuntimeError("invalid image"), None],
     ) as remove_mock:
         is_empty = image_withoutbg(cfg)
@@ -390,14 +391,14 @@ def test_image_withoutbg_continues_after_one_image_failure(tmp_path, capsys):
 def test_image_withoutbg_can_omit_output_suffix(tmp_path):
     """The output suffix should follow the dedicated configuration flag."""
     cfg = build_fake_cfg(tmp_path)
-    cfg.ADD_WITHOUTBG_IN_NAME_IN_OUTPUT = False
+    cfg.IMAGE_WITHOUTBG_ADD_WITHOUTBG_IN_NAME_IN_OUTPUT = False
     cfg.INPUT_DIR.mkdir(parents=True)
     source = cfg.INPUT_DIR / "portrait.jpg"
     source.touch()
 
     with mock.patch(
-        "image.main_image.func_ima.load_background_remover", return_value=mock.sentinel.remover
-    ), mock.patch("image.main_image.func_ima.remove_image_background") as remove_mock:
+        "toolbox_pb.core.image.main_image.func_ima.load_background_remover", return_value=mock.sentinel.remover
+    ), mock.patch("toolbox_pb.core.image.main_image.func_ima.remove_image_background") as remove_mock:
         image_withoutbg(cfg)
 
     assert remove_mock.call_args.args[1] == cfg.OUTPUT_DIR / "portrait.png"

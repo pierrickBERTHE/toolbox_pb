@@ -31,8 +31,8 @@ import pytest
 sys.path.append(str(Path(__file__).resolve().parents[2] / 'toolbox_pb'))
 
 # local imports
-from config_global import AppConfig
-from video.main_video import video_encodor
+from toolbox_pb.core.config_global import AppConfig
+from toolbox_pb.core.video.main_video import video_encodor
 
 
 # -----------------------------
@@ -80,7 +80,7 @@ def fake_config(tmp_path):
 
         LOG_TO_FILE=False,
         ADD_CODEC_NAME_IN_OUTPUT=False,
-        PRINT_ALL_KEYS_IN_METADATA_SUMMARY=False
+        VIDEO_ENCODOR_PRINT_ALL_KEYS_IN_METADATA_SUMMARY=False
     )
 
 
@@ -98,12 +98,12 @@ def test_ignore_non_video_files(fake_config):
     (fake_config.INPUT_DIR / "photo.jpg").touch()
 
     # Mock all functions with side effects
-    with mock.patch("video.main_video.func_vid.encode_full_video") as m_encode, \
-        mock.patch("video.main_video.func_vid.get_all_metadata", return_value={}), \
-        mock.patch("video.main_video.func_vid.print_metadata_diff_summary"), \
-        mock.patch("video.main_video.func_vid.compute_size_reduction", return_value={}), \
-        mock.patch("video.main_video.func_vid.print_size_reduction"), \
-        mock.patch("func_global.print_step"):
+    with mock.patch("toolbox_pb.core.video.main_video.func_vid.encode_full_video") as m_encode, \
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.get_all_metadata", return_value={}), \
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.print_metadata_diff_summary"), \
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.compute_size_reduction", return_value={}), \
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.print_size_reduction"), \
+        mock.patch("toolbox_pb.core.func_global.print_section"):
 
         # Run the function under test
         video_encodor(fake_config)
@@ -123,12 +123,12 @@ def test_encode_video_when_not_existing(fake_config):
     input_video.touch()
 
     # Mock all functions with side effects
-    with mock.patch("video.main_video.func_vid.encode_full_video") as m_encode, \
-        mock.patch("video.main_video.func_vid.get_all_metadata", return_value={}), \
-        mock.patch("video.main_video.func_vid.print_metadata_diff_summary"), \
-        mock.patch("video.main_video.func_vid.compute_size_reduction", return_value={}), \
-        mock.patch("video.main_video.func_vid.print_size_reduction"), \
-        mock.patch("func_global.print_step"):
+    with mock.patch("toolbox_pb.core.video.main_video.func_vid.encode_full_video") as m_encode, \
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.get_all_metadata", return_value={}), \
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.print_metadata_diff_summary"), \
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.compute_size_reduction", return_value={}), \
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.print_size_reduction"), \
+        mock.patch("toolbox_pb.core.func_global.print_section"):
 
         # Run the function under test
         video_encodor(fake_config)
@@ -159,14 +159,14 @@ def test_video_encodor_skips_failed_video_and_cleans_partial_output(fake_config,
         raise subprocess.CalledProcessError(1, ["ffmpeg"])
 
     with mock.patch(
-        "video.main_video.func_vid.encode_full_video",
+        "toolbox_pb.core.video.main_video.func_vid.encode_full_video",
         side_effect=fail_encoding,
     ) as m_encode, \
-        mock.patch("video.main_video.func_vid.get_all_metadata") as m_get_meta, \
-        mock.patch("video.main_video.func_vid.print_metadata_diff_summary"), \
-        mock.patch("video.main_video.func_vid.compute_size_reduction", return_value={}), \
-        mock.patch("video.main_video.func_vid.print_size_reduction"), \
-        mock.patch("func_global.print_step"):
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.get_all_metadata") as m_get_meta, \
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.print_metadata_diff_summary"), \
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.compute_size_reduction", return_value={}), \
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.print_size_reduction"), \
+        mock.patch("toolbox_pb.core.func_global.print_section"):
 
         is_empty = video_encodor(fake_config)
 
@@ -190,13 +190,13 @@ def test_skip_encoding_if_output_exists(fake_config, capsys):
     output_video.write_bytes(b"encoded video")
 
     # Mock all functions with side effects
-    with mock.patch("video.main_video.func_vid.encode_full_video") as m_encode, \
-        mock.patch("video.main_video.func_vid.get_all_metadata", return_value={}), \
-        mock.patch("video.main_video.func_vid.print_metadata_diff_summary"), \
-        mock.patch("video.main_video.func_vid.compute_size_reduction", return_value={}), \
-        mock.patch("video.main_video.func_vid.print_size_reduction"), \
-        mock.patch("func_global.print_step"), \
-        mock.patch("video.main_video.func_glob.build_output_path", return_value=output_video):
+    with mock.patch("toolbox_pb.core.video.main_video.func_vid.encode_full_video") as m_encode, \
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.get_all_metadata", return_value={}), \
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.print_metadata_diff_summary"), \
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.compute_size_reduction", return_value={}), \
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.print_size_reduction"), \
+        mock.patch("toolbox_pb.core.func_global.print_section"), \
+        mock.patch("toolbox_pb.core.video.main_video.func_glob.build_output_path", return_value=output_video):
 
         # Run the function under test
         video_encodor(fake_config)
@@ -229,12 +229,12 @@ def test_output_name_with_codec_flag(fake_config):
     input_video.touch()
 
     # Mock all functions with side effects
-    with mock.patch("video.main_video.func_vid.encode_full_video") as m_encode, \
-        mock.patch("video.main_video.func_vid.get_all_metadata", return_value={}), \
-        mock.patch("video.main_video.func_vid.print_metadata_diff_summary"), \
-        mock.patch("video.main_video.func_vid.compute_size_reduction", return_value={}), \
-        mock.patch("video.main_video.func_vid.print_size_reduction"), \
-        mock.patch("func_global.print_step"):
+    with mock.patch("toolbox_pb.core.video.main_video.func_vid.encode_full_video") as m_encode, \
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.get_all_metadata", return_value={}), \
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.print_metadata_diff_summary"), \
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.compute_size_reduction", return_value={}), \
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.print_size_reduction"), \
+        mock.patch("toolbox_pb.core.func_global.print_section"):
 
         # Run the function under test
         video_encodor(fake_config)
@@ -254,10 +254,10 @@ def test_print_all_metadata_when_flag_enabled(fake_config):
     Full metadata must be printed when the corresponding flag is enabled.
     """
 
-    # Enable PRINT_ALL_KEYS_IN_METADATA_SUMMARY as True
+    # Enable VIDEO_ENCODOR_PRINT_ALL_KEYS_IN_METADATA_SUMMARY as True
     fake_config = fake_config.__class__(**{
         **fake_config.__dict__,
-        "PRINT_ALL_KEYS_IN_METADATA_SUMMARY": True
+        "VIDEO_ENCODOR_PRINT_ALL_KEYS_IN_METADATA_SUMMARY": True
     })
 
     # Create a fake input video
@@ -265,13 +265,13 @@ def test_print_all_metadata_when_flag_enabled(fake_config):
     input_video.touch()
 
     # Mock all functions with side effects
-    with mock.patch("video.main_video.func_vid.encode_full_video"), \
-        mock.patch("video.main_video.func_vid.get_all_metadata", return_value={"size": 123}), \
-        mock.patch("video.main_video.func_vid.print_metadata_summary_all_keys") as m_print_all, \
-        mock.patch("video.main_video.func_vid.print_metadata_diff_summary"), \
-        mock.patch("video.main_video.func_vid.compute_size_reduction", return_value={}), \
-        mock.patch("video.main_video.func_vid.print_size_reduction"), \
-        mock.patch("func_global.print_step"):
+    with mock.patch("toolbox_pb.core.video.main_video.func_vid.encode_full_video"), \
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.get_all_metadata", return_value={"size": 123}), \
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.print_metadata_summary_all_keys") as m_print_all, \
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.print_metadata_diff_summary"), \
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.compute_size_reduction", return_value={}), \
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.print_size_reduction"), \
+        mock.patch("toolbox_pb.core.func_global.print_section"):
 
         # Run the function under test
         video_encodor(fake_config)
@@ -300,12 +300,12 @@ def test_video_encodor_complete_workflow(fake_config):
     video2.touch()
     
     # Mock all dependencies
-    with mock.patch("video.main_video.func_vid.encode_full_video") as m_encode, \
-        mock.patch("video.main_video.func_vid.get_all_metadata") as m_get_meta, \
-        mock.patch("video.main_video.func_vid.print_metadata_diff_summary") as m_print_diff, \
-        mock.patch("video.main_video.func_vid.compute_size_reduction") as m_compute_reduction, \
-        mock.patch("video.main_video.func_vid.print_size_reduction") as m_print_reduction, \
-        mock.patch("func_global.print_step"):
+    with mock.patch("toolbox_pb.core.video.main_video.func_vid.encode_full_video") as m_encode, \
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.get_all_metadata") as m_get_meta, \
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.print_metadata_diff_summary") as m_print_diff, \
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.compute_size_reduction") as m_compute_reduction, \
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.print_size_reduction") as m_print_reduction, \
+        mock.patch("toolbox_pb.core.func_global.print_section"):
         
         # Configure metadata mocks
         metadata_before = {"format": {"size": "5000000"}}
@@ -377,12 +377,12 @@ def test_video_encodor_mixed_files(fake_config):
     image_file.touch()
     
     # Mock all dependencies
-    with mock.patch("video.main_video.func_vid.encode_full_video") as m_encode, \
-        mock.patch("video.main_video.func_vid.get_all_metadata", return_value={}), \
-        mock.patch("video.main_video.func_vid.print_metadata_diff_summary"), \
-        mock.patch("video.main_video.func_vid.compute_size_reduction", return_value={}), \
-        mock.patch("video.main_video.func_vid.print_size_reduction"), \
-        mock.patch("func_global.print_step"):
+    with mock.patch("toolbox_pb.core.video.main_video.func_vid.encode_full_video") as m_encode, \
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.get_all_metadata", return_value={}), \
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.print_metadata_diff_summary"), \
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.compute_size_reduction", return_value={}), \
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.print_size_reduction"), \
+        mock.patch("toolbox_pb.core.func_global.print_section"):
         
         # Run the function
         video_encodor(fake_config)
@@ -415,12 +415,12 @@ def test_video_encodor_with_codec_name_in_output(fake_config):
     input_video.touch()
     
     # Mock all dependencies
-    with mock.patch("video.main_video.func_vid.encode_full_video") as m_encode, \
-        mock.patch("video.main_video.func_vid.get_all_metadata", return_value={}), \
-        mock.patch("video.main_video.func_vid.print_metadata_diff_summary"), \
-        mock.patch("video.main_video.func_vid.compute_size_reduction", return_value={}), \
-        mock.patch("video.main_video.func_vid.print_size_reduction"), \
-        mock.patch("func_global.print_step"):
+    with mock.patch("toolbox_pb.core.video.main_video.func_vid.encode_full_video") as m_encode, \
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.get_all_metadata", return_value={}), \
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.print_metadata_diff_summary"), \
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.compute_size_reduction", return_value={}), \
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.print_size_reduction"), \
+        mock.patch("toolbox_pb.core.func_global.print_section"):
         
         # Run the function
         video_encodor(fake_config)
@@ -448,7 +448,7 @@ def test_video_encodor_metadata_workflow(fake_config):
     # Enable full metadata printing
     fake_config = fake_config.__class__(**{
         **fake_config.__dict__,
-        "PRINT_ALL_KEYS_IN_METADATA_SUMMARY": True
+        "VIDEO_ENCODOR_PRINT_ALL_KEYS_IN_METADATA_SUMMARY": True
     })
 
     # Create input video
@@ -479,13 +479,13 @@ def test_video_encodor_metadata_workflow(fake_config):
     }
     
     # Mock all dependencies
-    with mock.patch("video.main_video.func_vid.encode_full_video") as m_encode, \
-        mock.patch("video.main_video.func_vid.get_all_metadata") as m_get_meta, \
-        mock.patch("video.main_video.func_vid.print_metadata_summary_all_keys") as m_print_all, \
-        mock.patch("video.main_video.func_vid.print_metadata_diff_summary") as m_print_diff, \
-        mock.patch("video.main_video.func_vid.compute_size_reduction") as m_compute, \
-        mock.patch("video.main_video.func_vid.print_size_reduction") as m_print_reduction, \
-        mock.patch("func_global.print_step"):
+    with mock.patch("toolbox_pb.core.video.main_video.func_vid.encode_full_video") as m_encode, \
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.get_all_metadata") as m_get_meta, \
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.print_metadata_summary_all_keys") as m_print_all, \
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.print_metadata_diff_summary") as m_print_diff, \
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.compute_size_reduction") as m_compute, \
+        mock.patch("toolbox_pb.core.video.main_video.func_vid.print_size_reduction") as m_print_reduction, \
+        mock.patch("toolbox_pb.core.func_global.print_section"):
         
         # Configure metadata sequence
         m_get_meta.side_effect = [metadata_before, metadata_after]

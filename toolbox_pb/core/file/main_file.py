@@ -1,0 +1,161 @@
+"""Main workflows for file-management features."""
+
+from toolbox_pb.core.config_global import AppConfig, CACHE_FOLDERS
+import toolbox_pb.core.file.func_file as func_file
+import toolbox_pb.core.func_global as func_glob
+from toolbox_pb.core.events import emit
+
+
+@func_glob.measure_time
+def file_timeline_sorter(cfg: AppConfig) -> bool:
+    """Copy input files with modification-date prefixes for chronological sorting."""
+
+    # Get all processable files in the input directory and its subdirectories
+    input_files = sorted(
+        (
+            path
+            for path in cfg.INPUT_DIR.rglob("*")
+            if func_glob.is_processable_file(path)
+        ),
+        key=lambda path: str(path.relative_to(cfg.INPUT_DIR)).casefold(),
+    )
+
+    # If no files were found, return True
+    if not input_files:
+        return True
+
+    # Process each file and copy it to the output directory with a timeline prefix
+    copied_files = 0
+    for input_path in input_files:
+        relative_path = input_path.relative_to(cfg.INPUT_DIR)
+        output_subdir = cfg.OUTPUT_DIR / relative_path.parent
+        filename = input_path.name
+        if not func_file.is_timeline_filename(filename):
+            modification_time = func_file.get_file_modification_time(input_path)
+            filename = func_file.build_timeline_filename(input_path, modification_time)
+        output_path = output_subdir / filename
+
+        if func_file.copy_file_for_timeline(input_path, output_path):
+            emit(f"Fichier redaté : {input_path.name} -> {output_path.name}")
+            copied_files += 1
+        else:
+            emit(f"Redatage déjà réalisé : {input_path.name}")
+
+    emit(f"{copied_files} fichier(s) redaté(s).")
+    return False
+
+
+@func_glob.measure_time
+def file_str_remover(cfg: AppConfig, string_to_remove: str) -> bool:
+    """Copy input files after removing a string from each filename."""
+
+    # Get all processable files in the input directory and its subdirectories
+    input_files = sorted(
+        (
+            path
+            for path in cfg.INPUT_DIR.rglob("*")
+            if func_glob.is_processable_file(path)
+        ),
+        key=lambda path: str(path.relative_to(cfg.INPUT_DIR)).casefold(),
+    )
+
+    # If no files were found, return True
+    if not input_files:
+        return True
+
+    # Process each file and copy it to the output directory with the
+    # specified string removed from the filename
+    copied_files = 0
+    for input_path in input_files:
+        relative_path = input_path.relative_to(cfg.INPUT_DIR)
+        output_path = (
+            cfg.OUTPUT_DIR
+            / relative_path.parent
+            / func_file.remove_string_from_filename(
+                input_path.name, string_to_remove
+            )
+        )
+
+        # Copy the file to the output directory if it hasn't been copied already
+        if func_file.copy_file_for_string_removal(input_path, output_path):
+            emit(f"Nom modifié : {input_path.name} -> {output_path.name}")
+            copied_files += 1
+        else:
+            emit(f"Suppression déjà réalisée : {input_path.name}")
+
+    # Print the number of files that were renamed
+    emit(f"{copied_files} fichier(s) renommé(s).")
+    return False
+
+
+@func_glob.measure_time
+def folder_date_renammer(cfg: AppConfig) -> bool:
+    """Copy direct input folders and date-rename their copies in the output."""
+
+    # Get all direct subfolders in the input directory
+    input_folders = sorted(
+        (path for path in cfg.INPUT_DIR.iterdir() if path.is_dir()),
+        key=lambda path: path.name.casefold(),
+    )
+    if not input_folders:
+        return True
+
+    # Process each folder and copy it to the output directory with a date prefix
+    copied_folders = 0
+    for folder_path in input_folders:
+        new_name = func_file.build_dated_folder_name(folder_path.name) or folder_path.name
+        output_path = cfg.OUTPUT_DIR / new_name
+
+        if func_file.copy_folder(folder_path, output_path):
+            if new_name == folder_path.name:
+                emit(f"Dossier copié sans modification : {folder_path.name}")
+            else:
+                emit(f"Dossier copié et renommé : {folder_path.name} -> {new_name}")
+            copied_folders += 1
+        else:
+            emit(f"Dossier ignoré (destination existante) : {folder_path.name}")
+
+    emit(f"{copied_folders} dossier(s) copié(s).")
+    return False
+
+
+@func_glob.measure_time
+def cache_nettoyor() -> None:
+    """
+    Show cache sizes before and after cleaning and the measured reduction.
+    """
+    # Get the list of cache folders and CLI caches, ensuring uniqueness
+    cli_caches = func_file.get_cli_caches()
+    paths = list(dict.fromkeys(
+        [*CACHE_FOLDERS, *(path for _, path, _ in cli_caches)]
+    ))
+
+    # Print the sizes of each cache folder before cleaning
+    emit("\n----- AVANT NETTOYAGE -----")
+    total_before = 0
+    for path in paths:
+        size = func_file.get_size(path)
+        total_before += size
+        emit(f"{path} : {func_file.format_size(size)}")
+    emit(f"TOTAL : {func_file.format_size(total_before)}")
+
+    # Clean the cache folders and CLI caches, summing the total freed space
+    total_freed = sum(
+        func_file.clean_contents(path) for path in CACHE_FOLDERS
+    )
+    total_freed += func_file.run_cli_cleaners(cli_caches)
+
+    # Print the sizes of each cache folder after cleaning
+    emit("\n----- APRES NETTOYAGE -----")
+    total_remaining = 0
+    for path in paths:
+        remaining = func_file.get_size(path)
+        total_remaining += remaining
+        emit(f"{path} : {func_file.format_size(remaining)}")
+    emit(f"TOTAL restant : {func_file.format_size(total_remaining)}")
+    emit(f"\n===> Espace nettoyé : {func_file.format_size(total_freed)} <===")
+    emit("\nPensez à nettoyer les fichiers temporaires dans : "
+        "Paramètres > Système > Stockage > Fichiers temporaires."
+        )
+
+

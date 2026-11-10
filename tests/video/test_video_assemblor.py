@@ -34,8 +34,8 @@ sys.path.append(
     str(Path(__file__).resolve().parents[2] / "toolbox_pb")
 )
 
-from config_global import AppConfig
-from video.main_video import video_assemblor
+from toolbox_pb.core.config_global import AppConfig
+from toolbox_pb.core.video.main_video import video_assemblor
 
 
 # ---------------------------------------------------------------------------
@@ -81,7 +81,7 @@ def fake_config(tmp_path):
         SEGMENT_DIR=segment_dir,
         LOG_TO_FILE=False,
         ADD_CODEC_NAME_IN_OUTPUT=False,
-        PRINT_ALL_KEYS_IN_METADATA_SUMMARY=False,
+        VIDEO_ENCODOR_PRINT_ALL_KEYS_IN_METADATA_SUMMARY=False,
         VIDEO_ASSEMBLOR_ADD_DATE_SUBTITLES=False,
         IMAGE_DIAPO_MAX_HEIGHT=1080,
     )
@@ -98,17 +98,17 @@ def mock_assembly_probing():
 
     with (
         mock.patch(
-            "video.main_video.func_vid.prepare_video_for_assembly",
+            "toolbox_pb.core.video.main_video.func_vid.prepare_video_for_assembly",
             side_effect=lambda path, *args, **kwargs: path,
         ) as mock_prepare,
 
         mock.patch(
-            "video.main_video.func_vid.get_video_frame_size_from_paths",
+            "toolbox_pb.core.video.main_video.func_vid.get_video_frame_size_from_paths",
             return_value=(1920, 1080),
         ) as mock_frame_size,
 
         mock.patch(
-            "video.main_video.func_vid.get_video_output_fps_from_paths",
+            "toolbox_pb.core.video.main_video.func_vid.get_video_output_fps_from_paths",
             return_value=30.0,
         ) as mock_output_fps,
     ):
@@ -126,7 +126,7 @@ def mock_input_subtitles():
     """
 
     with mock.patch(
-        "video.main_video.func_vid.write_video_assemblor_input_subtitles_srt",
+        "toolbox_pb.core.video.main_video.func_vid.write_video_assemblor_input_subtitles_srt",
         return_value=False,
     ) as mock_subtitles:
         yield mock_subtitles
@@ -143,7 +143,7 @@ def mock_metadata_dependencies():
 
     return {
         "get_metadata": mock.patch(
-            "video.main_video.func_vid.get_all_metadata",
+            "toolbox_pb.core.video.main_video.func_vid.get_all_metadata",
             return_value={
                 "format": {
                     "size": "1000000",
@@ -152,10 +152,10 @@ def mock_metadata_dependencies():
             },
         ),
         "print_diff": mock.patch(
-            "video.main_video.func_vid.print_metadata_diff_summary"
+            "toolbox_pb.core.video.main_video.func_vid.print_metadata_diff_summary"
         ),
         "get_inputs_metadata": mock.patch(
-            "video.main_video.func_vid.get_inputs_metadata",
+            "toolbox_pb.core.video.main_video.func_vid.get_inputs_metadata",
             return_value=[
                 {
                     "format": {
@@ -166,7 +166,7 @@ def mock_metadata_dependencies():
             ],
         ),
         "compute": mock.patch(
-            "video.main_video.func_vid.compute_size_reduction_from_inputs",
+            "toolbox_pb.core.video.main_video.func_vid.compute_size_reduction_from_inputs",
             return_value={
                 "size_before": 2_000_000,
                 "size_after": 1_000_000,
@@ -175,7 +175,7 @@ def mock_metadata_dependencies():
             },
         ),
         "print_reduction": mock.patch(
-            "video.main_video.func_vid.print_size_reduction"
+            "toolbox_pb.core.video.main_video.func_vid.print_size_reduction"
         ),
     }
 
@@ -198,7 +198,7 @@ def test_video_assemblor_render_parameters(
 
     with (
         mock.patch(
-            "video.main_video.func_vid.resolve_video_sequence",
+            "toolbox_pb.core.video.main_video.func_vid.resolve_video_sequence",
             return_value=[
                 {
                     "path": fake_config.INPUT_DIR / "video1.mp4",
@@ -209,50 +209,50 @@ def test_video_assemblor_render_parameters(
         ),
 
         mock.patch(
-            "video.main_video.func_vid.prepare_video_for_assembly",
+            "toolbox_pb.core.video.main_video.func_vid.prepare_video_for_assembly",
             side_effect=lambda path, *args, **kwargs: path,
         ),
 
         mock.patch(
-            "video.main_video.func_vid.get_video_frame_size_from_paths",
+            "toolbox_pb.core.video.main_video.func_vid.get_video_frame_size_from_paths",
             return_value=(1280, 720),
         ),
 
         mock.patch(
-            "video.main_video.func_vid.get_video_output_fps_from_paths",
+            "toolbox_pb.core.video.main_video.func_vid.get_video_output_fps_from_paths",
             return_value=25.0,
         ),
 
         mock.patch(
-            "video.main_video.func_vid.render_normalized_source_clip",
+            "toolbox_pb.core.video.main_video.func_vid.render_normalized_source_clip",
             return_value=6.0,
         ) as mock_render,
 
         mock.patch(
-            "video.main_video.func_vid.concat_normalized_clips_ffmpeg"
+            "toolbox_pb.core.video.main_video.func_vid.concat_normalized_clips_ffmpeg"
         ),
 
         mock.patch(
-            "video.main_video.func_vid.get_all_metadata",
+            "toolbox_pb.core.video.main_video.func_vid.get_all_metadata",
             return_value={"format": {"size": "1000"}},
         ),
 
         mock.patch(
-            "video.main_video.func_vid.print_metadata_diff_summary"
+            "toolbox_pb.core.video.main_video.func_vid.print_metadata_diff_summary"
         ),
 
         mock.patch(
-            "video.main_video.func_vid.get_inputs_metadata",
+            "toolbox_pb.core.video.main_video.func_vid.get_inputs_metadata",
             return_value=[],
         ),
 
         mock.patch(
-            "video.main_video.func_vid.compute_size_reduction_from_inputs",
+            "toolbox_pb.core.video.main_video.func_vid.compute_size_reduction_from_inputs",
             return_value={},
         ),
 
         mock.patch(
-            "video.main_video.func_vid.print_size_reduction"
+            "toolbox_pb.core.video.main_video.func_vid.print_size_reduction"
         ),
     ):
 
@@ -292,7 +292,7 @@ def test_video_assemblor_date_subtitles(fake_config):
 
     with (
         mock.patch(
-            "video.main_video.func_vid.resolve_video_sequence",
+            "toolbox_pb.core.video.main_video.func_vid.resolve_video_sequence",
             return_value=[
                 {
                     "path": fake_config.INPUT_DIR / "video1_2024-01-15.mp4",
@@ -303,55 +303,55 @@ def test_video_assemblor_date_subtitles(fake_config):
         ),
 
         mock.patch(
-            "video.main_video.func_vid.prepare_video_for_assembly",
+            "toolbox_pb.core.video.main_video.func_vid.prepare_video_for_assembly",
             side_effect=lambda path, *args, **kwargs: path,
         ),
 
         mock.patch(
-            "video.main_video.func_vid.get_video_frame_size_from_paths",
+            "toolbox_pb.core.video.main_video.func_vid.get_video_frame_size_from_paths",
             return_value=(1920, 1080),
         ),
 
         mock.patch(
-            "video.main_video.func_vid.get_video_output_fps_from_paths",
+            "toolbox_pb.core.video.main_video.func_vid.get_video_output_fps_from_paths",
             return_value=30.0,
         ),
 
         mock.patch(
-            "video.main_video.func_vid.render_normalized_source_clip",
+            "toolbox_pb.core.video.main_video.func_vid.render_normalized_source_clip",
             return_value=10.0,
         ),
 
         mock.patch(
-            "video.main_video.func_vid.write_video_assemblor_date_srt",
+            "toolbox_pb.core.video.main_video.func_vid.write_video_assemblor_date_srt",
             return_value=True,
         ) as mock_dates,
 
         mock.patch(
-            "video.main_video.func_vid.concat_normalized_clips_ffmpeg"
+            "toolbox_pb.core.video.main_video.func_vid.concat_normalized_clips_ffmpeg"
         ),
 
         mock.patch(
-            "video.main_video.func_vid.get_all_metadata",
+            "toolbox_pb.core.video.main_video.func_vid.get_all_metadata",
             return_value={"format": {"size": "1000"}},
         ),
 
         mock.patch(
-            "video.main_video.func_vid.print_metadata_diff_summary"
+            "toolbox_pb.core.video.main_video.func_vid.print_metadata_diff_summary"
         ),
 
         mock.patch(
-            "video.main_video.func_vid.get_inputs_metadata",
+            "toolbox_pb.core.video.main_video.func_vid.get_inputs_metadata",
             return_value=[],
         ),
 
         mock.patch(
-            "video.main_video.func_vid.compute_size_reduction_from_inputs",
+            "toolbox_pb.core.video.main_video.func_vid.compute_size_reduction_from_inputs",
             return_value={},
         ),
 
         mock.patch(
-            "video.main_video.func_vid.print_size_reduction"
+            "toolbox_pb.core.video.main_video.func_vid.print_size_reduction"
         ),
     ):
 
@@ -415,7 +415,7 @@ def test_video_assemblor_metadata_and_compression(fake_config):
 
     with (
         mock.patch(
-            "video.main_video.func_vid.resolve_video_sequence",
+            "toolbox_pb.core.video.main_video.func_vid.resolve_video_sequence",
             return_value=[
                 {
                     "path": fake_config.INPUT_DIR / "video1.mp4",
@@ -431,31 +431,31 @@ def test_video_assemblor_metadata_and_compression(fake_config):
         ),
 
         mock.patch(
-            "video.main_video.func_vid.prepare_video_for_assembly",
+            "toolbox_pb.core.video.main_video.func_vid.prepare_video_for_assembly",
             side_effect=lambda path, *args, **kwargs: path,
         ),
 
         mock.patch(
-            "video.main_video.func_vid.get_video_frame_size_from_paths",
+            "toolbox_pb.core.video.main_video.func_vid.get_video_frame_size_from_paths",
             return_value=(1920, 1080),
         ),
 
         mock.patch(
-            "video.main_video.func_vid.get_video_output_fps_from_paths",
+            "toolbox_pb.core.video.main_video.func_vid.get_video_output_fps_from_paths",
             return_value=30.0,
         ),
 
         mock.patch(
-            "video.main_video.func_vid.render_normalized_source_clip",
+            "toolbox_pb.core.video.main_video.func_vid.render_normalized_source_clip",
             side_effect=[50.0, 55.0],
         ),
 
         mock.patch(
-            "video.main_video.func_vid.concat_normalized_clips_ffmpeg"
+            "toolbox_pb.core.video.main_video.func_vid.concat_normalized_clips_ffmpeg"
         ),
 
         mock.patch(
-            "video.main_video.func_vid.get_all_metadata",
+            "toolbox_pb.core.video.main_video.func_vid.get_all_metadata",
             side_effect=[
                 metadata_before,
                 metadata_after,
@@ -464,27 +464,37 @@ def test_video_assemblor_metadata_and_compression(fake_config):
         ) as mock_get_metadata,
 
         mock.patch(
-            "video.main_video.func_vid.print_metadata_diff_summary"
+            "toolbox_pb.core.video.main_video.func_vid.print_metadata_diff_summary"
         ) as mock_print_diff,
 
         mock.patch(
-            "video.main_video.func_vid.get_inputs_metadata",
+            "toolbox_pb.core.video.main_video.func_vid.get_inputs_metadata",
             return_value=inputs_metadata,
         ) as mock_get_inputs,
 
         mock.patch(
-            "video.main_video.func_vid.compute_size_reduction_from_inputs",
+            "toolbox_pb.core.video.main_video.func_vid.compute_size_reduction_from_inputs",
             return_value=compression_stats,
         ) as mock_compute,
 
         mock.patch(
-            "video.main_video.func_vid.print_size_reduction"
+            "toolbox_pb.core.video.main_video.func_vid.print_size_reduction"
         ) as mock_print_reduction,
+
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_glob.print_section"
+        ) as mock_print_section,
+
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_glob.print_step"
+        ) as mock_print_step,
     ):
 
         result = video_assemblor(fake_config)
 
     assert result is False
+    mock_print_section.assert_called_once_with("Assemblage des vidéos")
+    mock_print_step.assert_not_called()
 
     # get_all_metadata :
     #   1. premier fichier d'entrée

@@ -1,0 +1,2191 @@
+"""
+Ce fichier contient des fonctions pour les actions sur les vidéos
+
+Auteurs :
+Pierrick BERTHE
+mail : pierrick.berthe@gmx.fr
+Décembre 2025
+"""
+# Imports standard
+import os
+from pathlib import Path
+from PIL import Image, ImageOps
+import json
+import subprocess
+import csv
+import tempfile
+import re
+from collections import Counter
+from datetime import date, datetime
+from typing import Iterable, Protocol
+from dataclasses import dataclass
+from toolbox_pb.core.progress import progress
+from toolbox_pb.core.config_global import DATE_PATTERNS
+
+# Import custom librairies
+from toolbox_pb.core.func_global import (
+    measure_time,
+    format_bytes,
+    consume_ffmpeg_progress,
+    convert_hhmmss_to_seconds,
+    get_mobile_video_output_options,
+    is_processable_file,
+    extract_valid_dates,
+    preserve_file_modification_time,
+)
+from toolbox_pb.core.events import emit, ui_only
+
+
+class DurationClip(Protocol):
+    """Minimal interface required for a clip in subtitle timeline helpers."""
+
+    duration: float
+
+
+@dataclass
+class AudioBoost:
+    ''' 
+    Represents an audio boost operation with start time, end time, and gain in dB.
+    '''
+    start: float
+    end: float
+    gain_db: float
+
+
+@dataclass
+class DurationOnlyClip:
+    """
+    Minimal stand-in exposing only `.duration`. Used by the subtitle timing
+    helpers once the real FFmpeg-rendered clip has already been closed.
+    """
+    duration: float
+
+
+AAC_SUPPORTED_SAMPLE_RATES = (
+    96000,
+    88200,
+    64000,
+    48000,
+    44100,
+    32000,
+    24000,
+    22050,
+    16000,
+    12000,
+    11025,
+    8000,
+    7350,
+)
+
+
+def normalize_audio_sample_rate(sample_rate: str | int, codec_audio: str) -> int | None:
+    """
+    Return a sample rate accepted by the requested audio encoder.
+    """
+    try:
+        rate = int(sample_rate)
+    except (TypeError, ValueError):
+        return None
+
+    if codec_audio.lower() != "aac" or rate in AAC_SUPPORTED_SAMPLE_RATES:
+        return rate
+
+    return min(AAC_SUPPORTED_SAMPLE_RATES, key=lambda supported: abs(supported - rate))
+
+
+def find_files_by_extensions(input_dir: Path, extensions: list[str]) -> list[Path]:
+    """
+    Return input files matching extensions, in deterministic path order.
+    """
+    accepted_extensions = {extension.lower() for extension in extensions}
+    return sorted(
+        (
+            path for path in input_dir.rglob("*")
+            if is_processable_file(path) and path.suffix.lower() in accepted_extensions
+        ),
+        key=lambda path: str(path.relative_to(input_dir)).lower(),
+    )
+
+
+def get_image_size(image_path: Path) -> tuple[int, int]:
+    """
+    Return visual dimensions after applying any EXIF orientation metadata.
+    """
+    with Image.open(image_path) as image:
+        return ImageOps.exif_transpose(image).size
+
+
+def fit_visual_size_in_frame(
+    visual_size: tuple[int, int], frame_size: tuple[int, int]
+) -> tuple[int, int]:
+    """
+    Return an even size that fills the full frame height.
+
+    The returned size preserves the input ratio. It is shared by the image
+    slideshow and video assemblor so every visual source occupies the entire
+    output-frame height without top or bottom padding.
+    """
+    # Validate input sizes
+    visual_width, visual_height = visual_size
+    _, frame_height = frame_size
+    if visual_width <= 0 or visual_height <= 0:
+        raise ValueError("Les dimensions du média doivent être positives.")
+
+    # Calculate the scaled width to maintain aspect ratio
+    scaled_height = frame_height
+    scaled_width = max(2, round(visual_width * frame_height / visual_height))
+    scaled_width -= scaled_width % 2
+    return scaled_width, scaled_height
+
+
+def fit_image_size_in_frame(
+    image_size: tuple[int, int], frame_size: tuple[int, int]
+) -> tuple[int, int]:
+    """Return the shared frame-filling size for an image source."""
+    return fit_visual_size_in_frame(image_size, frame_size)
+
+
+def get_video_stream_frame_rates(
+    video_path: Path
+) -> tuple[str | None, float | None, float | None]:
+    """
+    Return the declared (stream["r_frame_rate"]) and average FPS of the 
+    first video stream (stream["avg_frame_rate"]).
+    """
+    # Use ffprobe to get the frame rates of the video stream
+    command = [
+        "ffprobe", "-v", "error", "-select_streams", "v:0",
+        "-show_entries", "stream=r_frame_rate,avg_frame_rate", "-of", "json",
+        str(video_path),
+    ]
+    result = subprocess.run(command, capture_output=True, text=True, check=True)
+    streams = json.loads(result.stdout).get("streams", [])
+
+    # If no video streams are found, return None for all values
+    if not streams:
+        return None, None, None
+    stream = streams[0]
+
+    def as_fps(value: str | None) -> float | None:
+        """
+        Convert a frame rate string to a float FPS value, or None if invalid.
+        """
+        if not value or value == "0/0":
+            return None
+        numerator, denominator = value.split("/", maxsplit=1)
+        denominator_value = float(denominator)
+        return float(numerator) / denominator_value if denominator_value else None
+
+    # Return the declared frame rate, average frame rate, and their float equivalents
+    declared = stream.get("r_frame_rate")
+    return declared, as_fps(declared), as_fps(stream.get("avg_frame_rate"))
+
+
+def prepare_video_for_assembly(
+    video_path: Path,
+    temporary_dir: Path,
+    index: int,
+    codec_video: str,
+    codec_audio: str,
+) -> Path:
+    """Create a clean CFR intermediate only for inconsistent source timing.
+
+    Some phone files declare a high nominal frame rate (for example 120 FPS)
+    while their timestamped frames run at about 30 FPS. FFmpeg rewrites these
+    video frames with a cadence that differs from toolbox_pb.core.audio. FFmpeg rewrites these
+    exceptional sources with their average FPS before they are assembled.
+    """
+    # Check the declared (r_frame_rate) and average FPS (avg_frame_rate) 
+    # of the video stream
+    declared_rate, declared_fps, average_fps = get_video_stream_frame_rates(
+        video_path
+    )
+    if (
+        declared_fps is None
+        or average_fps is None
+        or declared_fps <= average_fps * 1.2
+    ):
+        return video_path
+
+    # Create a temporary output path for the normalized video
+    output_path = temporary_dir / f"normalized_{index:03d}.mp4"
+
+    # Build the FFmpeg command to normalize the video frame rate
+    command = [
+        "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+        "-i", str(video_path), "-map", "0:v:0", "-map", "0:a?",
+        "-vf", f"fps={average_fps:.8f}", "-fps_mode", "cfr",
+        "-c:v", codec_video, "-c:a", codec_audio,
+        "-metadata:s:v:0", "rotate=0", str(output_path),
+    ]
+
+    # display the concerned video which has a problem
+    emit(
+        f"Cadence vidéo incohérente détectée pour {video_path.name} "
+        f"({declared_rate} déclaré, {average_fps:.2f} moyen) : normalisation.\n"
+    )
+
+    # run ffmpeg_command
+    _run_ffmpeg_silently(command)
+
+    return output_path
+
+
+def format_srt_timestamp(milliseconds: int) -> str:
+    """
+    Format a non-negative millisecond offset as an SRT timestamp.
+    """
+    milliseconds = max(0, milliseconds)
+    hours, remainder = divmod(milliseconds, 3_600_000)
+    minutes, remainder = divmod(remainder, 60_000)
+    seconds, milliseconds = divmod(remainder, 1_000)
+    return f"{hours:02}:{minutes:02}:{seconds:02},{milliseconds:03}"
+
+
+def build_image_subtitle(image_path: Path, input_dir: Path) -> str:
+    """
+    Build a subtitle from a filename, retaining only its first valid year.
+    The month and day of that date are removed, while other numbers (such as
+    ages or photo sequence numbers) are retained. The filename extension is
+    never included.
+    """
+    # Validate input paths
+    image_name = image_path.relative_to(input_dir).with_suffix("").as_posix()
+    valid_year = None
+
+    # Search for the first valid 4-digit year in the filename
+    for match in re.finditer(r"(?<!\d)(\d{4})(?!\d)", image_name):
+        try:
+            date(int(match.group(1)), 1, 1)
+        except ValueError:
+            continue
+        valid_year = match.group(1)
+        break
+
+    # Remove the first valid year and its associated date from the filename. 
+    # Other numbers are retained. The filename extension is never included.
+    text = image_name
+    if valid_year:
+        date_separator = r"[-_/\s.]"
+        year_first_date = re.compile(
+            rf"(?<!\d){re.escape(valid_year)}{date_separator}+\d{{1,2}}{date_separator}+\d{{1,2}}(?!\d)"
+        )
+        day_first_date = re.compile(
+            rf"(?<!\d)\d{{1,2}}{date_separator}+\d{{1,2}}{date_separator}+{re.escape(valid_year)}(?!\d)"
+        )
+        year_month_date = re.compile(
+            rf"(?<!\d){re.escape(valid_year)}{date_separator}+(?:0?[1-9]|1[0-2])(?!\d)"
+        )
+        text, substitutions = year_first_date.subn("", text, count=1)
+        if not substitutions:
+            text, substitutions = day_first_date.subn("", text, count=1)
+        if not substitutions:
+            text = year_month_date.sub("", text, count=1)
+        text = re.sub(rf"(?<!\d){re.escape(valid_year)}(?!\d)", "", text, count=1)
+    text = re.sub(r"(?<=\))[-_]+(?=\S)", " ", text)
+    text = re.sub(r"\(\s*\)", "", text)
+    text = re.sub(r"[-_\s]{2,}", " ", text).strip(" -_")
+    return f"{valid_year} {text}".strip() if valid_year else text
+
+
+def write_image_diapo_srt(
+    image_paths: list[Path],
+    input_dir: Path,
+    duration: float,
+    output_path: Path,
+) -> None:
+    """
+    Write one SRT cue per slideshow image with its display time range.
+    """
+    entries = []
+
+    # Loop over images and create SRT entries
+    for index, image_path in enumerate(image_paths, start=1):
+
+        # Calculate start and end times in milliseconds
+        start_ms = round((index - 1) * duration * 1_000)
+        end_ms = round(index * duration * 1_000)
+        
+        # Build the subtitle text from the image filename
+        image_name = build_image_subtitle(image_path, input_dir)
+        entries.append(
+            f"{index}\n"
+            f"{format_srt_timestamp(start_ms)} --> {format_srt_timestamp(end_ms)}\n"
+            f"{image_name}\n"
+        )
+    output_path.write_text("\n".join(entries), encoding="utf-8")
+
+
+def extract_date_from_filename(media_path: Path) -> str | None:
+    """Return the first valid filename date formatted as DD/MM/YYYY.
+
+    Accepted forms are YYYY-MM-DD, DD-MM-YYYY and their compact YYYYMMDD or
+    DDMMYYYY equivalents. Separators may be spaces, underscores, dots or
+    hyphens. Invalid calendar dates are ignored.
+    """
+    # Validate input path and extract the stem (filename without extension)
+    name = media_path.stem
+
+    dates = extract_valid_dates(name)
+    return dates[0].strftime("%d/%m/%Y") if dates else None
+
+
+def write_video_assemblor_date_srt(
+    sequence: list[dict],
+    clips: list[DurationClip],
+    output_path: Path,
+    display_duration: float,
+) -> bool:
+    """Write one X second date cue at the start of every dated clip.
+
+    Timeline offsets always include the full duration of previous clips, even
+    when a filename has no valid date and therefore produces no subtitle cue.
+    """
+    # Validate input parameters
+    if len(sequence) != len(clips):
+        raise ValueError("La séquence et les clips doivent avoir la même longueur.")
+    if display_duration <= 0:
+        raise ValueError("La durée d'affichage des sous-titres doit être positive.")
+
+    # Initialize variables for subtitle entries and offset tracking
+    entries = []
+    offset_ms = 0
+
+    # Loop over each clip and its corresponding sequence item
+    for index, (item, clip) in enumerate(zip(sequence, clips), start=1):
+        duration = getattr(clip, "duration", None)
+        if not isinstance(duration, (int, float)) or duration <= 0:
+            raise ValueError("Chaque clip doit avoir une durée positive.")
+        date_text = extract_date_from_filename(item["path"])
+        duration_ms = round(duration * 1_000)
+
+        # If a valid date is found, create an SRT entry with the appropriate timing
+        if date_text:
+            end_ms = offset_ms + min(duration_ms, round(display_duration * 1_000))
+            entries.append(
+                f"{len(entries) + 1}\n"
+                f"{format_srt_timestamp(offset_ms)} --> {format_srt_timestamp(end_ms)}\n"
+                f"{date_text}\n"
+            )
+        offset_ms += duration_ms
+
+    # Write the collected subtitle entries to the output SRT file, or return False
+    if not entries:
+        return False
+
+    # Write the SRT entries to the output file, ensuring UTF-8 encoding
+    output_path.write_text("\n".join(entries), encoding="utf-8")
+
+    return True
+
+
+def parse_srt_cues(srt_content: str) -> list[tuple[int, int, str]]:
+    """Parse SRT content into ``(start_ms, end_ms, text)`` cues.
+
+    The parser deliberately retains multiline subtitle text while accepting
+    both SRT time separators (comma and dot). Extracted streams are normalised
+    by FFmpeg to SRT before this function is called.
+    """
+    def parse_timestamp(value: str) -> int:
+        """ Parse an SRT timestamp string into milliseconds. """
+        # Match the SRT timestamp format (HH:MM:SS,mmm or HH:MM:SS.mmm)
+        match = re.fullmatch(
+            r"(\d{1,2}):(\d{2}):(\d{2})[,.](\d{1,3})", value.strip()
+        )
+        if not match:
+            raise ValueError(f"Horodatage SRT invalide : {value!r}")
+        hours, minutes, seconds, milliseconds = match.groups()
+        return (
+            int(hours) * 3_600_000
+            + int(minutes) * 60_000
+            + int(seconds) * 1_000
+            + int(milliseconds.ljust(3, "0"))
+        )
+
+    cues = []
+    # Split the SRT content into blocks separated by empty lines and parse each block
+    for block in re.split(r"\n\s*\n", srt_content.replace("\r\n", "\n").strip()):
+        lines = [line.rstrip() for line in block.split("\n")]
+
+        # skip blocks that don't have at least 3 lines (index, timestamp, text)
+        if len(lines) < 3:
+            continue
+
+        # Skip the first line if it is a numeric index, then parse the timestamp and text
+        if lines[0].strip().isdigit():
+            lines = lines[1:]
+
+        # Skip blocks that don't have a valid timestamp line
+        if len(lines) < 2 or " --> " not in lines[0]:
+            continue
+
+        # Parse the start and end timestamps and the subtitle text
+        start_text, end_text = lines[0].split(" --> ", maxsplit=1)
+        end_text = end_text.split(maxsplit=1)[0]
+        text = "\n".join(lines[1:]).strip()
+        if not text:
+            continue
+    
+        # Parse the start and end timestamps and add the cue if valid
+        start_ms, end_ms = parse_timestamp(start_text), parse_timestamp(end_text)
+        if end_ms > start_ms:
+            cues.append((start_ms, end_ms, text))
+    return cues
+
+
+def format_srt_cues(cues: list[tuple[int, int, str]]) -> str:
+    """Return SRT content with cues renumbered in their retained order."""
+    entries = [
+        f"{index}\n{format_srt_timestamp(start_ms)} --> "
+        f"{format_srt_timestamp(end_ms)}\n{text}"
+        for index, (start_ms, end_ms, text) in enumerate(cues, start=1)
+    ]
+    return "\n\n".join(entries) + ("\n" if entries else "")
+
+
+def format_ass_timestamp(milliseconds: int) -> str:
+    """Format a millisecond offset as an ASS timestamp (H:MM:SS.cc)."""
+    milliseconds = max(0, milliseconds)
+    hours, remainder = divmod(milliseconds, 3_600_000)
+    minutes, remainder = divmod(remainder, 60_000)
+    seconds, milliseconds = divmod(remainder, 1_000)
+    return f"{hours}:{minutes:02}:{seconds:02}.{milliseconds // 10:02}"
+
+
+def _get_ass_template_header(template_content: str) -> str:
+    """Keep the ASS template through the Events format declaration only."""
+    lines = template_content.replace("\r\n", "\n").split("\n")
+    try:
+        events_index = next(
+            index for index, line in enumerate(lines)
+            if line.strip().lower() == "[events]"
+        )
+        format_index = next(
+            index for index, line in enumerate(lines[events_index + 1:], events_index + 1)
+            if line.strip().lower().startswith("format:")
+        )
+    except StopIteration as exc:
+        raise ValueError("Le modèle ASS doit contenir une section [Events] et son Format.") from exc
+    return "\n".join(lines[:format_index + 1]).rstrip() + "\n\n"
+
+
+def _escape_ass_text(text: str) -> str:
+    """Escape text so it can be safely used in an ASS dialogue event."""
+    return (
+        text.replace("\\", "\\\\")
+        .replace("{", "\\{")
+        .replace("}", "\\}")
+        .replace("\n", "\\N")
+    )
+
+
+def convert_srt_to_ass(
+    srt_path: Path,
+    template_path: Path,
+    output_path: Path,
+    title_duration_seconds: float,
+    subtitle_duration_seconds: float,
+    title_fade_duration_ms: int,
+    subtitle_fade_duration_ms: int,
+) -> None:
+    """Convert an SRT file to ASS using the styles and script info of a template."""
+
+    def round_up_to_second(milliseconds: int) -> int:
+        """Round a subtitle timestamp up to the next whole second."""
+        return ((milliseconds + 999) // 1_000) * 1_000
+
+    # Validate input durations and fade times
+    if title_duration_seconds <= 0 or subtitle_duration_seconds <= 0:
+        raise ValueError(
+            "Les durées des styles ASS doivent être strictement positives."
+        )
+    if title_fade_duration_ms < 0 or subtitle_fade_duration_ms < 0:
+        raise ValueError(
+            "Les durées de fondu ASS ne peuvent pas être négatives."
+        )
+
+    # Convert durations from seconds to milliseconds
+    title_duration_ms = round(title_duration_seconds * 1_000)
+    subtitle_duration_ms = round(subtitle_duration_seconds * 1_000)
+
+    # Parse the SRT cues
+    cues = parse_srt_cues(srt_path.read_text(encoding="utf-8-sig"))
+
+    # Read the ASS template header
+    header = _get_ass_template_header(
+        template_path.read_text(encoding="utf-8-sig")
+    )
+
+    # Build ASS dialogue lines for each cue, applying styles and fade effects
+    dialogues = []
+    for start_ms, end_ms, text in cues:
+        # Round the start and end times to the upper second
+        start_ms = round_up_to_second(start_ms)
+        end_ms = round_up_to_second(end_ms)
+
+        # detect the ">" prefix for bottom black subtitles and extract the text
+        bottom_black_subtitle_match = re.match(
+            r"\s*>\s?(?P<text>.*)", text, flags=re.DOTALL
+        )
+        is_bottom_black_subtitle = bottom_black_subtitle_match is not None
+        display_text = (
+            bottom_black_subtitle_match.group("text")
+            if bottom_black_subtitle_match else text
+        )
+        ass_text = _escape_ass_text(display_text)
+
+        # Check if the subtitle text contains a date and extract date + title
+        date_patterns = "|".join(pattern for pattern, _ in DATE_PATTERNS)
+        date_title_match = re.fullmatch(
+            rf"\s*(?P<date>(?:{date_patterns}))\s*-\s*"
+            r"(?P<title>.+?)\s*",
+            display_text,
+            flags=re.DOTALL,
+        )
+        date_text = date_title_match.group("date") if date_title_match else ""
+        title_text = date_title_match.group("title") if date_title_match else ""
+        is_dated_title = bool(
+            date_title_match and extract_dates_from_subtitle_text(date_text)
+        )
+
+        # if the subtitle contains a date + title, create the TITLE dialogue first
+        if is_dated_title:
+            title_end_ms = start_ms + title_duration_ms
+            title_ass_text = _escape_ass_text(title_text.strip())
+            dialogues.append(
+                "Dialogue: 0,"
+                f"{format_ass_timestamp(start_ms)},"
+                f"{format_ass_timestamp(title_end_ms)},"
+                f"TITRE,,0,0,0,,"
+                f"{{\\fad({title_fade_duration_ms},"
+                f"{title_fade_duration_ms})}}{title_ass_text}"
+            )
+            ass_text = _escape_ass_text(date_text.strip())
+
+        # elif the subtitle does not contain a date, it is a TITLE too
+        elif not is_bottom_black_subtitle and not extract_dates_from_subtitle_text(display_text):
+            dialogues.append(
+                "Dialogue: 0,"
+                f"{format_ass_timestamp(start_ms)},"
+                f"{format_ass_timestamp(start_ms + title_duration_ms)},"
+                f"TITRE,,0,0,0,,"
+                f"{{\\fad({title_fade_duration_ms},"
+                f"{title_fade_duration_ms})}}{ass_text}"
+            )
+            continue
+
+        # Create the regular bottom subtitle event for the remaining text
+        dialogues.append(
+            "Dialogue: 0,"
+            f"{format_ass_timestamp(start_ms)},"
+            f"{format_ass_timestamp(start_ms + subtitle_duration_ms)},"
+            f"sous-titre,,0,0,0,,"
+            f"{{\\fad({subtitle_fade_duration_ms},"
+            f"{subtitle_fade_duration_ms})}}{ass_text}"
+        )
+
+    # Write the ASS content to the output file, ensuring the parent directory exists
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(header + "\n".join(dialogues) + "\n", encoding="utf-8")
+
+
+def integrate_ass_hard_ffmpeg(
+    input_video: Path,
+    ass_path: Path,
+    output_video: Path,
+    codec_video: str,
+    codec_audio: str,
+    processing_comment: str,
+) -> None:
+    """Burn an ASS subtitle file into video pixels with FFmpeg/libass."""
+    # Escape the ASS path for FFmpeg filter usage
+    ass_filter_path = ass_path.resolve().as_posix().replace(":", r"\:")
+    command = [
+        "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+        "-i", str(input_video), "-vf", f"ass=filename='{ass_filter_path}'",
+        "-map", "0:v:0", "-map", "0:a?", "-c:v", codec_video,
+        "-c:a", codec_audio, "-metadata", f"comment={processing_comment}",
+        "-progress", "pipe:1",
+        str(output_video),
+    ]
+
+    # Run the FFmpeg command with progress reporting
+    _run_ffmpeg_with_progress(
+        command,
+        duration=probe_video_duration(input_video),
+        desc=f"Incrustation ASS : {input_video.name}",
+    )
+
+
+def extract_dates_from_subtitle_text(text: str) -> list[str]:
+    """Return valid dates in subtitle text as ISO keys, in display order."""
+    return [value.isoformat() for value in extract_valid_dates(text)]
+
+
+def get_srt_date_statistics(
+    cues: list[tuple[int, int, str]],
+) -> tuple[int, int, int]:
+    """Return distinct date count, date occurrences, and subtitle count."""
+    dates = [
+        subtitle_date
+        for _, _, text in cues
+        for subtitle_date in extract_dates_from_subtitle_text(text)
+    ]
+    return len(set(dates)), len(dates), len(cues)
+
+
+def print_srt_date_statistics(label: str, statistics: tuple[int, int, int]) -> None:
+    """Print a concise date/subtitle summary for the date filter."""
+    distinct_dates, occurrences, subtitles = statistics
+    emit(
+        f"\n{label} : {distinct_dates} date(s) différente(s), "
+        f"{occurrences} occurrence(s) de date, "
+        f"{subtitles} sous-titre(s) détecté(s)."
+    )
+
+
+def print_duplicate_srt_dates(cues: list[tuple[int, int, str]]) -> None:
+    """Print each repeated subtitle date and its number of occurrences."""
+    occurrences = Counter(
+        subtitle_date
+        for _, _, text in cues
+        for subtitle_date in extract_dates_from_subtitle_text(text)
+    )
+    duplicate_dates = {
+        subtitle_date: count
+        for subtitle_date, count in occurrences.items()
+        if count > 1
+    }
+    if not duplicate_dates:
+        emit("\nAucune date en doublon détectée.")
+        return
+
+    emit("\nDates en doublon détectées :")
+    for subtitle_date, count in sorted(duplicate_dates.items()):
+        emit(
+            f"- {datetime.fromisoformat(subtitle_date):%d/%m/%Y} : "
+            f"{count} occurrence(s)"
+        )
+
+
+def filter_duplicate_srt_dates(
+    cues: list[tuple[int, int, str]],
+) -> list[tuple[int, int, str]]:
+    """Keep the first cue for each date and remove later duplicate date cues."""
+    seen_dates = set()
+    filtered_cues = []
+    for cue in cues:
+        cue_dates = extract_dates_from_subtitle_text(cue[2])
+        if cue_dates and all(subtitle_date in seen_dates for subtitle_date in cue_dates):
+            continue
+        filtered_cues.append(cue)
+        seen_dates.update(cue_dates)
+    return filtered_cues
+
+
+def get_video_subtitle_cues(
+    video_path: Path, temporary_dir: Path,
+) -> list[tuple[int, int, str]]:
+    """Extract every subtitle stream from a video as normalised SRT cues."""
+    # Use ffprobe to find all subtitle stream indexes in the video
+    probe_command = [
+        "ffprobe", "-v", "error", "-select_streams", "s",
+        "-show_entries", "stream=index", "-of", "json", str(video_path),
+    ]
+
+    # Run the ffprobe command and capture its output
+    probe = subprocess.run(
+        probe_command, capture_output=True, text=True, check=True,
+    )
+
+    # Extract the stream indexes from the ffprobe output
+    stream_indexes = [
+        stream["index"] for stream in json.loads(probe.stdout).get("streams", [])
+        if "index" in stream
+    ]
+
+    cues = []
+    # Loop through each subtitle stream index and extract it as SRT
+    for stream_number, stream_index in enumerate(stream_indexes):
+        srt_path = temporary_dir / f"subtitle_{stream_number}.srt"
+        extract_command = [
+            "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+            "-i", str(video_path), "-map", f"0:{stream_index}",
+            "-c:s", "srt", str(srt_path),
+        ]
+
+        # Run the ffmpeg command to extract the subtitle stream and parse the resulting SRT cues
+        _run_ffmpeg_silently(extract_command)
+
+        # Read the extracted SRT file and parse its cues, extending the list of cues
+        cues.extend(parse_srt_cues(srt_path.read_text(encoding="utf-8-sig")))
+    return cues
+
+
+def write_video_assemblor_input_subtitles_srt(
+    sequence: list[dict],
+    clips: list[DurationClip],
+    output_path: Path,
+    temporary_dir: Path,
+) -> bool:
+    """Keep input subtitles and shift them to the assembled video timeline.
+
+    Cues are clipped to a selected ``segments.csv`` range, then shifted by the
+    duration of all preceding assembled clips. Therefore an assembler output
+    can be passed to another assembler without losing subtitle timing.
+    """
+    # Validate input lengths
+    if len(sequence) != len(clips):
+        raise ValueError("La séquence et les clips doivent avoir la même longueur.")
+
+    # Initialize variables for subtitle entries and offset tracking
+    entries = []
+    offset_ms = 0
+    cached_cues: dict[Path, list[tuple[int, int, str]]] = {}
+
+    # Loop over each clip and its corresponding sequence item
+    for item, clip in zip(sequence, clips):
+        duration = getattr(clip, "duration", None)
+
+        # Validate that the clip has a positive duration
+        if not isinstance(duration, (int, float)) or duration <= 0:
+            raise ValueError("Chaque clip doit avoir une durée positive.")
+        video_path = item["path"]
+
+        # Cache subtitle cues for each unique video path to avoid redundant extraction
+        if video_path not in cached_cues:
+            source_dir = temporary_dir / f"source_{len(cached_cues):03d}"
+            source_dir.mkdir()
+            cached_cues[video_path] = get_video_subtitle_cues(video_path, source_dir)
+
+        # Calculate the start and end times of the source clip in milliseconds
+        source_start_ms = round(float(item.get("start") or 0) * 1_000)
+        source_end_ms = source_start_ms + round(duration * 1_000)
+        
+        # Loop through the cached subtitle cues and clip them to the source range
+        # Then shift them by the offset of all preceding clips
+        for start_ms, end_ms, text in cached_cues[video_path]:
+            clipped_start = max(start_ms, source_start_ms)
+            clipped_end = min(end_ms, source_end_ms)
+            if clipped_end > clipped_start:
+                entries.append((
+                    offset_ms + clipped_start - source_start_ms,
+                    offset_ms + clipped_end - source_start_ms,
+                    text,
+                ))
+
+        # round the duration to milliseconds and update the offset for the next clip
+        offset_ms += round(duration * 1_000)
+
+    # Write the collected subtitle entries to the output SRT file, sorted by start time
+    if not entries:
+        return False
+    entries.sort(key=lambda entry: (entry[0], entry[1], entry[2]))
+    output_path.write_text(
+        "\n\n".join(
+            f"{index}\n{format_srt_timestamp(start_ms)} --> "
+            f"{format_srt_timestamp(end_ms)}\n{text}"
+            for index, (start_ms, end_ms, text) in enumerate(entries, start=1)
+        ) + "\n",
+        encoding="utf-8",
+    )
+    return True
+
+
+def create_image_diapo_ffmpeg(
+    image_paths: list[Path],
+    input_dir: Path,
+    audio_path: Path | None,
+    output_path: Path,
+    duration: float,
+    fps: int,
+    frame_size: tuple[int, int],
+    codec_video: str,
+    codec_audio: str,
+    processing_comment: str | None = None,
+) -> None:
+    """
+    Create a slideshow through one temporary video segment per image.
+    Encoding one source image at a time avoids loading all high-resolution
+    photos into FFmpeg's filter graph at once. Segments are then remuxed into
+    the final video, optionally with the supplied audio track.
+    """
+    # Validate input parameters
+    width, height = frame_size
+    total_duration = duration * len(image_paths)
+    
+    # use tqdm to show a progress bar for the slideshow creation
+    with progress(
+        total=len(image_paths),
+        unit="étape",
+        desc="Progression globale",
+        position=1,
+        leave=True,
+        bar_format="{l_bar}{bar}| {n:.0f}/{total:.0f} [{elapsed}<{remaining}]",
+    ) as global_progress, tempfile.TemporaryDirectory(
+        prefix="image_diapo_"
+    ) as temp_dir_name:
+        temp_dir = Path(temp_dir_name)
+        segment_paths = []
+
+        # Loop over each image and create a temporary video segment
+        for index, image_path in enumerate(image_paths):
+
+            # Calculate the scaled size for the image to fit in the frame
+            scaled_width, scaled_height = fit_image_size_in_frame(
+                get_image_size(image_path), frame_size
+            )
+            segment_path = temp_dir / f"segment_{index:05d}.mp4"
+
+            # Build the FFmpeg command to create a video segment from the image
+            command = [
+                "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+                "-loop", "1", "-framerate", str(fps), "-t", str(duration),
+                "-i", str(image_path),
+                "-vf", (
+                    f"scale={scaled_width}:{scaled_height},"
+                    f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black,"
+                    f"setsar=1,fps={fps}"
+                ),
+                "-an", "-c:v", codec_video,
+                *get_mobile_video_output_options(codec_video),
+                "-r", str(fps), "-threads", "1", "-progress", "pipe:1",
+                str(segment_path),
+            ]
+
+            # Run FFmpeg command with progress bar for each image segment
+            _run_ffmpeg_with_progress(
+                command,
+                duration,
+                f"Création du diaporama ({index + 1}/{len(image_paths)})",
+            )
+            segment_paths.append(segment_path)
+            global_progress.update(1)
+
+        # Create a temporary text file listing all segment paths for FFmpeg concatenation
+        concat_file = temp_dir / "segments.txt"
+        concat_file.write_text(
+            "".join(
+                f"file '{path.as_posix().replace("'", "'\\''")}'\n"
+                for path in segment_paths
+            ),
+            encoding="utf-8",
+        )
+
+        # Create a temporary SRT file for subtitles
+        subtitles_path = temp_dir / "subtitles.srt"
+        write_image_diapo_srt(image_paths, input_dir, duration, subtitles_path)
+        command = [
+            "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+            "-f", "concat", "-safe", "0", "-i", str(concat_file),
+        ]
+
+        # Add audio input if provided
+        if audio_path is not None:
+            command.extend(["-i", str(audio_path)])
+        
+        # Add subtitles input and map streams for final output
+        command.extend(["-i", str(subtitles_path), "-map", "0:v:0"])
+        
+        # Map audio if provided, else skip audio mapping
+        if audio_path is not None:
+            command.extend(["-map", "1:a:0?", "-c:a", codec_audio])
+
+        # Determine the index of the subtitle input based on whether audio is present
+        subtitle_input_index = 2 if audio_path is not None else 1
+        
+        # Add subtitles mapping and encoding for final output
+        command.extend([
+            "-map", f"{subtitle_input_index}:s:0",
+            "-c:s", "mov_text",
+        ])
+        command.extend(["-c:v", "copy", "-t", str(total_duration)])
+        if processing_comment:
+            command.extend(["-metadata", f"comment={processing_comment}"])
+        command.append(str(output_path))
+
+        # Run FFmpeg command to concatenate segments and add audio/subtitles
+        _run_ffmpeg_silently(command)
+
+
+def _run_ffmpeg_with_progress(
+    command: list[str],
+    duration: float,
+    desc: str,
+) -> None:
+    """
+    Run FFmpeg silently while forwarding only progress to tqdm.
+    """
+    # Run FFmpeg command with subprocess and capture output for progress
+    proc = subprocess.Popen(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+
+    # Use the consume_ffmpeg_progress function to parse FFmpeg output and update the progress bar
+    errors = consume_ffmpeg_progress(
+        proc,
+        duration=duration,
+        desc=desc,
+        position=0,
+        leave=False,
+    )
+
+    # Wait for FFmpeg to finish and check for errors
+    return_code = proc.wait()
+
+    # If FFmpeg returned a non-zero exit code, raise an exception with errors
+    if return_code != 0:
+        raise subprocess.CalledProcessError(
+            return_code, command, output="\n".join(errors)
+        )
+
+
+def _run_ffmpeg_silently(command: list[str]) -> None:
+    """
+    Run a short FFmpeg remux step without adding a progress bar.
+    """
+    # Run FFmpeg command with subprocess and capture output
+    result = subprocess.run(command, capture_output=True, text=True, check=False)
+
+    # If FFmpeg returned a non-zero exit code, raise an exception with stderr or stdout
+    if result.returncode != 0:
+        raise subprocess.CalledProcessError(
+            result.returncode, command, output=result.stderr or result.stdout
+        )
+
+
+@ui_only
+def count_cpu_threads() -> int:
+    """
+    Returns the number of CPU threads available on the machine.
+    """
+    max_threads = os.cpu_count()
+    emit(f"Nombre de threads disponibles : {max_threads}\n")
+    return max_threads
+
+
+@measure_time
+def encode_full_video(
+    input_path, output_path, codec_video, codec_audio, processing_comment=None
+):
+    """
+    Full video encoding with specified video and audio codecs.
+    Preserves the image aspect ratio and video properties.
+    """
+    # Find max threads available
+    max_threads = count_cpu_threads()
+    
+    # Get metadata to preserve SAR and other properties
+    meta = get_all_metadata(input_path)
+    video_stream = next(
+        (s for s in meta.get("streams", []) if s.get("codec_type") == "video"),
+        None
+    )
+    
+    # Get video duration for progress bar
+    duration = float(meta.get("format", {}).get("duration", 0))
+    
+    # Build FFmpeg command
+    cmd = [
+        "ffmpeg",
+        "-i", str(input_path),
+        "-c:v", codec_video,
+        "-c:a", codec_audio,
+        *get_mobile_video_output_options(codec_video),
+        "-threads", str(max_threads),
+        "-progress", "pipe:1",
+        "-hide_banner",
+        "-loglevel", "error",
+    ]
+    
+    # Preserve aspect ratio with video filter
+    video_filters = []
+    if video_stream:
+        sar = video_stream.get("sample_aspect_ratio")
+        width = video_stream.get("width")
+        height = video_stream.get("height")
+        
+        # Use scale filter to preserve aspect ratio
+        if sar and sar != "1:1" and width and height:
+            video_filters.append(
+                f"scale={width}:{height}:force_original_aspect_ratio=1:"
+                "force_divisible_by=2"
+            )
+    
+    # Add video filters if any
+    if video_filters:
+        cmd.extend(["-vf", ",".join(video_filters)])
+    
+    # Preserve color range for tv content
+    if video_stream:
+        color_range = video_stream.get("color_range", "").lower()
+        if color_range == "tv" and codec_video.lower() not in {"libx265", "hevc_amf"}:
+            cmd.extend(["-color_range", "tv"])
+    
+    # Preserve audio sample rate
+    audio_stream = next(
+        (s for s in meta.get("streams", []) if s.get("codec_type") == "audio"),
+        None
+    )
+    if audio_stream:
+        sample_rate = audio_stream.get("sample_rate")
+        if sample_rate:
+            normalized_sample_rate = normalize_audio_sample_rate(
+                sample_rate, codec_audio
+            )
+            if normalized_sample_rate:
+                if str(normalized_sample_rate) != str(sample_rate):
+                    emit(
+                        "Taux audio ajusté pour l'encodeur "
+                        f"{codec_audio}: {sample_rate} Hz -> "
+                        f"{normalized_sample_rate} Hz"
+                    )
+                cmd.extend(["-ar", str(normalized_sample_rate)])
+    
+    # Output file
+    if processing_comment:
+        cmd.extend(["-metadata", f"comment={processing_comment}"])
+    cmd.extend(["-y", str(output_path)])
+    
+    # Execute FFmpeg with progress bar
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+        
+        # Parse progress from FFmpeg output with a shared progress helper
+        filename = Path(input_path).name
+        error_lines = consume_ffmpeg_progress(proc, duration=duration, desc=filename)
+
+        # Wait enf of FFmpeg
+        proc.wait()
+        
+        # Handle errors
+        if proc.returncode != 0:
+            raise subprocess.CalledProcessError(
+                proc.returncode,
+                cmd,
+                output="\n".join(error_lines),
+            )
+
+        if Path(output_path).exists():
+            preserve_file_modification_time(Path(input_path), Path(output_path))
+        
+        emit(f"✅ Encodage réussi : {output_path}\n")
+    
+    # Handle errors
+    except subprocess.CalledProcessError as exc:
+        emit(f"❌ Erreur lors de l'encodage : {output_path}")
+        raise
+
+
+def format_duration_hms(duration_sec) -> str:
+    """
+    Convert duration in seconds to HH:MM:SS format.
+    """
+    try:
+        total_seconds = int(float(duration_sec))
+    except (TypeError, ValueError):
+        return "N/A"
+
+    hours = total_seconds // 3600
+    minutes = (total_seconds % 3600) // 60
+    seconds = total_seconds % 60
+
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+
+def get_all_metadata(video_path: Path) -> dict:
+    """
+    Keep all metadata from FFprobe as a dict.
+    """
+    # Check if file exists
+    if not video_path.exists():
+        raise FileNotFoundError(f"Fichier vidéo introuvable : {video_path}")
+
+    # Build FFprobe command
+    cmd = [
+        "ffprobe",
+        "-v", "quiet",
+        "-print_format", "json",
+        "-show_format",
+        "-show_streams",
+        str(video_path)
+    ]
+
+    # Execute FFprobe and parse JSON output
+    try:
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=True,
+            encoding="utf-8",
+            errors="replace"
+        )
+
+    # Handle errors
+    except FileNotFoundError as exc:
+        raise RuntimeError(
+            "FFprobe introuvable. Installe FFmpeg et "
+            "ajoute-le au PATH : https://ffmpeg.org/download.html"
+        ) from exc
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError(
+            f"Erreur ffprobe sur {video_path}\n"
+            f"stout: {exc.stdout}\n"
+            f"stderr: {exc.stderr}"
+        ) from exc
+
+    # Check output
+    if not proc.stdout:
+        raise RuntimeError(f"ffprobe failed for {video_path}\n{proc.stderr}")
+
+    # Return parsed metadata
+    return json.loads(proc.stdout)
+
+
+@ui_only
+def print_metadata_summary_all_keys(meta: dict):
+    """
+    Print ALL metadata keys and values from ffprobe output,
+    clearly separated by format / streams / stream type.
+    """
+
+    def print_recursive(obj, indent=0):
+        """Recursively print dicts and lists with indentation."""
+        space = "  " * indent
+
+        if isinstance(obj, dict):
+            for k, v in obj.items():
+                if isinstance(v, (dict, list)):
+                    emit(f"{space}[{k}]")
+                    print_recursive(v, indent + 1)
+                else:
+                    emit(f"{space}- {k}: {v}")
+        elif isinstance(obj, list):
+            for i, item in enumerate(obj):
+                emit(f"{space}[index_{i}]")
+                print_recursive(item, indent + 1)
+        else:
+            emit(f"{space}{obj}")
+
+    # ================= HEADER =================
+
+    emit("\n======= MÉTADONNÉES COMPLÈTES =======")
+
+    # ================= FORMAT =================
+
+    emit("\n[format]")
+    format_block = meta.get("format", meta)  # fallback safety
+    print_recursive(format_block, indent=1)
+
+    # ================= STREAMS =================
+
+    streams = meta.get("streams", [])
+
+    for idx, stream in enumerate(streams):
+        stream_type = stream.get("codec_type", "unknown")
+        emit(f"\n[stream_{idx}] ({stream_type})")
+        print_recursive(stream, indent=1)
+
+
+def safe_get(d, keys, default=None):
+        for key in keys:
+            d = d.get(key, {})
+        return d if d else default
+
+
+def format_value(key, val):
+    """
+    Format numbers with separators and units when applicable.
+    """
+    try:
+        val_num = float(val)
+    except (TypeError, ValueError):
+        return val
+    if key == "bit_rate":
+        return f"{int(val_num):,} bps"
+    elif key == "sample_rate":
+        return f"{int(val_num):,} Hz"
+    elif key in ["width", "height", "nb_frames"]:
+        return f"{int(val_num):,}"
+    elif key == "duration":
+        return f"{val_num:.1f} s"
+    elif key == "size":
+        return f"{int(val_num):,} octets"
+    else:
+        return val
+
+
+def split_streams_by_type(streams: list[dict]) -> dict:
+    """
+    Separate streams into video and audio lists.
+    """
+    out = {"video": [], "audio": [], "other": []}
+    for s in streams:
+        t = s.get("codec_type")
+        if t in out:
+            out[t].append(s)
+        else:
+            out["other"].append(s)
+    return out
+
+
+@ui_only
+def print_metadata_diff_summary(meta_before: dict, meta_after: dict):
+    """
+    Print a concise summary of key differences between two video metadata dicts.
+    Adds units and thousand separators for better readability.
+    """
+    # header
+    emit("======= DIFFÉRENCES MÉTADONNÉES =======")
+
+    # Print format-level differences
+    emit("[format]")
+    format_keys = ["filename", "duration", "size", "bit_rate"]
+    
+    # Print duration every time
+    emit(
+        f" ■  - duration: "
+        f"{format_duration_hms(meta_before['format'].get('duration'))} → "
+        f"{format_duration_hms(meta_after['format'].get('duration'))}"
+    )
+
+    
+    for k in format_keys:
+        before = meta_before.get(k)
+        after = meta_after.get(k)
+        if before != after:
+            emit(
+                f"  - {k}: {format_value(k, before)} → {format_value(k, after)}"
+            )
+
+    # Print tag differences
+    tags_before = safe_get(meta_before, ["tags"], {})
+    tags_after = safe_get(meta_after, ["tags"], {})
+    if tags_before != tags_after:
+        emit("  [tags]")
+        for tag, val_before in tags_before.items():
+            val_after = tags_after.get(tag)
+            if val_before != val_after:
+                emit(f"    - {tag}: {val_before} → {val_after}")
+
+    # Print stream-level differences
+    emit("[streams]")
+
+    # Split streams by type
+    before_by_type = split_streams_by_type(meta_before.get("streams", []))
+    after_by_type = split_streams_by_type(meta_after.get("streams", []))
+
+    # Loop over video and audio streams
+    for stream_type in ["video", "audio"]:
+        before_list = before_by_type[stream_type]
+        after_list = after_by_type[stream_type]
+
+        # Check if number of streams differ
+        for idx, (b, a) in enumerate(zip(before_list, after_list)):
+            emit(f"  [{stream_type}]")
+
+            # Codec
+            emit(
+                f" ■  - codec_name: {b.get('codec_name')}"
+                f"→ {a.get('codec_name')}"
+            )
+
+            # Video-specific info
+            if stream_type == "video":
+                dim_before = f"{b.get('width')}x{b.get('height')}"
+                dim_after = f"{a.get('width')}x{a.get('height')}"
+                emit(f" ■  - dimensions: {dim_before} → {dim_after}")
+
+            # Common numeric fields
+            for key in ["bit_rate", "duration", "sample_rate", "nb_frames"]:
+                vb = b.get(key)
+                va = a.get(key)
+                if vb != va:
+                    emit(
+                        f"    - {key}: {format_value(key, vb)} → "
+                        f"{format_value(key, va)}"
+                    )
+
+
+def compute_size_reduction(meta_before: dict, meta_after: dict) -> dict:
+    """
+    Computes file size reduction and compression factor from FFprobe metadata.
+    """
+    # Retrieve sizes from metadata
+    size_before = meta_before.get("format", {}).get("size")
+    size_after = meta_after.get("format", {}).get("size")
+
+    # Convert strings to integers safely
+    try:
+        size_before = int(size_before)
+        size_after = int(size_after)
+    except (TypeError, ValueError):
+        return {
+            "size_before": None,
+            "size_after": None,
+            "reduction_percent": None,
+            "compression_factor": None
+        }
+
+    # Avoid division by zero
+    if size_before == 0:
+        return {
+            "size_before": size_before,
+            "size_after": size_after,
+            "reduction_percent": None,
+            "compression_factor": None
+        }
+
+    # Calculate reduction and compression factor
+    reduction_percent = 100 * (1 - size_after / size_before)
+    compression_factor = size_before / size_after if size_after > 0 else None
+
+    return {
+        "size_before": size_before,
+        "size_after": size_after,
+        "reduction_percent": reduction_percent,
+        "compression_factor": compression_factor
+    }
+
+
+@ui_only
+def print_size_reduction(stats: dict):
+    """
+    Pretty display of size reduction and compression ratio with units in 
+    MB or GB.
+    """
+    # Extract stats
+    before = stats.get("size_before")
+    after = stats.get("size_after")
+    red = stats.get("reduction_percent")
+    factor = stats.get("compression_factor")
+
+    # Header
+    emit("\n======= RÉDUCTION DE TAILLE =======")
+
+    # Check if sizes are available
+    if before is None or after is None:
+        emit("Impossible de calculer : tailles non disponibles.")
+        return
+
+    # Print sizes
+    emit(f"Avant  : {format_bytes(before)}")
+    emit(f"Après  : {format_bytes(after)}")
+
+    # Print reduction and factor if available
+    if red is not None:
+        emit(f"Réduction : {red:.2f} %")
+    if factor is not None:
+        emit(f"Facteur de compression : x{factor:.2f}")
+
+
+def to_seconds(time_str: str) -> float:
+    """Convertit HH:MM:SS en secondes."""
+    h, m, s = map(float, time_str.split(":"))
+    return h * 3600 + m * 60 + s
+
+
+def load_segments_csv(csv_path: Path) -> list[dict[str, float | str | None]]:
+    """
+    Load and validate a segments.csv file.
+    Preserves row order and allows duplicate filenames.
+    """
+
+    # Check if file exists
+    if not csv_path.exists():
+        raise FileNotFoundError(f"segments.csv not found: {csv_path}")
+
+    segments: list[dict] = []
+
+    # Read CSV file
+    with csv_path.open(newline="", encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f)
+
+        # Validate required columns
+        required_fields = {"filename", "start", "end"}
+        if not required_fields.issubset(reader.fieldnames):
+            raise ValueError(
+                f"segments.csv must contain columns: {required_fields}"
+            )
+
+        # Process each row
+        for line_num, row in enumerate(reader, start=2):
+            filename = row["filename"].strip()
+
+            # Validate filename
+            if not filename:
+                raise ValueError(f"Empty filename at line {line_num}")
+
+            # Parse start and end times
+            start = to_seconds(row["start"]) if row["start"].strip() else None
+            end = to_seconds(row["end"]) if row["end"].strip() else None
+
+            # Validate start/end logic
+            if start is not None and end is not None and end <= start:
+                raise ValueError(
+                    f"end must be > start at line {line_num}"
+                )
+
+            # Append segment
+            segments.append({
+                "filename": filename,
+                "start": start,
+                "end": end,
+            })
+
+    return segments
+
+
+def resolve_video_sequence(
+    input_dir: Path,
+    accepted_ext: list[str],
+    segments: list[dict] | None
+) -> list[dict]:
+    """
+    Returns an ordered list of videos to process.
+    Each item contains: path, start, end.
+    """
+
+    # Case 1: segments.csv exists
+    if segments:
+        sequence = []
+
+        for row in segments:
+            video_path = input_dir / row["filename"]
+
+            if not video_path.exists():
+                raise FileNotFoundError(
+                    f"{row['filename']} not found in input_dir"
+                    )
+
+            sequence.append({
+                "path": video_path,
+                "start": row.get("start", 0),
+                "end": row.get("end")
+            })
+
+        return sequence
+
+    # Case 2: no segments.csv → all videos
+    sequence = []
+    for video_path in sorted(input_dir.iterdir()):
+        if is_processable_file(video_path) and video_path.suffix.lower() in accepted_ext:
+            sequence.append({
+                "path": video_path,
+                "start": None,
+                "end": None
+            })
+
+    if not sequence:
+        raise RuntimeError("No video files found to assemble.")
+
+    return sequence
+
+
+def get_inputs_metadata(
+    sequence: Iterable[dict],
+    get_metadata_fn
+) -> list[dict]:
+    """
+    Retrieve FFprobe metadata for each input video in a sequence.
+    """
+    metas = []
+
+    # Loop over sequence items
+    for idx, item in enumerate(sequence):
+        path = item.get("path")
+
+        # Validate path
+        if path is None:
+            raise ValueError(
+                f"Sequence item at index {idx} has no 'path'."
+            )
+
+        # Validate path type
+        if not isinstance(path, Path):
+            raise TypeError(
+                f"'path' must be a pathlib.Path, got {type(path)}."
+            )
+
+        # Get metadata
+        metas.append(get_metadata_fn(path))
+
+    return metas
+
+
+def sum_input_sizes(metas_before: list[dict]) -> int | None:
+    """
+    Sum file sizes from a list of FFprobe metadata dicts.
+    Prints detailed size per input.
+    Returns total size in bytes or None if invalid.
+    """
+    emit("\n======= INPUT FILE SIZES =======\n")
+
+    total = 0
+
+    # Loop over metadata dicts
+    for idx, meta in enumerate(metas_before, start=1):
+        size = meta.get("format", {}).get("size")
+        filepath = meta.get("format", {}).get("filename", f"input_{idx}")
+        filename = filepath.split("\\")[-1].split("/")[-1]
+
+
+    # Convert size to int safely and print
+        try:
+            size = int(size)
+        except (TypeError, ValueError):
+            emit(f"- {filename}: size unavailable")
+            return None
+        emit(f"- {filename}: {format_bytes(size)}")
+        total += size
+
+    emit(f"\nTOTAL INPUT SIZE: {format_bytes(total)}")
+    return total
+
+
+def compute_size_reduction_from_inputs(
+    metas_before: list[dict],
+    meta_after: dict
+) -> dict:
+    """
+    Compute size reduction between multiple input videos and one output video.
+    """
+    # Sum input sizes (with detailed print)
+    size_before = sum_input_sizes(metas_before)
+
+    size_after = meta_after.get("format", {}).get("size")
+    try:
+        size_after = int(size_after)
+    except (TypeError, ValueError):
+        size_after = None
+
+    # Avoid division by zero
+    if size_before is None or size_after is None or size_before == 0:
+        return {
+            "size_before": size_before,
+            "size_after": size_after,
+            "reduction_percent": None,
+            "compression_factor": None
+        }
+
+    # Calculate reduction and compression factor
+    reduction_percent = 100 * (1 - size_after / size_before)
+    compression_factor = size_before / size_after if size_after > 0 else None
+
+    return {
+        "size_before": size_before,
+        "size_after": size_after,
+        "reduction_percent": reduction_percent,
+        "compression_factor": compression_factor
+    }
+
+
+def shift_audio_no_reencode(
+    input_video: str,
+    output_video: str,
+    delay: float,
+    processing_comment: str | None = None,
+):
+    """
+    Shift audio without re-encoding using FFmpeg.
+    delay > 0 : audio is delayed (starts later)
+    delay < 0 : audio is advanced (starts earlier)
+    delay == 0 : no change in audio timing
+    """
+    # Build FFmpeg command based on delay direction
+    if delay > 0:
+        cmd = [
+            "ffmpeg", "-loglevel", "error", "-y",
+            "-i", input_video,
+            "-itsoffset", str(delay),
+            "-i", input_video,
+            "-map", "0:v",
+            "-map", "1:a",
+            "-c", "copy",
+            output_video
+        ]
+    elif delay < 0:
+        cmd = [
+            "ffmpeg", "-loglevel", "error", "-y",
+            "-i", input_video,
+            "-ss", str(abs(delay)),
+            "-i", input_video,
+            "-map", "0:v",
+            "-map", "1:a",
+            "-c", "copy",
+            output_video
+        ]
+    else:
+        cmd = [
+            "ffmpeg", "-loglevel", "error", "-y",
+            "-i", input_video,
+            "-c", "copy",
+            output_video
+        ]
+
+    if processing_comment:
+        cmd[-1:-1] = ["-metadata", f"comment={processing_comment}"]
+
+    # Execute FFmpeg command
+    subprocess.run(cmd, check=True)
+
+
+def load_boost_csv(csv_path: str) -> list[AudioBoost]:
+    """
+    Load audio boost segments from CSV and validate gain values.
+    """
+    # Define max gain in dB for safety
+    MAX_GAIN_DB = 20
+
+    # Load boosts from CSV and validate gain values
+    boosts = []
+    with open(csv_path, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            gain_db = float(row["gain_db"])
+            if abs(gain_db) > MAX_GAIN_DB:
+                raise ValueError(
+                    f"gain_db={gain_db} dépasse la limite de ±{MAX_GAIN_DB} dB"
+                )
+            boosts.append(AudioBoost(
+                start=convert_hhmmss_to_seconds(row["start"]),
+                end=convert_hhmmss_to_seconds(row["end"]),
+                gain_db=gain_db
+            ))
+    return boosts
+
+
+def apply_audio_boosts_ffmpeg(
+    input_video: str,
+    output_video: str,
+    csv_path: str,
+    processing_comment: str | None = None,
+) -> None:
+    """
+    Modify the audio of a video by applying gain boosts to specified segments
+    using FFmpeg. The CSV file should have columns: start, end, gain_db.
+    gain_db shoudl be between -20 and +20 for safety.
+    """
+    # Load and validate boosts from CSV
+    boosts = load_boost_csv(csv_path)
+
+    # Construct FFmpeg filter complex with volume adjustments for each segment
+    filters = []
+    for boost in boosts:
+        gain_linear = round(10 ** (boost.gain_db / 20), 4)
+        filters.append(
+            f"volume=enable='between(t,{boost.start},{boost.end})'"
+            f":volume={gain_linear}"
+        )
+        emit(
+            f"\nApplying audio boost: {boost.start}s to {boost.end}s "
+            f"with gain {boost.gain_db} dB"
+        )
+
+    # Assemble the filter chain
+    audio_filter = ",".join(filters)
+    
+    # Build FFmpeg command to apply audio boosts without re-encoding video
+    cmd = [
+        "ffmpeg", "-loglevel", "error", "-y",
+        "-i", str(input_video),
+        "-af", audio_filter,
+        "-c:v", "copy",
+        str(output_video),
+    ]
+    if processing_comment:
+        cmd[-1:-1] = ["-metadata", f"comment={processing_comment}"]
+    subprocess.run(cmd, check=True)
+
+
+def apply_video_srt_ffmpeg(
+    input_video: str,
+    output_video: str,
+    srt_path: str,
+    processing_comment: str | None = None,
+) -> None:
+    """
+    Add SRT subtitles to a video as an optional stream without re-encoding.
+    Subtitles are added as mov_text codec for MP4 containers.
+    """
+    # Build FFmpeg command to add SRT without re-encoding
+    cmd = [
+        "ffmpeg",
+        "-i", str(input_video),
+        "-i", str(srt_path),
+        "-c:v", "copy",
+        "-c:a", "copy",
+        "-c:s", "mov_text",
+        "-map", "0",
+        "-map", "1",
+        "-y",
+    ]
+    if processing_comment:
+        cmd.extend(["-metadata", f"comment={processing_comment}"])
+    cmd.append(str(output_video))
+    
+    # Execute FFmpeg command and handle errors with detailed output
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        
+        if result.returncode != 0:
+            emit(f"⚠️ FFmpeg stdout:\n{result.stdout}")
+            emit(f"⚠️ FFmpeg stderr:\n{result.stderr}")
+            raise subprocess.CalledProcessError(result.returncode, cmd)
+        
+        emit(f"✅ Sous-titres ajoutés : {output_video}\n")
+    
+    # Handle errors and print FFmpeg output for debugging
+    except subprocess.CalledProcessError as exc:
+        emit(f"❌ Erreur lors de l'ajout des SRT : {output_video}")
+        raise
+
+
+def extract_video_srt_ffmpeg(
+    input_video: str,
+    output_video: str,
+    srt_output_path: str,
+    processing_comment: str | None = None,
+) -> None:
+    """
+    Extract an embedded subtitle stream from a video into a standalone SRT
+    file, and write a copy of the video without any subtitle stream.
+    Everything is remuxed without re-encoding video/audio. Videos without
+    any subtitle stream are left untouched: nothing is written to output.
+    """
+    # Detect whether the input video actually has a subtitle stream
+    probe_cmd = [
+        "ffprobe", "-v", "error", "-select_streams", "s",
+        "-show_entries", "stream=index", "-of", "csv=p=0",
+        str(input_video),
+    ]
+    try:
+        probe_result = subprocess.run(
+            probe_cmd, capture_output=True, text=True, check=True
+        )
+    except subprocess.CalledProcessError as exc:
+        emit(f"⚠️ Impossible d'analyser les flux de {input_video} : {exc}")
+        raise
+
+    # No subtitle stream found: skip entirely, nothing written to output
+    if not probe_result.stdout.strip():
+        emit(f"ℹ️ Aucun sous-titre à extraire : {input_video}\n")
+        return
+
+    # Build FFmpeg command with two outputs in a single pass:
+    # 1. the video re-muxed without its subtitle stream
+    # 2. the subtitle stream alone, converted to a standalone .srt file
+    cmd = [
+        "ffmpeg",
+        "-i", str(input_video),
+        "-map", "0:v",
+        "-map", "0:a?",
+        "-c", "copy",
+        "-y",
+    ]
+    if processing_comment:
+        cmd.extend(["-metadata", f"comment={processing_comment}"])
+    cmd.extend([
+        str(output_video),
+        "-map", "0:s:0",
+        "-c:s", "srt",
+        "-y",
+        str(srt_output_path),
+    ])
+
+    # Execute FFmpeg command and handle errors with detailed output
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+
+        if result.returncode != 0:
+            emit(f"⚠️ FFmpeg stdout:\n{result.stdout}")
+            emit(f"⚠️ FFmpeg stderr:\n{result.stderr}")
+            raise subprocess.CalledProcessError(result.returncode, cmd)
+
+        emit(f"✅ Sous-titres extraits : {srt_output_path}")
+        emit(f"✅ Vidéo sans sous-titres : {output_video}\n")
+
+    # Handle errors and print FFmpeg output for debugging
+    except subprocess.CalledProcessError as exc:
+        emit(f"❌ Erreur lors de l'extraction des SRT : {output_video}")
+        raise
+
+def probe_video_dimensions(video_path: Path) -> tuple[int, int] | None:
+    """
+    Return (width, height) of the first video stream via FFprobe only.
+    It only probes stream metadata, so calling it does not decode video frames.
+    """
+    command = [
+        "ffprobe", "-v", "error", "-select_streams", "v:0",
+        "-show_entries", "stream=width,height", "-of", "json",
+        str(video_path),
+    ]
+    result = subprocess.run(command, capture_output=True, text=True, check=True)
+    streams = json.loads(result.stdout).get("streams", [])
+    if not streams:
+        return None
+    width = streams[0].get("width")
+    height = streams[0].get("height")
+    if not width or not height:
+        return None
+    return int(width), int(height)
+
+
+def probe_video_duration(video_path: Path) -> float:
+    """
+    Return the container duration in seconds via FFprobe.
+    """
+    command = [
+        "ffprobe", "-v", "error", "-show_entries", "format=duration",
+        "-of", "json", str(video_path),
+    ]
+    result = subprocess.run(command, capture_output=True, text=True, check=True)
+    duration = json.loads(result.stdout).get("format", {}).get("duration")
+    return float(duration) if duration else 0.0
+
+
+def probe_has_audio_stream(video_path: Path) -> bool:
+    """
+    Return whether the video file has at least one audio stream.
+    """
+    command = [
+        "ffprobe", "-v", "error", "-select_streams", "a",
+        "-show_entries", "stream=index", "-of", "csv=p=0",
+        str(video_path),
+    ]
+    result = subprocess.run(command, capture_output=True, text=True, check=True)
+    return bool(result.stdout.strip())
+
+
+def probe_video_rotation(video_path: Path) -> int:
+    """
+    Return the video stream's rotation in degrees (0, 90, 180 or 270).
+    Checks both the modern side_data display matrix and the legacy
+    'rotate' metadata tag, since sources may use either.
+    """
+    # Modern rotation: the side_data display matrix (newer cameras and phones).
+    command = [
+        "ffprobe", "-v", "error", "-select_streams", "v:0",
+        "-show_entries", "stream_side_data=rotation",
+        "-of", "default=nw=1:nk=1", str(video_path),
+    ]
+    result = subprocess.run(command, capture_output=True, text=True, check=True)
+    rotation_text = result.stdout.strip()
+    
+    # If the side_data rotation is present, use it. Otherwise, fall back to the legacy 'rotate' tag.
+    if rotation_text:
+        rotation = int(float(rotation_text)) % 360
+        return rotation
+
+    # Legacy rotation: a plain "rotate" metadata tag (older cameras and
+    # phones, e.g. the Fujifilm recordings noted in this module's header).
+    command = [
+        "ffprobe", "-v", "error", "-select_streams", "v:0",
+        "-show_entries", "stream_tags=rotate",
+        "-of", "default=nw=1:nk=1", str(video_path),
+    ]
+    result = subprocess.run(command, capture_output=True, text=True, check=True)
+    legacy_rotate = result.stdout.strip()
+
+    # If the legacy rotate tag is present, use it. Otherwise, assume no rotation.
+    if legacy_rotate:
+        rotation = int(legacy_rotate) % 360
+        return rotation
+
+    # If neither method yields a rotation, assume 0 degrees.
+    return 0
+
+
+def probe_video_display_dimensions(video_path: Path) -> tuple[int, int] | None:
+    """
+    Return (width, height) as actually displayed once rotation is applied,
+    matching what FFmpeg's default autorotate decoding renders. Raw
+    coded dimensions alone are wrong for a portrait phone video stored
+    as landscape pixels with a 90°/270° rotation tag.
+    """
+    # Probe the raw coded dimensions first
+    dimensions = probe_video_dimensions(video_path)
+
+    # If no video stream is found, return None
+    if dimensions is None:
+        return None
+    width, height = dimensions
+
+    # apply rotation to determine the actual display dimensions
+    rotation = probe_video_rotation(video_path)
+
+    # if the video is rotated 90 or 270 degrees, swap width and height
+    if rotation in (90, 270):
+        return height, width
+    return width, height
+
+
+def get_video_frame_size_from_paths(
+    paths: list[Path], max_height: int | None = None,
+) -> tuple[int, int] | None:
+    """
+    Compute the output frame size (width, height) that can fit all input
+    videos, respecting their aspect ratios and the optional maximum height.
+    """
+    # Compute the display dimensions of each video in the list
+    sizes = [probe_video_display_dimensions(p) for p in paths]
+    sizes = [s for s in sizes if s]
+    if not sizes:
+        return None
+
+    # Compute the maximum height among all videos, optionally constrained by max_height
+    frame_height = max(h for _, h in sizes)
+    if max_height is not None:
+        frame_height = min(frame_height, max_height)
+    frame_height = max(2, frame_height - frame_height % 2)
+
+    # Compute the maximum width needed to fit all videos into the chosen frame height
+    frame_width = max(
+        fit_visual_size_in_frame(s, (0, frame_height))[0] for s in sizes
+    )
+    return frame_width, frame_height
+
+
+def get_video_output_fps_from_paths(paths: list[Path]) -> float | None:
+    """
+    Same result as get_video_output_fps, but probes files with FFprobe
+    only.
+    """
+    fps_values = []
+    for path in paths:
+        _, _, average_fps = get_video_stream_frame_rates(path)
+        if average_fps:
+            fps_values.append(average_fps)
+    return max(fps_values) if fps_values else None
+
+
+def compute_trim_duration(
+    video_path: Path, start: float | None, end: float | None
+) -> float:
+    """
+    Return the duration in seconds of the [start, end] slice of a video.
+    """
+    source_duration = probe_video_duration(video_path)
+    trim_start = float(start or 0)
+    if end is not None:
+        return float(end) - trim_start
+    return source_duration - trim_start
+
+
+def build_rotation_filter(rotation: int) -> str | None:
+    """
+    Return the FFmpeg transpose filter chain that corrects a given
+    clockwise display rotation (0, 90, 180 or 270 degrees), or None
+    when no rotation is needed.
+    """
+    if rotation == 90:
+        return "transpose=2"
+    if rotation == 180:
+        return "transpose=1,transpose=1"
+    if rotation == 270:
+        return "transpose=1"
+    return None
+
+
+def probe_stream_durations(video_path: Path) -> tuple[float | None, float | None]:
+    """
+    Return (video_duration, audio_duration) in seconds for the first video
+    and audio streams, read independently via FFprobe. Some sources (in
+    particular Android/Pixel camera recordings) capture audio on a hardware
+    clock that runs at a very slightly different rate than the declared
+    sample rate: the video and audio stream durations of the SAME source
+    file can then differ by a small but constant ratio, which otherwise
+    accumulates into audible drift as more of the source is used.
+    """
+    command = [
+        "ffprobe", "-v", "error",
+        "-show_entries", "stream=codec_type,duration",
+        "-of", "json", str(video_path),
+    ]
+    result = subprocess.run(command, capture_output=True, text=True, check=True)
+    streams = json.loads(result.stdout).get("streams", [])
+    video_duration = None
+    audio_duration = None
+    for stream in streams:
+        duration = stream.get("duration")
+        if duration is None:
+            continue
+        if stream.get("codec_type") == "video" and video_duration is None:
+            video_duration = float(duration)
+        elif stream.get("codec_type") == "audio" and audio_duration is None:
+            audio_duration = float(duration)
+    return video_duration, audio_duration
+
+
+def compute_audio_drift_correction(video_path: Path) -> float | None:
+    """
+    Return the atempo factor that stretches this source's audio to match
+    its own video stream duration, or None when no correction is needed
+    or measurable. A factor > 1 speeds audio up (audio was too slow / too
+    long versus video); a factor < 1 slows it down.
+    """
+    # Probe the video and audio stream durations
+    video_duration, audio_duration = probe_stream_durations(video_path)
+
+    # If either duration is missing, we cannot compute a correction
+    if not video_duration or not audio_duration:
+        return None
+
+    # Compute the ratio of audio duration to video duration
+    ratio = audio_duration / video_duration
+
+    # If the ratio is very close to 1, no correction is needed
+    if abs(ratio - 1.0) < 0.0005:
+        return None
+
+    # If the ratio is outside of [0.5, 2.0], return None (error case)
+    if not (0.5 <= ratio <= 2.0):
+        return None
+
+    return ratio
+
+
+def render_normalized_source_clip(
+    prepared_path: Path,
+    start: float | None,
+    end: float | None,
+    frame_size: tuple[int, int],
+    output_fps: float,
+    codec_video: str,
+    codec_audio: str,
+    output_path: Path,
+) -> float:
+    """
+    Trim, rotate, scale/pad and re-encode exactly one source clip with a
+    direct FFmpeg command, then report its resulting duration.
+
+    Rotation is applied explicitly via -noautorotate + transpose, instead
+    of relying on FFmpeg's implicit autorotate, whose support varies by
+    build and silently produces a squashed/stretched picture when absent.
+    """
+    # Compute the start time and duration for trimming
+    trim_start = float(start or 0)
+    trim_duration = compute_trim_duration(prepared_path, start, end)
+
+    # Probe the source video for its rotation and display dimensions
+    rotation = probe_video_rotation(prepared_path)
+    source_size = probe_video_display_dimensions(prepared_path) or frame_size
+
+    # Compute the scaled size that fits within the target frame while preserving aspect ratio
+    scaled_width, scaled_height = fit_visual_size_in_frame(source_size, frame_size)
+    width, height = frame_size
+    
+    # Build the FFmpeg filter chain for rotation, scaling, padding, and frame rate adjustment
+    rotation_filter = build_rotation_filter(rotation)
+    filters = []
+    if rotation_filter:
+        filters.append(rotation_filter)
+    filters.append(f"scale={scaled_width}:{scaled_height}")
+    filters.append(f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black")
+    filters.append("setsar=1")
+    filters.append(f"fps={output_fps}")
+    video_filter = ",".join(filters)
+
+    # Build the FFmpeg command to process the video clip
+    command = [
+        "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+        "-noautorotate",
+        "-i", str(prepared_path),
+        "-ss", str(trim_start), "-t", str(trim_duration),
+        "-vf", video_filter,
+        "-fps_mode", "cfr",
+        "-c:v", codec_video,
+        *get_mobile_video_output_options(codec_video),
+    ]
+
+    # if the source has an audio stream, compute drift correction and apply audio filters
+    if probe_has_audio_stream(prepared_path):
+        drift_ratio = compute_audio_drift_correction(prepared_path)
+        audio_filters = []
+        if drift_ratio is not None:
+            audio_filters.append(f"atempo={drift_ratio:.6f}")
+        audio_filters.append("aresample=async=1:first_pts=0")
+        command.extend([
+            "-c:a", codec_audio,
+            "-ar", "48000", # Force 48kHz stereo for mobile compatibility
+            "-ac", "2",
+            "-af", ",".join(audio_filters),
+        ])
+    else:
+        command.append("-an")
+
+    # cut the output to the shorter of its audio/video streams to prevent drift
+    command.extend([
+        "-shortest",
+        "-metadata:s:v:0", "rotate=0",
+        "-progress", "pipe:1", str(output_path),
+    ])
+
+    # Run the FFmpeg command with progress reporting
+    _run_ffmpeg_with_progress(command, trim_duration, desc=prepared_path.name)
+    return probe_video_duration(output_path)
+
+
+def concat_normalized_clips_ffmpeg(
+    intermediate_paths: list[Path],
+    subtitle_paths: list[Path],
+    output_path: Path,
+    processing_comment: str | None,
+) -> None:
+    """
+    Join pre-normalized, same-codec intermediate clips with a pure stream
+    copy (FFmpeg concat demuxer), then remux subtitles if any.
+
+    This step never decodes a single frame, so it never loads more than
+    one source into memory.
+    """
+    with tempfile.TemporaryDirectory(prefix="video_assembly_concat_") as temp_dir_name:
+        # Build the FFmpeg concat demuxer input list
+        concat_file = Path(temp_dir_name) / "concat.txt"
+        concat_file.write_text(
+            "".join(
+                f"file '{path.as_posix().replace("'", "'\\''")}'\n"
+                for path in intermediate_paths
+            ),
+            encoding="utf-8",
+        )
+        concatenated_path = Path(temp_dir_name) / "concatenated.mp4"
+        _run_ffmpeg_silently([
+            "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+            "-f", "concat", "-safe", "0", "-i", str(concat_file),
+            "-c", "copy", str(concatenated_path),
+        ])
+
+        # No subtitles or comment to add: the concat result is the output
+        if not subtitle_paths and not processing_comment:
+            shutil.copy2(concatenated_path, output_path)
+            return
+
+        # Remux subtitle streams and the processing comment, stream copy
+        cmd = [
+            "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+            "-i", str(concatenated_path),
+        ]
+        for subtitle_path in subtitle_paths:
+            cmd.extend(["-i", str(subtitle_path)])
+        cmd.extend(["-map", "0:v:0", "-map", "0:a?"])
+        for input_index in range(1, len(subtitle_paths) + 1):
+            cmd.extend(["-map", f"{input_index}:0"])
+        cmd.extend(["-c:v", "copy", "-c:a", "copy"])
+        if subtitle_paths:
+            cmd.extend(["-c:s", "mov_text"])
+        if processing_comment:
+            cmd.extend(["-metadata", f"comment={processing_comment}"])
+        cmd.append(str(output_path))
+        _run_ffmpeg_silently(cmd)

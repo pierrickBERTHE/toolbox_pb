@@ -25,7 +25,8 @@ from unittest import mock
 sys.path.append(str(Path(__file__).resolve().parents[1] / 'toolbox_pb'))
 
 # Import the module to test
-import func_global
+import toolbox_pb.core.func_global as func_global
+from toolbox_pb.core.progress import use_progress_factory
 
 
 def test_preserve_file_modification_time_copies_only_the_source_mtime(tmp_path):
@@ -260,6 +261,17 @@ def test_print_step(capsys):
     assert "Test step" in captured.out
 
 
+def test_print_section(capsys):
+    """Test the compact heading used for one processing item."""
+    func_global.print_section("Encodage de la vidéo : test.mp4")
+
+    captured = capsys.readouterr()
+
+    assert "STEP" not in captured.out
+    assert "==> Encodage de la vidéo : test.mp4 <==" in captured.out
+    assert captured.out.count("*" * 100) == 2
+
+
 # ==========================================================
 # Tests print_json
 # ==========================================================
@@ -331,8 +343,6 @@ def test_consume_ffmpeg_progress_tracks_progress_and_errors(monkeypatch):
         created["bar"] = bar
         return bar
 
-    monkeypatch.setattr(func_global, "tqdm", fake_tqdm)
-
     proc = mock.Mock()
     proc.stdout = _FakeStdout(
         [
@@ -343,11 +353,12 @@ def test_consume_ffmpeg_progress_tracks_progress_and_errors(monkeypatch):
         ]
     )
 
-    errors = func_global.consume_ffmpeg_progress(
-        proc=proc,
-        duration=2.0,
-        desc="sample.mp4",
-    )
+    with use_progress_factory(fake_tqdm):
+        errors = func_global.consume_ffmpeg_progress(
+            proc=proc,
+            duration=2.0,
+            desc="sample.mp4",
+        )
 
     bar = created["bar"]
     assert bar.total == 2.0

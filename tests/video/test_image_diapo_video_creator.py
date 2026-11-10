@@ -9,8 +9,8 @@ import pytest
 
 sys.path.append(str(Path(__file__).resolve().parents[2] / "toolbox_pb"))
 
-from config_global import APP_CONFIG
-from video.main_video import image_diapo_video_creator
+from toolbox_pb.core.config_global import APP_CONFIG
+from toolbox_pb.core.video.main_video import image_diapo_video_creator
 
 
 @pytest.fixture
@@ -37,9 +37,9 @@ def test_image_diapo_accepts_jpeg_extension(slideshow_config):
     image.touch()
 
     with mock.patch(
-        "video.main_video.func_vid.get_image_size", return_value=(100, 100)
+        "toolbox_pb.core.video.main_video.func_vid.get_image_size", return_value=(100, 100)
     ), mock.patch(
-        "video.main_video.func_vid.create_image_diapo_ffmpeg"
+        "toolbox_pb.core.video.main_video.func_vid.create_image_diapo_ffmpeg"
     ) as create_diapo:
         assert image_diapo_video_creator(slideshow_config) is False
 
@@ -89,10 +89,10 @@ def test_image_diapo_creates_ordered_video_with_audio(slideshow_config):
         path.touch()
 
     with mock.patch(
-        "video.main_video.func_vid.get_image_size",
+        "toolbox_pb.core.video.main_video.func_vid.get_image_size",
         side_effect=[(1600, 900), (900, 1600)],
     ) as get_size, mock.patch(
-        "video.main_video.func_vid.create_image_diapo_ffmpeg"
+        "toolbox_pb.core.video.main_video.func_vid.create_image_diapo_ffmpeg"
     ) as create_diapo:
         assert image_diapo_video_creator(slideshow_config) is False
 
@@ -117,9 +117,9 @@ def test_image_diapo_creates_video_without_audio(slideshow_config):
     image = slideshow_config.INPUT_DIR / "slide.jpg"
     image.touch()
     with mock.patch(
-        "video.main_video.func_vid.get_image_size", return_value=(100, 100)
+        "toolbox_pb.core.video.main_video.func_vid.get_image_size", return_value=(100, 100)
     ), mock.patch(
-        "video.main_video.func_vid.create_image_diapo_ffmpeg"
+        "toolbox_pb.core.video.main_video.func_vid.create_image_diapo_ffmpeg"
     ) as create_diapo:
         assert image_diapo_video_creator(slideshow_config) is False
 

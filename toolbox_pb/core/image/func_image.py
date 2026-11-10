@@ -1,0 +1,532 @@
+"""
+Ce fichier contient des fonctions pour les actions sur les images
+
+Authors:
+Pierrick BERTHE
+mail: pierrick.berthe@gmx.fr
+August 2026
+"""
+# Imports standard
+import argparse
+import json
+from pathlib import Path
+import subprocess
+import shlex
+from PIL import Image, ImageOps, PngImagePlugin
+from toolbox_pb.core.func_global import (
+    build_processing_comment,
+    consume_ffmpeg_progress,
+    get_mobile_video_output_options,
+    preserve_file_modification_time,
+)
+from toolbox_pb.core.events import emit
+
+
+def _read_exif_comment(exif) -> str | None:
+    """Read the Windows Explorer XPComment value when present."""
+    value = exif.get(40092)
+    if isinstance(value, bytes):
+        return value.decode("utf-16le", errors="ignore").rstrip("\x00")
+    return value if isinstance(value, str) else None
+
+
+def build_image_processing_comment(
+    input_path: Path,
+    feature: str,
+    image_codec: str | None = None,
+) -> str:
+    """Build the next processing comment from an image's existing metadata."""
+    try:
+        with Image.open(input_path) as image:
+            exif = image.getexif()
+            previous_comment = (
+                _read_exif_comment(exif)
+                if input_path.suffix.lower() in {".jpg", ".jpeg"}
+                else image.info.get("Comment")
+            )
+    except OSError:
+        previous_comment = None
+    return build_processing_comment(previous_comment, feature, image_codec=image_codec)
+
+
+def load_background_remover():
+    """
+    Load the local withoutBG model used for background removal.
+    Source : https://github.com/withoutbg/withoutbg-python
+    """
+    try:
+        from withoutbg import WithoutBG
+    except ImportError as exc:
+        raise RuntimeError(
+            "La dépendance withoutbg est manquante. "
+            "Installez la librairie 'withoutbg' avant d'utiliser Image_withoutbg."
+        ) from exc
+
+    return WithoutBG.open_weights()
+
+
+def remove_image_background(
+    input_path: Path,
+    output_path: Path,
+    remover,
+    processing_comment: str | None = None,
+) -> None:
+    """
+    Remove an image background and save the transparent result as PNG.
+    """
+    # Validate input and output paths
+    if not input_path.is_file():
+        raise FileNotFoundError(f"Image not found or invalid: {input_path}")
+    if output_path.suffix.lower() != ".png":
+        raise ValueError("Le résultat Image_withoutbg doit être au format PNG")
+
+    # Ensure the output directory exists
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Use the withoutBG model to remove the background and save the result
+    try:
+        result = remover.remove_background(str(input_path))
+        if processing_comment:
+            png_info = PngImagePlugin.PngInfo()
+            png_info.add_text("Comment", processing_comment)
+            result.save(output_path, format="PNG", pnginfo=png_info)
+        else:
+            result.save(output_path, format="PNG")
+
+    # Handle errors
+    except (OSError, ValueError, RuntimeError) as exc:
+        raise RuntimeError(
+            f"Impossible de supprimer l'arrière-plan de '{input_path.name}': {exc}"
+        ) from exc
+
+
+def reduce_image_for_screen(
+    input_path: Path,
+    output_path: Path,
+    quality: int = 95,
+) -> tuple[int, int] | None:
+    """
+    Re-encode an image in its original format, only keeping it if lighter.
+
+    The source pixels are never resized.  EXIF orientation is applied so the
+    exported file displays identically in applications that do not interpret
+    that tag; the remaining EXIF and ICC colour profile are retained.
+
+    Returns the input and output byte sizes when an output was written, or
+    ``None`` when recompression would not make the file lighter.
+    """
+    # Validate input parameters and paths
+    if not input_path.is_file():
+        raise FileNotFoundError(f"Image not found or invalid: {input_path}")
+    if not 0 <= quality <= 100:
+        raise ValueError("quality must be between 0 and 100")
+
+    # Determine the output format based on the input file extension and validate it
+    output_format = input_path.suffix.lower()
+    if output_format not in {".jpg", ".jpeg", ".png"}:
+        raise ValueError(f"Unsupported image format: {input_path.suffix}")
+    if output_path.suffix.lower() != output_format:
+        raise ValueError("output_path must keep the same extension as input_path")
+
+    # Ensure the output directory exists and prepare a temporary candidate path for saving the image
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    candidate_path = output_path.with_suffix(f"{output_path.suffix}.tmp")
+
+    try:
+        # Open the input image and apply EXIF orientation
+        with Image.open(input_path) as source:
+
+            # Apply EXIF orientation to the image
+            image = ImageOps.exif_transpose(source)
+
+            # if the image is not in a suitable mode, convert it to RGB or RGBA as needed
+            if image.mode not in {"RGB", "RGBA", "L"}:
+                image = image.convert(
+                    "RGBA" if "A" in image.getbands() else "RGB"
+                )
+
+            # Prepare EXIF data for saving
+            exif = image.getexif()
+
+            # Remove the orientation tag (274) to avoid reapplying it on display
+            exif.pop(274, None)
+
+            image_codec = (
+                f"JPEG qualité {quality}"
+                if output_format in {".jpg", ".jpeg"}
+                else "PNG compression sans perte"
+            )
+            previous_comment = (
+                _read_exif_comment(exif)
+                if output_format in {".jpg", ".jpeg"}
+                else image.info.get("Comment")
+            )
+            processing_comment = build_processing_comment(
+                previous_comment, "image_reductor", image_codec=image_codec
+            )
+
+            save_kwargs = {}
+
+            # If EXIF data exists, convert it to bytes and include it in the save parameters
+            if exif:
+                save_kwargs["exif"] = exif.tobytes()
+
+            # If an ICC profile exists, include it in the save parameters
+            if icc_profile := image.info.get("icc_profile"):
+                save_kwargs["icc_profile"] = icc_profile
+
+            # set the appropriate save parameters for JPEG or PNG
+            if output_format in {".jpg", ".jpeg"}:
+                if image.mode not in {"RGB", "L"}:
+                    image = image.convert("RGB")
+                save_kwargs.update(
+                    format="JPEG",
+                    quality=quality,
+                    subsampling=0,
+                    optimize=True,
+                    progressive=True,
+                )
+            else:
+                png_info = PngImagePlugin.PngInfo()
+                png_info.add_text("Comment", processing_comment)
+                save_kwargs.update(
+                    format="PNG", optimize=True, compress_level=9, pnginfo=png_info
+                )
+
+            if output_format in {".jpg", ".jpeg"}:
+                exif[40092] = processing_comment.encode("utf-16le")
+                save_kwargs["exif"] = exif.tobytes()
+
+            # Save the recompressed image to the temporary candidate path
+            image.save(candidate_path, **save_kwargs)
+
+        # Compare the sizes of the original and recompressed images
+        input_size = input_path.stat().st_size
+        output_size = candidate_path.stat().st_size
+
+        # If the recompressed image is not smaller than the original => delete
+        if output_size >= input_size:
+            candidate_path.unlink()
+            return None
+        
+        # If the recompressed image is smaller, replace the original
+        candidate_path.replace(output_path)
+        preserve_file_modification_time(input_path, output_path)
+        return input_size, output_size
+    
+    # Handle any OSError that occurs during image processing
+    except OSError as exc:
+        if candidate_path.exists():
+            candidate_path.unlink()
+        raise RuntimeError(
+            f"Impossible de réduire l'image '{input_path.name}': {exc}"
+        ) from exc
+
+
+def parse_defilor_extra_args(raw_args: str | None) -> argparse.Namespace:
+    """
+    Parse optional CLI-like arguments for image_defilor.
+    Example:
+    "--height 720 --speed 50 --hold-start 2 --hold-end 2 --codec libx264"
+    """
+    # Create a parser for the extra arguments useful for image_defilor
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--height", type=int, default=1080)
+    parser.add_argument("--speed", type=float, default=35.0)
+    parser.add_argument("--fps", type=int, default=60)
+    parser.add_argument("--hold-start", type=float, default=5.0)
+    parser.add_argument("--hold-end", type=float, default=5.0)
+    parser.add_argument("--codec", type=str, default="libx265")
+    parser.add_argument("--crf", type=int, default=18)
+
+    # Tokenize the raw arguments string to handle quoted values properly.
+    tokens = shlex.split(raw_args) if raw_args else []
+    
+    # Parse the arguments and handle errors gracefully.
+    try:
+        args, unknown = parser.parse_known_args(tokens)
+    except SystemExit as exc:
+        raise ValueError("Invalid extra arguments.") from exc
+    if unknown:
+        raise ValueError(f"Unknown arguments: {' '.join(unknown)}")
+
+    return args
+
+
+def _import_pypdf_dependency():
+    """
+    Import pypdf lazily so image-only workflows do not require PDF support.
+    """
+    try:
+        from pypdf import PdfReader
+    except ImportError as exc:
+        raise RuntimeError(
+            "Dépendance PDF manquante. Installe-la avec : "
+            "poetry install ou poetry add pypdf"
+        ) from exc
+
+    return PdfReader
+
+
+def extract_pdf_images_to_files(
+    pdf_path: Path,
+    output_dir: Path,
+) -> list[Path]:
+    """
+    Extract embedded page images from a PDF as temporary image files.
+    pypdf can extract images contained in PDF pages, but it cannot render a
+    complete PDF page to an image. This supports scanned/image-based PDFs.
+    """
+    # Validate the input path before extracting images
+    if not pdf_path.exists() or not pdf_path.is_file():
+        raise FileNotFoundError(f"PDF not found or invalid: {pdf_path}")
+    if pdf_path.suffix.lower() != ".pdf":
+        raise ValueError(f"File is not a PDF: {pdf_path}")
+
+    # Extract each embedded image from PDF pages.
+    PdfReader = _import_pypdf_dependency()
+    output_dir.mkdir(parents=True, exist_ok=True)
+    extracted_images = []
+    reader = PdfReader(str(pdf_path))
+
+    # Loop through each page and its images, saving them to the output directory with unique names.
+    for page_index, page in enumerate(reader.pages, start=1):
+        for image_index, image in enumerate(page.images, start=1):
+            suffix = Path(image.name).suffix.lower() or ".img"
+            image_path = (
+                output_dir
+                / f"{pdf_path.stem}_page_{page_index:03d}_image_{image_index:03d}{suffix}"
+            )
+            image_path.write_bytes(image.data)
+            extracted_images.append(image_path)
+
+    # If no images were extracted, raise an error with a helpful message about PDF content types.
+    if not extracted_images:
+        raise RuntimeError(
+            "Aucune image exploitable trouvée dans le PDF. "
+            "Avec pypdf, Image_defilor peut importer les PDFs scannés "
+            "ou contenant des images, mais pas rendre une page PDF texte/vectorielle."
+        )
+
+    return extracted_images
+
+
+def get_image_size(image_path: Path) -> tuple[int, int]:
+    """
+    Read image width/height with ffprobe and return (width, height).
+    """
+    # Validate the input path before running ffprobe
+    if not image_path.exists() or not image_path.is_file():
+        raise FileNotFoundError(f"Image not found or invalid: {image_path}")
+
+    # Use ffprobe to get image metadata in JSON format
+    cmd = [
+        "ffprobe",
+        "-v",
+        "error",
+        "-print_format",
+        "json",
+        "-show_streams",
+        str(image_path),
+    ]
+
+    # Run the command subprocess and handle potential errors with messages
+    try:
+        result = subprocess.run(
+            cmd,
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        )
+    except FileNotFoundError as exc:
+        raise RuntimeError(
+            "ffprobe not found. Install FFmpeg and add it to PATH."
+        ) from exc
+    except subprocess.CalledProcessError as exc:
+        details = (exc.stderr or exc.stdout or "").strip()
+        raise RuntimeError(
+            "Unable to read image metadata.\n"
+            f"- File: {image_path}\n"
+            f"- Command: {' '.join(cmd)}\n"
+            f"- ffprobe details: {details if details else 'no details'}"
+        ) from exc
+
+    # Parse the ffprobe output and extract width and height, with error handling 
+    payload = json.loads(result.stdout)
+    streams = payload.get("streams", [])
+    if not streams:
+        raise RuntimeError(f"No image stream detected in {image_path}")
+
+    # Extract width and height, ensuring they are valid integers
+    width = streams[0].get("width")
+    height = streams[0].get("height")
+    if not width or not height:
+        raise RuntimeError(f"Invalid dimensions for {image_path}")
+    return int(width), int(height)
+
+
+def build_scroll_expression(
+    image_height: int,
+    output_height: int,
+    hold_start: float,
+    hold_end: float,
+    scroll_speed_px_s: float,
+) -> tuple[str, float]:
+    """
+    Build FFmpeg y expression and total duration. The y expression is piecewise:
+    - Hold at the top (y=0) for hold_start seconds
+    - Scroll linearly from 0 to travel_px at the specified speed
+    - Hold at the bottom (y=travel_px) for hold_end seconds
+    """
+    # Calculate the total vertical distance to scroll and the corresponding duration.
+    travel_px = max(image_height - output_height, 0)
+    if travel_px == 0:
+        total_duration = hold_start + hold_end + 1.0
+        return "0", total_duration
+
+    # calculate the duration of the scrolling phase based on the scroll speed
+    scroll_duration = travel_px / scroll_speed_px_s
+    
+    # Calculate the total duration of the video
+    total_duration = hold_start + scroll_duration + hold_end
+
+    # Build the FFmpeg y expression for vertical cropping over time
+    y_expr = (
+        f"if(lt(t,{hold_start}),0,"
+        f"if(lt(t,{hold_start + scroll_duration}),"
+        f"(t-{hold_start})*{scroll_speed_px_s},"
+        f"{travel_px}))"
+    )
+
+    return y_expr, total_duration
+
+
+def generate_image_defilor(
+    image_path: Path,
+    output_path: Path,
+    output_height: int,
+    fps: int,
+    scroll_speed_px_s: float,
+    hold_start: float,
+    hold_end: float,
+    codec: str,
+    crf: int,
+    processing_comment: str | None = None,
+) -> None:
+    """
+    Generate a smooth vertical scrolling video from a single image.
+    The output keeps the source width and crops vertically over time.
+    """
+    # Validate input parameters and get image dimensions
+    image_width, image_height = get_image_size(image_path)
+    if output_height <= 0:
+        raise ValueError("output_height must be > 0")
+    if fps <= 0:
+        raise ValueError("fps must be > 0")
+    if scroll_speed_px_s <= 0:
+        raise ValueError("scroll_speed_px_s must be > 0")
+    if output_height > image_height:
+        raise ValueError(
+            f"output_height ({output_height}) > image height ({image_height})"
+        )
+
+    # Build the FFmpeg y expression for vertical cropping and calculate total duration
+    y_expr, duration = build_scroll_expression(
+        image_height=image_height,
+        output_height=output_height,
+        hold_start=hold_start,
+        hold_end=hold_end,
+        scroll_speed_px_s=scroll_speed_px_s,
+    )
+
+    # Ensure the output directory exists
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Crop vertically using a time-based y expression, then enforce 4:2:0 output.
+    vf = (
+        f"crop={image_width}:{output_height}:0:'{y_expr}',"
+        "format=yuv420p"
+    )
+
+    # Build the ffmpeg command with progress output and error handling
+    cmd = [
+        "ffmpeg",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-nostats",
+        "-progress",
+        "pipe:1",
+        "-y",
+        "-loop",
+        "1",
+        "-i",
+        str(image_path),
+        "-vf",
+        vf,
+        "-t",
+        f"{duration:.3f}",
+        "-r",
+        str(fps),
+        "-c:v",
+        codec,
+        "-crf",
+        str(crf),
+        *get_mobile_video_output_options(codec),
+    ]
+    if processing_comment:
+        cmd.extend(["-metadata", f"comment={processing_comment}"])
+    cmd.append(str(output_path))
+
+    # Run the command and parse progress, with error handling and messages.
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+
+        # Parse FFmpeg progress output with the shared progress helper.
+        emit()
+        desc = f"Image defilor: {image_path.name}"
+        error_lines = consume_ffmpeg_progress(
+            proc,
+            duration=duration,
+            desc=desc
+        )
+
+        # Wait for the process to finish and check for errors
+        proc.wait()
+        if proc.returncode != 0:
+            details = " | ".join(error_lines[-3:]).strip()
+            raise subprocess.CalledProcessError(
+                proc.returncode,
+                cmd,
+                output=details,
+            )
+    except FileNotFoundError as exc:
+        raise RuntimeError(
+            "ffmpeg not found. Install FFmpeg and add it to PATH."
+        ) from exc
+    except subprocess.CalledProcessError as exc:
+        details = (exc.stderr or exc.stdout or exc.output or "").strip()
+        raise RuntimeError(
+            f"ffmpeg failed: {details if details else 'no details'}"
+        ) from exc
+
+    # Print a summary of the created video with key parameters and values.
+    emit("\nVideo created successfully:")
+    emit(f"- Source image : {image_path}")
+    emit(f"- Output       : {output_path}")
+    emit(f"- Video width  : {image_width}px (full source width)")
+    emit(f"- Video height : {output_height}px")
+    emit(f"- Scroll speed : {scroll_speed_px_s:.2f} px/s")
+    emit(f"- FPS          : {fps}")
+    emit(f"- hold-start   : {hold_start} s")
+    emit(f"- hold-end     : {hold_end} s")
+    emit(f"- codec        : {codec}")
+    emit(f"- crf          : {crf}")
+    emit(f"- Total length : {duration:.2f} s")

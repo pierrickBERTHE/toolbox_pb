@@ -5,8 +5,8 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[2] / "toolbox_pb"))
 
-from video.main_video import _extract_and_filter_assembled_srt
-import video.main_video as main_video
+from toolbox_pb.core.video.main_video import _extract_and_filter_assembled_srt
+import toolbox_pb.core.video.main_video as main_video
 
 
 def test_extracts_filters_and_replaces_assembled_video(tmp_path, monkeypatch, capsys):

@@ -11,7 +11,7 @@ import pytest
 # Add the application directory so the standalone workflow module is importable.
 sys.path.append(str(Path(__file__).resolve().parents[1] / "toolbox_pb"))
 
-import reductor_workflow as workflow
+import toolbox_pb.ui.reductor_workflow as workflow
 
 
 @pytest.mark.parametrize(

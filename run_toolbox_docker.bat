@@ -1,4 +1,4 @@
 @echo off
-REM Lance l'image deja construite ou telechargee de maniere interactive.
-docker compose run --rm toolbox
+REM Lance l'application et publie son interface sur http://localhost:8501.
+docker compose run --service-ports --rm toolbox
 pause

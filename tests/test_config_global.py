@@ -28,7 +28,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parents[1] / 'toolbox_pb'))
 
 # Import the module to test
-from config_global import AppConfig, APP_CONFIG
+from toolbox_pb.core.config_global import AppConfig, APP_CONFIG
 
 
 # -----------------------------
@@ -94,12 +94,13 @@ def test_paths_structure():
 def test_flags_are_booleans():
     """All flags must be boolean values."""
     assert isinstance(APP_CONFIG.LOG_TO_FILE, bool)
+    assert APP_CONFIG.LOG_LEVEL in {"DEBUG", "INFO", "WARNING", "ERROR"}
     assert isinstance(APP_CONFIG.ADD_CODEC_NAME_IN_OUTPUT, bool)
-    assert isinstance(APP_CONFIG.ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT, bool)
+    assert isinstance(APP_CONFIG.IMAGE_REDUCTOR_ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT, bool)
     assert isinstance(APP_CONFIG.IMAGE_REDUCTOR_JPEG_QUALITY, int)
     assert 0 <= APP_CONFIG.IMAGE_REDUCTOR_JPEG_QUALITY <= 100
-    assert isinstance(APP_CONFIG.ADD_WITHOUTBG_IN_NAME_IN_OUTPUT, bool)
-    assert isinstance(APP_CONFIG.PRINT_ALL_KEYS_IN_METADATA_SUMMARY, bool)
+    assert isinstance(APP_CONFIG.IMAGE_WITHOUTBG_ADD_WITHOUTBG_IN_NAME_IN_OUTPUT, bool)
+    assert isinstance(APP_CONFIG.VIDEO_ENCODOR_PRINT_ALL_KEYS_IN_METADATA_SUMMARY, bool)
     assert isinstance(APP_CONFIG.VIDEO_ASSEMBLOR_EXTRACT_AND_FILTER_DATES, bool)
 
 

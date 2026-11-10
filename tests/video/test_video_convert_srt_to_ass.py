@@ -8,8 +8,8 @@ import pytest
 
 sys.path.append(str(Path(__file__).resolve().parents[2] / "toolbox_pb"))
 
-from config_global import AppConfig
-from video.main_video import video_convert_srt_to_ass
+from toolbox_pb.core.config_global import AppConfig
+from toolbox_pb.core.video.main_video import video_convert_srt_to_ass
 
 
 @pytest.fixture

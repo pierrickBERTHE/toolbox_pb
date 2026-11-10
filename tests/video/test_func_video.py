@@ -42,7 +42,7 @@ from PIL import Image
 # Add the toolbox_pb directory to sys.path for imports
 sys.path.append(str(Path(__file__).resolve().parents[2] / "toolbox_pb"))
 
-from video.func_video import (
+from toolbox_pb.core.video.func_video import (
     AudioBoost,
     apply_audio_boosts_ffmpeg,
     apply_video_srt_ffmpeg,
@@ -101,7 +101,7 @@ from video.func_video import (
     concat_normalized_clips_ffmpeg,
 )
 
-from func_global import Logger
+from toolbox_pb.core.func_global import Logger
 
 
 class DummyFFmpegProcess:
@@ -153,15 +153,15 @@ def test_encode_full_video_builds_minimal_ffmpeg_command():
     proc.wait.return_value = 0
 
     with mock.patch(
-        "video.func_video.count_cpu_threads",
+        "toolbox_pb.core.video.func_video.count_cpu_threads",
         return_value=8,
     ), mock.patch(
-        "video.func_video.get_all_metadata",
+        "toolbox_pb.core.video.func_video.get_all_metadata",
         return_value=fake_meta,
     ), mock.patch(
-        "video.func_video.consume_ffmpeg_progress"
+        "toolbox_pb.core.video.func_video.consume_ffmpeg_progress"
     ) as m_progress, mock.patch(
-        "video.func_video.subprocess.Popen",
+        "toolbox_pb.core.video.func_video.subprocess.Popen",
         return_value=proc,
     ) as m_popen:
 
@@ -225,15 +225,15 @@ def test_encode_full_video_adds_optional_video_audio_flags():
     proc.wait.return_value = 0
 
     with mock.patch(
-        "video.func_video.count_cpu_threads",
+        "toolbox_pb.core.video.func_video.count_cpu_threads",
         return_value=4,
     ), mock.patch(
-        "video.func_video.get_all_metadata",
+        "toolbox_pb.core.video.func_video.get_all_metadata",
         return_value=fake_meta,
     ), mock.patch(
-        "video.func_video.consume_ffmpeg_progress"
+        "toolbox_pb.core.video.func_video.consume_ffmpeg_progress"
     ), mock.patch(
-        "video.func_video.subprocess.Popen",
+        "toolbox_pb.core.video.func_video.subprocess.Popen",
         return_value=proc,
     ) as m_popen:
 
@@ -292,15 +292,15 @@ def test_encode_full_video_adjusts_unsupported_aac_sample_rate(capsys):
     proc.wait.return_value = 0
 
     with mock.patch(
-        "video.func_video.count_cpu_threads",
+        "toolbox_pb.core.video.func_video.count_cpu_threads",
         return_value=4,
     ), mock.patch(
-        "video.func_video.get_all_metadata",
+        "toolbox_pb.core.video.func_video.get_all_metadata",
         return_value=fake_meta,
     ), mock.patch(
-        "video.func_video.consume_ffmpeg_progress"
+        "toolbox_pb.core.video.func_video.consume_ffmpeg_progress"
     ), mock.patch(
-        "video.func_video.subprocess.Popen",
+        "toolbox_pb.core.video.func_video.subprocess.Popen",
         return_value=proc,
     ) as m_popen:
 
@@ -328,18 +328,18 @@ def test_encode_full_video_raises_when_ffmpeg_returns_non_zero():
     proc.wait.return_value = 0
 
     with mock.patch(
-        "video.func_video.count_cpu_threads",
+        "toolbox_pb.core.video.func_video.count_cpu_threads",
         return_value=2,
     ), mock.patch(
-        "video.func_video.get_all_metadata",
+        "toolbox_pb.core.video.func_video.get_all_metadata",
         return_value={
             "format": {"duration": "1"},
             "streams": [],
         },
     ), mock.patch(
-        "video.func_video.consume_ffmpeg_progress"
+        "toolbox_pb.core.video.func_video.consume_ffmpeg_progress"
     ), mock.patch(
-        "video.func_video.subprocess.Popen",
+        "toolbox_pb.core.video.func_video.subprocess.Popen",
         return_value=proc,
     ):
 
@@ -470,7 +470,7 @@ def test_get_all_metadata_empty_stdout(tmp_path):
     fake_proc.stderr = "stderr info"
 
     with mock.patch(
-        "video.func_video.subprocess.run",
+        "toolbox_pb.core.video.func_video.subprocess.run",
         return_value=fake_proc,
     ):
         with pytest.raises(RuntimeError) as exc:
@@ -754,6 +754,7 @@ def test_print_size_reduction_nominal(capsys):
 
     assert "Réduction" in out
     assert "Mo" in out
+    assert "=" * 100 not in out
 
 
 def test_print_size_reduction_missing_data(capsys):
@@ -1215,7 +1216,7 @@ def test_parse_srt_cues_keeps_multiline_text_and_dot_separator():
     ]
 
 
-@patch("video.func_video.get_video_subtitle_cues")
+@patch("toolbox_pb.core.video.func_video.get_video_subtitle_cues")
 def test_input_subtitles_are_clipped_and_shifted_for_assembly(
     mock_cues,
     tmp_path,
@@ -1465,7 +1466,7 @@ def test_compute_size_reduction_from_inputs_invalid():
 # ============================================================================
 
 
-@patch("video.func_video.subprocess.run")
+@patch("toolbox_pb.core.video.func_video.subprocess.run")
 def test_delay_positive(mock_run):
     """Test that positive delay uses `-itsoffset`."""
 
@@ -1501,7 +1502,7 @@ def test_delay_positive(mock_run):
     )
 
 
-@patch("video.func_video.subprocess.run")
+@patch("toolbox_pb.core.video.func_video.subprocess.run")
 def test_delay_negative(mock_run):
     """Test that negative delay uses `-ss`."""
 
@@ -1537,7 +1538,7 @@ def test_delay_negative(mock_run):
     )
 
 
-@patch("video.func_video.subprocess.run")
+@patch("toolbox_pb.core.video.func_video.subprocess.run")
 def test_delay_zero(mock_run):
     """Test that zero delay copies streams without `-itsoffset` or `-ss`."""
 
@@ -1565,7 +1566,7 @@ def test_delay_zero(mock_run):
     )
 
 
-@patch("video.func_video.subprocess.run")
+@patch("toolbox_pb.core.video.func_video.subprocess.run")
 def test_accepts_pathlib_paths(mock_run):
     """Test that shift_audio_no_reencode accepts Path objects."""
 
@@ -1581,7 +1582,7 @@ def test_accepts_pathlib_paths(mock_run):
     assert "-itsoffset" in cmd_used
 
 
-@patch("video.func_video.subprocess.run")
+@patch("toolbox_pb.core.video.func_video.subprocess.run")
 def test_subprocess_called_with_check_true(mock_run):
     """Test that subprocess.run is always called with check=True."""
 
@@ -1597,7 +1598,7 @@ def test_subprocess_called_with_check_true(mock_run):
 
 
 @patch(
-    "video.func_video.subprocess.run",
+    "toolbox_pb.core.video.func_video.subprocess.run",
     side_effect=subprocess.CalledProcessError(
         1,
         "ffmpeg",
@@ -1616,7 +1617,7 @@ def test_ffmpeg_error_raises(mock_run):
         )
 
 
-@patch("video.func_video.subprocess.run")
+@patch("toolbox_pb.core.video.func_video.subprocess.run")
 def test_loglevel_error_always_present(mock_run):
     """
     -loglevel error is always present in the FFmpeg command.
@@ -1688,8 +1689,8 @@ def test_load_boost_csv_rejects_too_high_gain(tmp_path):
         load_boost_csv(str(csv_file))
 
 
-@patch("video.func_video.subprocess.run")
-@patch("video.func_video.load_boost_csv")
+@patch("toolbox_pb.core.video.func_video.subprocess.run")
+@patch("toolbox_pb.core.video.func_video.load_boost_csv")
 def test_apply_audio_boosts_ffmpeg_builds_command(
     mock_load_boost_csv,
     mock_run,
@@ -1743,9 +1744,9 @@ def test_apply_audio_boosts_ffmpeg_builds_command(
     assert mock_run.call_args.kwargs["check"] is True
 
 
-@patch("video.func_video.subprocess.run")
+@patch("toolbox_pb.core.video.func_video.subprocess.run")
 @patch(
-    "video.func_video.load_boost_csv",
+    "toolbox_pb.core.video.func_video.load_boost_csv",
     return_value=[],
 )
 def test_apply_audio_boosts_ffmpeg_with_no_boosts(
@@ -1771,7 +1772,7 @@ def test_apply_audio_boosts_ffmpeg_with_no_boosts(
 # ============================================================================
 
 
-@patch("video.func_video.subprocess.run")
+@patch("toolbox_pb.core.video.func_video.subprocess.run")
 def test_apply_video_srt_ffmpeg_builds_command(mock_run):
     """Test FFmpeg command construction for SRT subtitle integration."""
 
@@ -1817,7 +1818,7 @@ def test_apply_video_srt_ffmpeg_builds_command(mock_run):
     assert mock_run.call_args.kwargs["check"] is False
 
 
-@patch("video.func_video.subprocess.run")
+@patch("toolbox_pb.core.video.func_video.subprocess.run")
 def test_apply_video_srt_ffmpeg_raises_on_ffmpeg_error(mock_run):
     """Test that a FFmpeg failure raises CalledProcessError."""
 
@@ -1867,7 +1868,7 @@ def test_extract_video_srt_ffmpeg_success(tmp_path, monkeypatch, capsys):
     )
 
     monkeypatch.setattr(
-        "video.func_video.subprocess.run",
+        "toolbox_pb.core.video.func_video.subprocess.run",
         subprocess_run_mock,
     )
 
@@ -1944,7 +1945,7 @@ capsys,
     )
 
     monkeypatch.setattr(
-        "video.func_video.subprocess.run",
+        "toolbox_pb.core.video.func_video.subprocess.run",
         subprocess_run_mock,
     )
 
@@ -1978,7 +1979,7 @@ def test_extract_video_srt_ffmpeg_probe_error(
     )
 
     monkeypatch.setattr(
-        "video.func_video.subprocess.run",
+        "toolbox_pb.core.video.func_video.subprocess.run",
         MagicMock(side_effect=error),
     )
 
@@ -2015,7 +2016,7 @@ def test_get_video_stream_frame_rates(tmp_path, monkeypatch):
     )
 
     monkeypatch.setattr(
-        "video.func_video.subprocess.run",
+        "toolbox_pb.core.video.func_video.subprocess.run",
         lambda *args, **kwargs: fake_result,
     )
 
@@ -2049,7 +2050,7 @@ def test_get_video_stream_frame_rates_without_video_stream(
     )
 
     monkeypatch.setattr(
-        "video.func_video.subprocess.run",
+        "toolbox_pb.core.video.func_video.subprocess.run",
         lambda *args, **kwargs: result,
     )
 
@@ -2115,13 +2116,13 @@ def test_prepare_video_for_assembly_does_not_reencode_normal_fps(
     video_path.touch()
 
     monkeypatch.setattr(
-        "video.func_video.get_video_stream_frame_rates",
+        "toolbox_pb.core.video.func_video.get_video_stream_frame_rates",
         lambda path: ("30/1", 30.0, 30.0),
     )
 
     run_ffmpeg_mock = MagicMock()
     monkeypatch.setattr(
-        "video.func_video._run_ffmpeg_silently",
+        "toolbox_pb.core.video.func_video._run_ffmpeg_silently",
         run_ffmpeg_mock,
     )
 
@@ -2146,13 +2147,13 @@ def test_prepare_video_for_assembly_reencodes_abnormal_declared_fps(
     video_path.touch()
 
     monkeypatch.setattr(
-        "video.func_video.get_video_stream_frame_rates",
+        "toolbox_pb.core.video.func_video.get_video_stream_frame_rates",
         lambda path: ("60/1", 60.0, 30.0),
     )
 
     run_ffmpeg_mock = MagicMock()
     monkeypatch.setattr(
-        "video.func_video._run_ffmpeg_silently",
+        "toolbox_pb.core.video.func_video._run_ffmpeg_silently",
         run_ffmpeg_mock,
     )
 
@@ -2184,7 +2185,7 @@ def test_get_video_subtitle_cues_without_subtitles(
     video.touch()
 
     monkeypatch.setattr(
-        "video.func_video.subprocess.run",
+        "toolbox_pb.core.video.func_video.subprocess.run",
         lambda *args, **kwargs: subprocess.CompletedProcess(
             args=["ffprobe"],
             returncode=0,
@@ -2245,7 +2246,7 @@ def test_get_video_subtitle_cues_with_subtitle_stream(
         )
 
     monkeypatch.setattr(
-        "video.func_video.subprocess.run",
+        "toolbox_pb.core.video.func_video.subprocess.run",
         fake_run,
     )
 
@@ -2281,12 +2282,12 @@ def test_run_ffmpeg_with_progress_success(monkeypatch):
     progress = MagicMock()
 
     monkeypatch.setattr(
-        "video.func_video.subprocess.Popen",
+        "toolbox_pb.core.video.func_video.subprocess.Popen",
         lambda *args, **kwargs: process,
     )
 
     monkeypatch.setattr(
-        "video.func_video.consume_ffmpeg_progress",
+        "toolbox_pb.core.video.func_video.consume_ffmpeg_progress",
         progress,
     )
 
@@ -2327,7 +2328,7 @@ def test_run_ffmpeg_with_progress_failure(monkeypatch):
     process.wait.return_value = 1
 
     monkeypatch.setattr(
-        "video.func_video.subprocess.Popen",
+        "toolbox_pb.core.video.func_video.subprocess.Popen",
         MagicMock(return_value=process),
     )
 
@@ -2343,7 +2344,7 @@ def test_run_ffmpeg_silently_success(monkeypatch):
     """Test successful silent FFmpeg execution."""
 
     monkeypatch.setattr(
-        "video.func_video.subprocess.run",
+        "toolbox_pb.core.video.func_video.subprocess.run",
         MagicMock(
             return_value=subprocess.CompletedProcess(
                 args=["ffmpeg"],
@@ -2363,7 +2364,7 @@ def test_run_ffmpeg_silently_failure(monkeypatch):
     """Test silent FFmpeg execution failure."""
 
     monkeypatch.setattr(
-        "video.func_video.subprocess.run",
+        "toolbox_pb.core.video.func_video.subprocess.run",
         MagicMock(
             side_effect=subprocess.CalledProcessError(
                 1,
@@ -2391,7 +2392,7 @@ def test_probe_video_dimensions(tmp_path, monkeypatch):
     video.touch()
 
     monkeypatch.setattr(
-        "video.func_video.subprocess.run",
+        "toolbox_pb.core.video.func_video.subprocess.run",
         lambda *args, **kwargs: subprocess.CompletedProcess(
             args=args[0],
             returncode=0,
@@ -2421,7 +2422,7 @@ def test_probe_video_duration(monkeypatch):
     }
 
     monkeypatch.setattr(
-        "video.func_video.subprocess.run",
+        "toolbox_pb.core.video.func_video.subprocess.run",
         MagicMock(
             return_value=MagicMock(
                 stdout=json.dumps(ffprobe_output),
@@ -2442,7 +2443,7 @@ def test_probe_has_audio_stream(tmp_path, monkeypatch):
     video.touch()
 
     monkeypatch.setattr(
-        "video.func_video.subprocess.run",
+        "toolbox_pb.core.video.func_video.subprocess.run",
         lambda *args, **kwargs: subprocess.CompletedProcess(
             args=args[0],
             returncode=0,
@@ -2464,7 +2465,7 @@ def test_probe_has_audio_stream_without_audio(
     video.touch()
 
     monkeypatch.setattr(
-        "video.func_video.subprocess.run",
+        "toolbox_pb.core.video.func_video.subprocess.run",
         lambda *args, **kwargs: subprocess.CompletedProcess(
             args=args[0],
             returncode=0,
@@ -2500,7 +2501,7 @@ def test_build_rotation_filter(rotation, expected):
 def test_probe_video_rotation_from_side_data(monkeypatch):
     # ffprobe returns the rotation value expected by the helper.
     monkeypatch.setattr(
-        "video.func_video.subprocess.run",
+        "toolbox_pb.core.video.func_video.subprocess.run",
         MagicMock(
             return_value=MagicMock(
                 stdout="90\n",
@@ -2517,7 +2518,7 @@ def test_probe_video_rotation_from_side_data(monkeypatch):
 def test_probe_video_rotation_from_legacy_tag(monkeypatch):
     # Legacy rotation metadata is normalized to the [0, 360) range.
     monkeypatch.setattr(
-        "video.func_video.subprocess.run",
+        "toolbox_pb.core.video.func_video.subprocess.run",
         MagicMock(
             return_value=MagicMock(
                 stdout="-90\n",
@@ -2543,12 +2544,12 @@ def test_probe_video_display_dimensions_rotated(
     video.touch()
 
     monkeypatch.setattr(
-        "video.func_video.probe_video_dimensions",
+        "toolbox_pb.core.video.func_video.probe_video_dimensions",
         lambda _: (1920, 1080),
     )
 
     monkeypatch.setattr(
-        "video.func_video.probe_video_rotation",
+        "toolbox_pb.core.video.func_video.probe_video_rotation",
         lambda _: 90,
     )
 
@@ -2568,12 +2569,12 @@ def test_probe_video_display_dimensions_without_rotation(
     video.touch()
 
     monkeypatch.setattr(
-        "video.func_video.probe_video_dimensions",
+        "toolbox_pb.core.video.func_video.probe_video_dimensions",
         lambda _: (1920, 1080),
     )
 
     monkeypatch.setattr(
-        "video.func_video.probe_video_rotation",
+        "toolbox_pb.core.video.func_video.probe_video_rotation",
         lambda _: 0,
     )
 
@@ -2606,7 +2607,7 @@ def test_get_video_frame_size_from_paths(
     }
 
     monkeypatch.setattr(
-        "video.func_video.probe_video_display_dimensions",
+        "toolbox_pb.core.video.func_video.probe_video_display_dimensions",
         lambda path: values[path],
     )
 
@@ -2644,7 +2645,7 @@ def test_get_video_output_fps_from_paths(
     }
 
     monkeypatch.setattr(
-        "video.func_video.get_video_stream_frame_rates",
+        "toolbox_pb.core.video.func_video.get_video_stream_frame_rates",
         lambda path: values[path],
     )
 
@@ -2681,7 +2682,7 @@ def test_compute_trim_duration(
     video.touch()
 
     monkeypatch.setattr(
-        "video.func_video.probe_video_duration",
+        "toolbox_pb.core.video.func_video.probe_video_duration",
         lambda _: duration,
     )
 
@@ -2708,7 +2709,7 @@ def test_probe_stream_durations(monkeypatch):
     }
 
     monkeypatch.setattr(
-        "video.func_video.subprocess.run",
+        "toolbox_pb.core.video.func_video.subprocess.run",
         MagicMock(
             return_value=MagicMock(
                 stdout=json.dumps(ffprobe_output),
@@ -2726,7 +2727,7 @@ def test_probe_stream_durations(monkeypatch):
 def test_compute_audio_drift_correction_no_correction(monkeypatch):
     # Equal video and audio durations require no correction.
     monkeypatch.setattr(
-        "video.func_video.probe_stream_durations",
+        "toolbox_pb.core.video.func_video.probe_stream_durations",
         lambda path: (10.0, 10.0),
     )
 
@@ -2740,7 +2741,7 @@ def test_compute_audio_drift_correction_no_correction(monkeypatch):
 def test_compute_audio_drift_correction_valid_ratio(monkeypatch):
     # A duration mismatch produces an audio correction ratio.
     monkeypatch.setattr(
-        "video.func_video.probe_stream_durations",
+        "toolbox_pb.core.video.func_video.probe_stream_durations",
         lambda path: (10.0, 10.2),
     )
 
@@ -2754,7 +2755,7 @@ def test_compute_audio_drift_correction_valid_ratio(monkeypatch):
 def test_compute_audio_drift_correction_invalid_ratio(monkeypatch):
     # A zero video duration does not require a correction.
     monkeypatch.setattr(
-        "video.func_video.probe_stream_durations",
+        "toolbox_pb.core.video.func_video.probe_stream_durations",
         lambda path: (0.0, 10.0),
     )
 
@@ -2780,29 +2781,29 @@ def test_render_normalized_source_clip_without_audio(
     prepared_path.touch()
 
     monkeypatch.setattr(
-        "video.func_video.probe_video_duration",
+        "toolbox_pb.core.video.func_video.probe_video_duration",
         lambda path: 10.0,
     )
 
     monkeypatch.setattr(
-        "video.func_video.probe_video_rotation",
+        "toolbox_pb.core.video.func_video.probe_video_rotation",
         lambda path: 0.0,
     )
 
     monkeypatch.setattr(
-        "video.func_video.probe_video_display_dimensions",
+        "toolbox_pb.core.video.func_video.probe_video_display_dimensions",
         lambda path: (1920, 1080),
     )
 
     monkeypatch.setattr(
-        "video.func_video.probe_has_audio_stream",
+        "toolbox_pb.core.video.func_video.probe_has_audio_stream",
         lambda path: False,
     )
 
     ffmpeg_mock = MagicMock()
 
     monkeypatch.setattr(
-        "video.func_video._run_ffmpeg_with_progress",
+        "toolbox_pb.core.video.func_video._run_ffmpeg_with_progress",
         ffmpeg_mock,
     )
 
@@ -2831,34 +2832,34 @@ def test_render_normalized_source_clip_with_audio_drift(
     prepared_path.touch()
 
     monkeypatch.setattr(
-        "video.func_video.probe_video_duration",
+        "toolbox_pb.core.video.func_video.probe_video_duration",
         lambda path: 10.0,
     )
 
     monkeypatch.setattr(
-        "video.func_video.probe_video_rotation",
+        "toolbox_pb.core.video.func_video.probe_video_rotation",
         lambda path: 0.0,
     )
 
     monkeypatch.setattr(
-        "video.func_video.probe_video_display_dimensions",
+        "toolbox_pb.core.video.func_video.probe_video_display_dimensions",
         lambda path: (1920, 1080),
     )
 
     monkeypatch.setattr(
-        "video.func_video.probe_has_audio_stream",
+        "toolbox_pb.core.video.func_video.probe_has_audio_stream",
         lambda path: True,
     )
 
     monkeypatch.setattr(
-        "video.func_video.probe_stream_durations",
+        "toolbox_pb.core.video.func_video.probe_stream_durations",
         lambda path: (10.0, 10.2),
     )
 
     ffmpeg_mock = MagicMock()
 
     monkeypatch.setattr(
-        "video.func_video._run_ffmpeg_with_progress",
+        "toolbox_pb.core.video.func_video._run_ffmpeg_with_progress",
         ffmpeg_mock,
     )
 
@@ -2898,7 +2899,7 @@ def test_concat_normalized_clips_without_subtitles(
     run_ffmpeg = MagicMock()
 
     monkeypatch.setattr(
-        "video.func_video._run_ffmpeg_silently",
+        "toolbox_pb.core.video.func_video._run_ffmpeg_silently",
         run_ffmpeg,
     )
 
@@ -2944,7 +2945,7 @@ def test_concat_normalized_clips_with_subtitles(
     run_ffmpeg = MagicMock()
 
     monkeypatch.setattr(
-        "video.func_video._run_ffmpeg_silently",
+        "toolbox_pb.core.video.func_video._run_ffmpeg_silently",
         run_ffmpeg,
     )
 
@@ -2998,12 +2999,12 @@ def test_create_image_diapo_ffmpeg_builds_segments(
     run_ffmpeg = MagicMock()
 
     monkeypatch.setattr(
-        "video.func_video._run_ffmpeg_silently",
+        "toolbox_pb.core.video.func_video._run_ffmpeg_silently",
         run_ffmpeg,
     )
 
     monkeypatch.setattr(
-        "video.func_video._run_ffmpeg_with_progress",
+        "toolbox_pb.core.video.func_video._run_ffmpeg_with_progress",
         run_ffmpeg,
     )
 
@@ -3037,7 +3038,7 @@ def test_get_video_stream_frame_rates_invalid_ffprobe(
     video.touch()
 
     monkeypatch.setattr(
-        "video.func_video.subprocess.run",
+        "toolbox_pb.core.video.func_video.subprocess.run",
         MagicMock(
             side_effect=subprocess.CalledProcessError(
                 1,
@@ -3064,7 +3065,7 @@ def test_probe_video_dimensions_without_video_stream(monkeypatch):
     }
 
     monkeypatch.setattr(
-        "video.func_video.subprocess.run",
+        "toolbox_pb.core.video.func_video.subprocess.run",
         MagicMock(
             return_value=MagicMock(
                 stdout=json.dumps(ffprobe_output),
@@ -3088,7 +3089,7 @@ def test_probe_video_duration_invalid_output(
     video.touch()
 
     monkeypatch.setattr(
-        "video.func_video.subprocess.run",
+        "toolbox_pb.core.video.func_video.subprocess.run",
         lambda *args, **kwargs: subprocess.CompletedProcess(
             args=args[0],
             returncode=0,

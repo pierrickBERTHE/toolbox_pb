@@ -8,7 +8,7 @@ import sys
 
 sys.path.append(str(Path(__file__).resolve().parents[2] / "toolbox_pb"))
 
-from file.main_file import (
+from toolbox_pb.core.file.main_file import (
     cache_nettoyor,
     file_str_remover,
     file_timeline_sorter,
@@ -32,7 +32,7 @@ def test_file_timeline_sorter_copies_files_from_their_modification_dates(tmp_pat
     }
 
     with mock.patch(
-        "file.main_file.func_file.get_file_modification_time",
+        "toolbox_pb.core.file.main_file.func_file.get_file_modification_time",
         side_effect=lambda path: modification_times[path],
     ):
         is_empty = file_timeline_sorter(cfg)
@@ -141,9 +141,9 @@ def test_cache_nettoyor_reports_sizes_before_and_after(tmp_path, capsys):
     cache.mkdir()
     (cache / "file").write_bytes(b"x" * 2_000_000)
     with (
-        mock.patch("file.main_file.CACHE_FOLDERS", [cache]),
-        mock.patch("file.main_file.func_file.get_cli_caches", return_value=[]),
-        mock.patch("file.main_file.func_file.run_cli_cleaners", return_value=0),
+        mock.patch("toolbox_pb.core.file.main_file.CACHE_FOLDERS", [cache]),
+        mock.patch("toolbox_pb.core.file.main_file.func_file.get_cli_caches", return_value=[]),
+        mock.patch("toolbox_pb.core.file.main_file.func_file.run_cli_cleaners", return_value=0),
     ):
         cache_nettoyor()
 
