@@ -2,7 +2,7 @@
 
 from toolbox_pb.core.config_global import AppConfig
 from toolbox_pb.core.image.main_image import image_defilor
-from toolbox_pb.core.video.main_video import video_audio_decalator
+from toolbox_pb.core.video.main_video import video_audio_decalator, video_rotator
 
 
 def run_image_defilor_interactive(cfg: AppConfig) -> bool:
@@ -33,3 +33,13 @@ def run_video_audio_decalator_interactive(cfg: AppConfig) -> bool:
             return video_audio_decalator(cfg, float(user_input))
         except ValueError:
             print("Format invalide. Entrer un nombre valide (ex : -0.5, 0.5).")
+
+
+def run_video_rotator_interactive(cfg: AppConfig) -> bool:
+    """Ask for a supported rotation angle before invoking the core operation."""
+    while True:
+        angle = input("Entrez l’angle de rotation (90°, 180° ou 270°) : ")
+        try:
+            return video_rotator(cfg, angle)
+        except ValueError as exc:
+            print(f"Angle invalide : {exc}")

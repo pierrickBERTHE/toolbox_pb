@@ -1998,6 +1998,74 @@ def build_rotation_filter(rotation: int) -> str | None:
     return None
 
 
+def validate_rotation_angle(angle: int | str) -> int:
+    """Return a supported clockwise rotation angle.
+
+    ``video_rotator`` deliberately accepts only quarter turns: 90, 180 and
+    270 degrees.  Keeping this validation close to the FFmpeg helper also
+    protects callers other than the UI and CLI.
+    """
+    if isinstance(angle, bool):
+        raise ValueError("L'angle doit être 90, 180 ou 270 degrés.")
+
+    if isinstance(angle, str):
+        candidate = angle.strip()
+        if candidate not in {"90", "180", "270"}:
+            raise ValueError("L'angle doit être 90, 180 ou 270 degrés.")
+        return int(candidate)
+
+    if not isinstance(angle, int) or angle not in {90, 180, 270}:
+        raise ValueError("L'angle doit être 90, 180 ou 270 degrés.")
+    return angle
+
+
+def rotate_video_ffmpeg(
+    input_video: Path,
+    output_video: Path,
+    angle: int | str,
+    codec_video: str,
+    processing_comment: str | None = None,
+) -> None:
+    """Rotate a video image clockwise while preserving non-video streams.
+
+    FFmpeg's transpose filter is lossless in geometry but requires video
+    re-encoding. Audio, subtitle and data streams are copied untouched.  The
+    output rotation metadata is cleared because the pixels already contain the
+    requested rotation.
+    """
+    # Validate the requested rotation angle
+    validated_angle = validate_rotation_angle(angle)
+    
+    # Build the dictionary of FFmpeg filters for each supported rotation angle
+    filters = {
+        90: "transpose=1",
+        180: "transpose=1,transpose=1",
+        270: "transpose=2",
+    }
+    duration = probe_video_duration(input_video)
+    output_video.parent.mkdir(parents=True, exist_ok=True)
+    
+    # Build the FFmpeg command to rotate the video
+    command = [
+        "ffmpeg", "-y", "-i", str(input_video),
+        "-map", "0",
+        "-vf", filters[validated_angle],
+        "-c:v", codec_video,
+        "-c:a", "copy",
+        "-c:s", "copy",
+        "-map_metadata", "0",
+        "-metadata:s:v:0", "rotate=0",
+        "-progress", "pipe:1",
+        "-hide_banner", "-loglevel", "error",
+    ]
+
+    # Add a processing comment to the output metadata if provided
+    if processing_comment:
+        command.extend(["-metadata", f"comment={processing_comment}"])
+    command.append(str(output_video))
+    _run_ffmpeg_with_progress(command, duration, input_video.name)
+
+
 def probe_stream_durations(video_path: Path) -> tuple[float | None, float | None]:
     """
     Return (video_duration, audio_duration) in seconds for the first video

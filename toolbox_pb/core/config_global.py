@@ -140,6 +140,7 @@ class AppConfig:
     # Flags — default values ​​can be changed here, and ONLY here
     LOG_TO_FILE: bool = True
     LOG_LEVEL: str = "INFO"
+    OPEN_OUTPUT_DIR_AFTER_TREATMENT: bool = True
     ADD_CODEC_NAME_IN_OUTPUT: bool = False
     VIDEO_ENCODOR_PRINT_ALL_KEYS_IN_METADATA_SUMMARY: bool = False
     IMAGE_WITHOUTBG_ADD_WITHOUTBG_IN_NAME_IN_OUTPUT: bool = False

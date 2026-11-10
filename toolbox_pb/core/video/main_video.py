@@ -503,6 +503,50 @@ def video_volume_adjust(cfg: AppConfig) -> bool:
 
 
 @func_glob.measure_time
+def video_rotator(cfg: AppConfig, angle: int | str | None = None) -> bool:
+    """Rotate every input video clockwise by 90, 180 or 270 degrees."""
+    if angle is None:
+        raise ValueError("Un angle de rotation doit être fourni.")
+    angle = func_vid.validate_rotation_angle(angle)
+    config = func_glob.parse_config(cfg)
+    is_empty_folder = True
+
+    # loop through all files in input directory
+    for input_file in config["input_dir"].rglob("*"):
+        if (
+            not func_glob.is_processable_file(input_file)
+            or input_file.suffix.lower() not in config["accepted_file"]
+        ):
+            continue
+
+        # create output subdirectory structure based on input file path
+        output_subdir = func_glob.build_output_subdir_from_input(
+            input_file, config["input_dir"], config["output_dir"]
+        )
+        # Keep the exact source filename between input and output
+        output_path = output_subdir / input_file.name
+
+        # Check if already rotated
+        if output_path.exists():
+            emit("Rotation déjà réalisée.")
+        else:
+            func_vid.rotate_video_ffmpeg(
+                input_video=input_file,
+                output_video=output_path,
+                angle=angle,
+                codec_video=config["codec_v"],
+                processing_comment=func_glob.build_video_processing_comment(
+                    input_file,
+                    f"video_rotator | Rotation image : {angle}°",
+                    config["codec_v"]
+                ),
+            )
+        is_empty_folder = False
+
+    return is_empty_folder
+
+
+@func_glob.measure_time
 def video_srt_extractor(cfg: AppConfig) -> bool:
     """
     Extract SRT subtitles from video files in the input directory.
