@@ -17,7 +17,8 @@ dependencies = [
     "pygments (>=2.21.0,<3.0.0)",
     "mutagen (>=1.48.1,<2.0.0)",
     "filelock (>=4.2.4,<5.0.0)",
-    "streamlit (>=1.51.0,<2.0.0)"
+    "streamlit (>=1.51.0,<2.0.0)",
+    "yt-dlp[default] (>=2026.10.26,<2027.0.0)"
 ]
 
 

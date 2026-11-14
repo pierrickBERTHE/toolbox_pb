@@ -9,7 +9,7 @@ Le projet fournit une interface Streamlit qui lit les fichiers depuis `data/inpu
 Fonctionnalites disponibles dans l'interface :
 `-- VIDEO --`
 - `Video_encodor` : reencode chaque video du dossier d'entree avec les codecs configures. Une barre de progression, les comparaisons de taille et un bilan global sont affiches. Il ne copie pas les images : elles sont reservees a `Image_reductor`. Le MP4 de sortie contient un commentaire de suivi de traitement.
-- `Video_assemblor` : assemble plusieurs videos en un seul fichier. Si `data/segment/segments.csv` existe, il definit l'ordre des clips et leurs points de debut/fin ; sinon, les videos sont assemblees dans l'ordre des noms de fichiers. Chaque clip est redimensionne sans deformation pour remplir toute la hauteur de la trame commune ; les formats portrait et paysage peuvent donc etre assembles sans bandes en haut ou en bas. Les sous-titres deja integres aux sources sont conserves et leurs timings sont recalcules ; une piste de dates est ajoutee si le flag correspondant est active. Le MP4 assemble contient un commentaire de suivi de traitement.
+- `Video_assemblor` : assemble plusieurs videos en un seul fichier. Si `data/segment/segments.csv` existe, il definit l'ordre des clips et leurs points de debut/fin ; sinon, les videos sont assemblees dans l'ordre des noms de fichiers. Chaque clip est affiche avec la meme orientation que dans VLC : les metadonnees de rotation sont appliquees a ses pixels pendant la normalisation, puis supprimees. Ainsi, une rotation d'une source ne se propage jamais aux clips suivants. Chaque clip est ensuite redimensionne sans deformation pour remplir toute la hauteur de la trame commune ; les formats portrait et paysage peuvent donc etre assembles sans bandes en haut ou en bas. Les sous-titres deja integres aux sources sont conserves et leurs timings sont recalcules ; une piste de dates est ajoutee si le flag correspondant est active. Le MP4 assemble contient un commentaire de suivi de traitement.
 - `Video_audio_decalator` : avance ou retarde la piste audio d'une video sans reencoder le flux video.
 - `Video_volume_adjust` : applique des variations de volume audio sur des plages temporelles definies dans `data/segment/boosts.csv`, sans reencoder le flux video.
 - `Video_srt_extractor` : extrait la piste de sous-titres deja integree a chaque video du dossier d'entree vers un fichier `.srt` independant place a cote de la video, et produit une copie de la video sans cette piste, sans reencoder l'audio ou la video. Les videos sans piste de sous-titres sont ignorees : rien n'est ecrit dans `data/output` pour elles.
@@ -32,14 +32,19 @@ Fonctionnalites disponibles dans l'interface :
 - `File_str_remover` : copie les fichiers du dossier d'entree vers le dossier de sortie en supprimant la chaîne demandée de leurs noms. Les fichiers source restent intacts.
 - `Folder_date_renammer` : copie les dossiers directement presents dans `data/input` et, lorsqu'un nom contient une date francaise valide, le renomme en `AAMMJJ-titre`. Les mois avec ou sans accent et une faute de frappe non ambiguë sont reconnus ; les dossiers sans date sont copies sans renommage.
 - `Cache_nettoyor` : affiche l'espace occupe avant et apres nettoyage, puis vide les caches locaux connus de Poetry, npm, Windows, Office, Chrome, Teams et Firefox lorsqu'ils existent. Il utilise aussi les commandes officielles de nettoyage des caches `pip` et `uv` lorsqu'elles sont disponibles.
+`-- WEB --`
+- `YouTube Downloader` : télécharge localement une vidéo YouTube autorisée, en MP3 (audio) ou MP4 (vidéo), depuis une URL. Le débit MP3 et la définition maximale MP4 sont sélectionnables. Dans Streamlit, les sous-titres SRT peuvent être récupérés pour les vidéos et le MP4 est analysé puis envoyé automatiquement vers `Video_encodor` uniquement lorsqu'une réduction de taille H.265 est estimée utile. Les fichiers restent directement dans `data/output`, avec les suffixes `_download` et, le cas échéant, `_processed`.
 
 ## Prerequis
 
 - Python `>= 3.12`
 - [Poetry](https://python-poetry.org/)
 - [FFmpeg](https://ffmpeg.org/download.html) installe et accessible dans le `PATH`
+- [Deno](https://docs.deno.com/runtime/getting_started/installation/) 2.9.8 ou plus récent, installé dans le `PATH`, pour les téléchargements YouTube
 
 Sans `FFmpeg` et `FFprobe`, les traitements video/image ne fonctionneront pas.
+FFmpeg est également requis par le téléchargeur YouTube pour convertir l’audio en MP3 ou fusionner les flux vidéo et audio en MP4.
+Le paquet `yt-dlp-ejs`, installé automatiquement par Poetry, fournit les scripts de résolution nécessaires à YouTube.
 
 ## Installation
 
@@ -211,23 +216,54 @@ Le projet conserve la structure des sous-dossiers de `data/input` vers `data/out
 | 6 | `Video_srt_integrator` | Une ou plusieurs videos acceptees | `sous_titre.srt` requis | Une video avec piste de sous-titres par source |
 | 7 | `Video_srt_date_filtrator` | Un ou plusieurs fichiers SRT au format `.srt` ou `.txt` | Aucun | Un fichier filtre par source, ne conservant que la premiere occurrence de chaque date |
 | 8 | `Video_ass_hard_integrator` | Une ou plusieurs videos et un ou plusieurs fichiers `.srt` ou `.ass` | `template_sous_titre.ass` requis pour les SRT | Une video reencodee par source, avec les sous-titres incrustes |
-| 9 | `Image_defilor` | Images acceptees et/ou PDF | Aucun | Une video defilante par image ou page PDF |
-| 10 | `Image_reductor` | Images, et eventuellement autres fichiers a copier | Aucun | Images reduites et copies intactes des fichiers non-video |
-| 11 | `Image_diapo_video_creator` | Images acceptees ; un audio facultatif | Aucun | Un MP4 de diaporama avec piste de sous-titres |
-| 12 | `Image_withoutbg` | Images acceptees | Aucun | Une image sans arriere-plan par source |
-| 13 | `Audio_compressor` | Un ou plusieurs fichiers audio acceptes | Aucun | Un MP3 par source ; les MP3 deja au debit cible sont copies intacts |
-| 14 | `PDF_filigranor` | Un ou plusieurs PDF | Aucun ; le destinataire est demande au menu | Un PDF filigrane par source |
-| 15 | `PDF_assemblor` | Un ou plusieurs PDF | Aucun | Un seul PDF `pdf_assemblage.pdf` |
-| 16 | `PDF_page_alternator` | `impaire.pdf` et `paire.pdf` dans le dossier d’entree | Aucun | `pdf_pages_alternees.pdf` |
-| 17 | `File_timeline_sorter` | Tout fichier source sauf `.gitkeep` | Aucun | Une copie par fichier, prefixee par sa date de modification |
-| 18 | `File_str_remover` | Tout fichier source sauf `.gitkeep` | La chaîne à supprimer, demandée au menu | Une copie par fichier avec la chaîne retirée du nom |
-| 19 | `Folder_date_renammer` | Un ou plusieurs dossiers directement dans `data/input` | Aucun | Une copie complète de chaque dossier ; les noms contenant une date française valide sont préfixés par `AAMMJJ-` |
-| 20 | `Cache_nettoyor` | Aucun fichier dans `data/input` | Aucun | Nettoyage des caches locaux connus et bilan de l'espace libéré |
-| 21 | Quitter | — | — | Ferme l'application |
+| 9 | `Video_rotator` | Une ou plusieurs vidéos acceptées | Aucun : l'angle est demandé dans le terminal | Une vidéo tournée par source |
+| 10 | `Image_defilor` | Images acceptees et/ou PDF | Aucun | Une video defilante par image ou page PDF |
+| 11 | `Image_reductor` | Images, et eventuellement autres fichiers a copier | Aucun | Images reduites et copies intactes des fichiers non-video |
+| 12 | `Image_diapo_video_creator` | Images acceptees ; un audio facultatif | Aucun | Un MP4 de diaporama avec piste de sous-titres |
+| 13 | `Image_withoutbg` | Images acceptees | Aucun | Une image sans arriere-plan par source |
+| 14 | `Audio_compressor` | Un ou plusieurs fichiers audio acceptes | Aucun | Un MP3 par source ; les MP3 deja au debit cible sont copies intacts |
+| 15 | `PDF_filigranor` | Un ou plusieurs PDF | Aucun ; le destinataire est demande au menu | Un PDF filigrane par source |
+| 16 | `PDF_assemblor` | Un ou plusieurs PDF | Aucun | Un seul PDF `pdf_assemblage.pdf` |
+| 17 | `PDF_page_alternator` | `impaire.pdf` et `paire.pdf` dans le dossier d’entree | Aucun | `pdf_pages_alternees.pdf` |
+| 18 | `File_timeline_sorter` | Tout fichier source sauf `.gitkeep` | Aucun | Une copie par fichier, prefixee par sa date de modification |
+| 19 | `File_str_remover` | Tout fichier source sauf `.gitkeep` | La chaîne à supprimer, demandée au menu | Une copie par fichier avec la chaîne retirée du nom |
+| 20 | `Folder_date_renammer` | Un ou plusieurs dossiers directement dans `data/input` | Aucun | Une copie complète de chaque dossier ; les noms contenant une date française valide sont préfixés par `AAMMJJ-` |
+| 21 | `Cache_nettoyor` | Aucun fichier dans `data/input` | Aucun | Nettoyage des caches locaux connus et bilan de l'espace libéré |
+| 22 | `YouTube Downloader` | Aucun : une URL YouTube est demandée | Aucun | Un MP3 ou MP4 dans `data/output`, avec des SRT éventuels pour le MP4 |
+| 23 | Quitter | — | — | Ferme l'application |
 
 `Video_assemblor` et `PDF_assemblor` classent leurs entrees par chemin relatif
 dans `data/input` lorsqu'aucun ordre explicite n'est fourni. Pour les autres
 fonctionnalites, l'ordre n'a d'importance que lorsqu'il est indique ci-dessous.
+
+### YouTube Downloader
+
+L'option `22` de l'interface CLI et la catégorie **Web** de Streamlit
+téléchargent une vidéo YouTube uniquement lorsque vous êtes autorisé à la
+récupérer. L'URL doit appartenir à `youtube.com` ou `youtu.be`. Les fichiers
+sont écrits directement dans `data/output` : `data/input` n'est pas utilisé.
+
+- **MP3 audio** : choisissez `320`, `256`, `192`, `160` ou `128 kb/s` ; la
+  valeur par défaut est `160 kb/s`. Le résultat final est uniquement un MP3
+  nommé `titre [id]_download.mp3` ; les flux WebM/M4A temporaires sont
+  supprimés.
+- **MP4 vidéo** : choisissez une définition maximale parmi `2160p`, `1440p`,
+  `1080p`, `720p`, `480p` et `360p` ; la valeur par défaut est `1080p`.
+  YouTube peut ne pas proposer le niveau demandé : Streamlit indique alors la
+  définition réellement utilisée. Le fichier est nommé
+  `titre [id]_download.mp4`.
+- **Sous-titres SRT (Streamlit, MP4)** : cette option est désactivée par
+  défaut. Un sous-titre fourni en français est prioritaire et produit le seul
+  fichier `titre [id]_download.srt`. À défaut, le sous-titre fourni en anglais
+  (`.en.srt`) et/ou le sous-titre automatique français de YouTube
+  (`.fr-auto.srt`) sont téléchargés lorsqu'ils existent. Un échec optionnel de
+  sous-titres, y compris une limitation HTTP 429, ne supprime pas le média déjà
+  téléchargé.
+- **Post-traitement vidéo (Streamlit, MP4)** : les caractéristiques du fichier
+  téléchargé sont affichées. `Video_encodor` démarre immédiatement seulement
+  si une réduction de taille en H.265 est estimée ; il est ignoré pour AV1,
+  H.265/HEVC ou lorsqu'une augmentation de taille est probable. Le résultat
+  éventuel est placé à côté de l'original avec le suffixe `_processed.mp4`.
 
 ### `data/segment/segments.csv`
 
@@ -256,6 +292,11 @@ Si ce fichier n'existe pas, toutes les videos de `data/input` et de ses
 sous-dossiers sont assemblees par ordre alphabetique de leur chemin relatif.
 Les sous-titres deja contenus dans les videos sont conserves et leurs timings
 sont recalcules dans la nouvelle video.
+
+L'orientation de chaque source est normalisee individuellement selon sa
+metadonnee de rotation, comme lors de la lecture dans VLC. La rotation est
+integree aux pixels du clip normalise puis retiree des metadonnees : elle ne
+peut donc pas modifier l'orientation des clips suivants dans le fichier final.
 
 ### `data/segment/boosts.csv`
 

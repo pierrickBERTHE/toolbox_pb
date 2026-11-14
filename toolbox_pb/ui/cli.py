@@ -42,6 +42,7 @@ from toolbox_pb.ui.cli_helpers import (
     run_image_defilor_interactive,
     run_video_audio_decalator_interactive,
     run_video_rotator_interactive,
+    run_youtube_downloader_interactive,
 )
 from toolbox_pb.ui import reductor_workflow
 
@@ -124,10 +125,12 @@ def main(cfg : AppConfig):
     print("19. File_str_remover")
     print("20. Folder_date_renammer")
     print("21. Cache_nettoyor")
-    print("\n22. Quitter")
+    print("\n-- WEB --")
+    print("22. YouTube Downloader")
+    print("\n23. Quitter")
 
     # Get user choice
-    choix = input("\nSélectionnez une option (1-22) : ")
+    choix = input("\nSélectionnez une option (1-23) : ")
     # choix = "5"
 
     # Default value if selected action does not return a folder-state flag.
@@ -275,6 +278,13 @@ def main(cfg : AppConfig):
             return
 
         case "22":
+            print("\nLancement du YouTube Downloader...")
+            youtube_result = run_youtube_downloader_interactive(cfg)
+            if youtube_result is None:
+                return
+            is_empty_folder = youtube_result
+
+        case "23":
             print("Quitter l'application. Au revoir !")
             sys.exit(0)
 
