@@ -2168,6 +2168,9 @@ def test_prepare_video_for_assembly_reencodes_abnormal_declared_fps(
     assert result != video_path
     assert result.suffix == ".mp4"
     run_ffmpeg_mock.assert_called_once()
+    command = run_ffmpeg_mock.call_args.args[0]
+    assert "transpose" not in " ".join(command)
+    assert command[command.index("-metadata:s:v:0") + 1] == "rotate=0"
 
 
 # ============================================================================
@@ -2786,11 +2789,6 @@ def test_render_normalized_source_clip_without_audio(
     )
 
     monkeypatch.setattr(
-        "toolbox_pb.core.video.func_video.probe_video_rotation",
-        lambda path: 0.0,
-    )
-
-    monkeypatch.setattr(
         "toolbox_pb.core.video.func_video.probe_video_display_dimensions",
         lambda path: (1920, 1080),
     )
@@ -2820,6 +2818,9 @@ def test_render_normalized_source_clip_without_audio(
 
     assert result == pytest.approx(10.0)
     ffmpeg_mock.assert_called_once()
+    command = ffmpeg_mock.call_args.args[0]
+    assert "transpose" not in " ".join(command)
+    assert command[command.index("-metadata:s:v:0") + 1] == "rotate=0"
 
 
 def test_render_normalized_source_clip_with_audio_drift(
@@ -2834,11 +2835,6 @@ def test_render_normalized_source_clip_with_audio_drift(
     monkeypatch.setattr(
         "toolbox_pb.core.video.func_video.probe_video_duration",
         lambda path: 10.0,
-    )
-
-    monkeypatch.setattr(
-        "toolbox_pb.core.video.func_video.probe_video_rotation",
-        lambda path: 0.0,
     )
 
     monkeypatch.setattr(
@@ -2876,6 +2872,7 @@ def test_render_normalized_source_clip_with_audio_drift(
 
     assert result == pytest.approx(10.0)
     ffmpeg_mock.assert_called_once()
+    assert "transpose" not in " ".join(ffmpeg_mock.call_args.args[0])
 
 
 # ============================================================================
@@ -2921,6 +2918,7 @@ def test_concat_normalized_clips_without_subtitles(
         "concat" in " ".join(command)
         for command in commands
     )
+    assert all("-display_rotation:v:0" not in command for command in commands)
 
 
 def test_concat_normalized_clips_with_subtitles(
