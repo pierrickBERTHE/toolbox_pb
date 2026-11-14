@@ -349,7 +349,7 @@ def test_consume_ffmpeg_progress_tracks_progress_and_errors(monkeypatch):
             "frame=1\n",
             "out_time_ms=1000000\n",
             "Some ERROR happened\n",
-            "out_time_ms=2500000\n",
+            "out_time_us=2500000\n",
         ]
     )
 

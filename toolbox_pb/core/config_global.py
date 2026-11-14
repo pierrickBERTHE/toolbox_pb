@@ -15,8 +15,13 @@ from typing import List
 # CONFIGURATION CONSTANTS
 # -----------------------------
 
-# paths (depend of the execution path)
-ROOT = Path(__file__).resolve().parents[2]
+# Project paths shared by the application interfaces and processing modules.
+PROJECT_DIR = Path(__file__).resolve().parents[2]
+PACKAGE_DIR = Path(__file__).resolve().parents[1]
+IMAGE_EXAMPLE_DIR = PROJECT_DIR / "image" / "examples"
+
+# Backward-compatible project root used by the existing application config.
+ROOT = PROJECT_DIR
 LOG_DIR = ROOT / "log"
 INPUT_DIR = ROOT / "data" / "input"
 OUTPUT_DIR = ROOT / "data" / "output"
@@ -81,6 +86,18 @@ CODEC_AUDIO = "aac"
 
 # Audio compressor
 AUDIO_COMPRESSOR_MP3_BITRATE_KBPS = 160
+
+# YouTube video encoder settings: 
+# only start encoding when an H.265 size reduction is likely.
+YOUTUBE_VIDEO_ENCODOR_MIN_EXPECTED_SAVINGS_PERCENT = 10.0
+YOUTUBE_VIDEO_ENCODOR_TARGET_TOTAL_BITRATE_KBPS_BY_HEIGHT = (
+    (360, 450),
+    (480, 700),
+    (720, 1_500),
+    (1080, 2_800),
+    (1440, 5_000),
+    (2160, 9_000),
+)
 
 # Logging
 LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR")
@@ -164,6 +181,14 @@ class AppConfig:
     # Audio compressor (MP3 output)
     AUDIO_COMPRESSOR_MP3_BITRATE_KBPS: int = AUDIO_COMPRESSOR_MP3_BITRATE_KBPS
     AUDIO_COMPRESSOR_COPY_JPEG_FILES: bool = True
+
+    # YouTube: only start Video_encodor when an H.265 size reduction is likely.
+    YOUTUBE_VIDEO_ENCODOR_MIN_EXPECTED_SAVINGS_PERCENT: float = (
+        YOUTUBE_VIDEO_ENCODOR_MIN_EXPECTED_SAVINGS_PERCENT
+    )
+    YOUTUBE_VIDEO_ENCODOR_TARGET_TOTAL_BITRATE_KBPS_BY_HEIGHT: tuple[
+        tuple[int, int], ...
+    ] = YOUTUBE_VIDEO_ENCODOR_TARGET_TOTAL_BITRATE_KBPS_BY_HEIGHT
 
     def __post_init__(self) -> None:
         """Normalise les alias de configuration conservés pour compatibilité."""

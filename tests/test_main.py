@@ -409,8 +409,8 @@ def test_other_menu_choices(monkeypatch, capsys, choice, msg):
         assert msg in captured.out
 
 
-# Decorator to parametrize invalid choices (not in 1-22)
-@pytest.mark.parametrize("choice", ["invalid", "", "0", "23", "-1", "abc"])
+# Decorator to parametrize invalid choices (not in 1-23)
+@pytest.mark.parametrize("choice", ["invalid", "", "0", "24", "-1", "abc"])
 def test_main_invalid_choice(monkeypatch, capsys, choice):
     """Test that invalid choices are handled properly.
     Args:
@@ -450,9 +450,24 @@ def test_main_cache_nettoyor(monkeypatch):
     summary.assert_not_called()
 
 
+def test_main_youtube_downloader(monkeypatch):
+    """Option 22 invokes the terminal YouTube downloader."""
+    monkeypatch.setattr("builtins.input", lambda _: "22")
+    with (
+        mock.patch(
+            "toolbox_pb.ui.cli.run_youtube_downloader_interactive",
+            return_value=False,
+        ) as downloader,
+        mock.patch("toolbox_pb.core.func_global.summarize_files"),
+    ):
+        main.main(APP_CONFIG)
+
+    downloader.assert_called_once_with(APP_CONFIG)
+
+
 def test_main_quit(monkeypatch):
-    """Test that choosing option '22' exits the program."""
-    monkeypatch.setattr('builtins.input', lambda _: '22')
+    """Test that choosing option '23' exits the program."""
+    monkeypatch.setattr('builtins.input', lambda _: '23')
 
     # Mock python sys.exit to raise SystemExit
     with pytest.raises(SystemExit):
@@ -460,8 +475,8 @@ def test_main_quit(monkeypatch):
 
 
 def test_main_called(monkeypatch):
-    """Test that main runs without errors for choice '22' (quit)."""
-    monkeypatch.setattr("builtins.input", lambda _: "22")
+    """Test that main runs without errors for choice '23' (quit)."""
+    monkeypatch.setattr("builtins.input", lambda _: "23")
 
     # Mock others functions to avoid side effects
     with (

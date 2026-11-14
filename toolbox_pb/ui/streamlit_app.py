@@ -7,10 +7,15 @@ dans ``data/output``.
 
 from __future__ import annotations
 
+import base64
 import io
 import logging
+from math import ceil
 from queue import Empty, Queue
+import re
+import shutil
 import subprocess
+from tempfile import TemporaryDirectory
 from threading import Event, Thread
 import traceback
 from datetime import datetime
@@ -23,14 +28,16 @@ from typing import Any, Callable
 
 import streamlit as st
 
-PACKAGE_DIR = Path(__file__).resolve().parent
-PROJECT_DIR = PACKAGE_DIR.parents[1]
-IMAGE_EXAMPLE_DIR = PROJECT_DIR / "image" / "examples"
-FOCUS_EXPLORER_SCRIPT = PACKAGE_DIR / "focus_explorer.ps1"
-
 from toolbox_pb.core.audio.main_audio import audio_compressor
+from toolbox_pb.core.audio.func_audio import probe_audio_bitrate_kbps
 import toolbox_pb.core.func_global as func_global_module
-from toolbox_pb.core.config_global import APP_CONFIG, AppConfig, LOG_LEVELS
+from toolbox_pb.core.config_global import (
+    APP_CONFIG,
+    AppConfig,
+    IMAGE_EXAMPLE_DIR,
+    LOG_LEVELS,
+    PROJECT_DIR,
+)
 from toolbox_pb.core.cancellation import (
     ProcessingCancelled,
     raise_if_cancelled,
@@ -42,7 +49,11 @@ from toolbox_pb.core.events import (
     use_message_sink,
 )
 from toolbox_pb.core.progress import use_progress_factory
-from toolbox_pb.core.video.func_video import find_files_by_extensions
+from toolbox_pb.core.video.func_video import (
+    find_files_by_extensions,
+    format_duration_hms,
+    get_all_metadata,
+)
 from toolbox_pb.core.file.main_file import (
     cache_nettoyor,
     file_str_remover,
@@ -71,12 +82,25 @@ from toolbox_pb.core.video.main_video import (
     video_volume_adjust,
     video_rotator,
 )
+from toolbox_pb.core.web.main_web import (
+    MP3_BITRATES,
+    VIDEO_QUALITIES,
+    YouTubeDownloadOptions,
+    download_youtube_media,
+)
 from toolbox_pb.ui.reductor_workflow import _run_complementary_reductor
 
 
+# This helper belongs to the Streamlit UI package, not to the shared core
+# package directory configured globally.
+FOCUS_EXPLORER_SCRIPT = Path(__file__).resolve().parent / "focus_explorer.ps1"
+
+
 ToolRunner = Callable[[], bool | None]
+FollowUpRequirement = Callable[[], bool]
 CATEGORY_ICON_DIR = PROJECT_DIR / "image" / "icons" / "categories"
 TOOL_ICON_DIR = PROJECT_DIR / "image" / "icons" / "tools"
+FOLDER_ICON_DIR = PROJECT_DIR / "image" / "icons" / "folders"
 # Artwork displayed next to the shortcut that opens the historical CLI.
 LEGACY_CLI_LOGO = PROJECT_DIR / "image" / "legacy" / "logo_a_l'ancienne.png"
 # Boolean settings exposed as per-browser-session controls in the sidebar.
@@ -101,6 +125,7 @@ CATEGORY_ICONS = {
     "Audio": CATEGORY_ICON_DIR / "audio.png",
     "PDF": CATEGORY_ICON_DIR / "pdf.png",
     "Fichier": CATEGORY_ICON_DIR / "file.png",
+    "Web": CATEGORY_ICON_DIR / "web.png",
 }
 TOOL_NUMBERS = {
     "video_encodor": 1,
@@ -125,6 +150,44 @@ TOOL_NUMBERS = {
     "folder_date_renammer": 3,
     "cache_nettoyor": 4,
 }
+
+
+def _folder_open_icon(kind: str, folder: Path, label: str) -> None:
+    """Render the existing SVG as a native, reliable Streamlit button."""
+    icon_path = FOLDER_ICON_DIR / f"{kind}_box.svg"
+    image_data = base64.b64encode(icon_path.read_bytes()).decode("ascii")
+    image_label = (
+        f"![Ouvrir le dossier {label}]"
+        f"(data:image/svg+xml;base64,{image_data})"
+    )
+    st.html(
+        f"""
+        <style>
+        .st-key-open_{kind}_folder_icon button {{
+          background: transparent;
+          border: 0;
+          cursor: pointer;
+          min-height: 96px;
+          padding: 0;
+        }}
+        .st-key-open_{kind}_folder_icon button img {{
+          display: block;
+          height: 96px !important;
+          width: 96px !important;
+          max-height: 96px !important;
+          object-fit: contain;
+        }}
+        </style>
+        """
+    )
+    if st.button(
+        image_label,
+        key=f"open_{kind}_folder_icon",
+        help=f"Ouvrir le dossier {label} dans Windows Explorer.",
+        type="secondary",
+        width="content",
+    ):
+        _open_in_file_explorer(folder, label)
 
 
 class StreamlitProgressBar:
@@ -181,9 +244,16 @@ class TreatmentJob:
     is_empty_folder: bool | None = None
     error: str | None = None
     worker: Thread | None = None
+    origin_tool_name: str | None = None
     output_dir: Path | None = None
     output_folder_opened: bool = False
     open_output_on_success: bool = True
+    follow_up_label: str | None = None
+    follow_up_runner: ToolRunner | None = None
+    follow_up_required: FollowUpRequirement | None = None
+    follow_up_output_dir: Path | None = None
+    follow_up_deadline: float | None = None
+    follow_up_open_output_on_success: bool | None = None
 
 
 class QueuedProgress:
@@ -239,6 +309,12 @@ class QueuedProgress:
                 if remaining is not None
                 else "calcul…"
             )
+            if self.unit == "%":
+                return (
+                    f"{self.desc} — {completed:.0f} % — écoulé : "
+                    f"{self._format_duration(elapsed)} — restant : "
+                    f"{remaining_text}"
+                )
             return (
                 f"{self.desc} — fichier {completed:.0f}/{self.total:.0f} "
                 f"— écoulé : {self._format_duration(elapsed)} "
@@ -285,12 +361,70 @@ class QueuedLog(io.StringIO):
     def __init__(self, job: TreatmentJob) -> None:
         super().__init__()
         self.job = job
+        self._youtube_has_visible_content = False
+        self._youtube_last_line_is_blank = False
+        self._youtube_audio_conversion_announced = False
 
     def write(self, text: str) -> int:
-        written = super().write(text)
-        if text:
-            self.job.events.put(("log", text))
-        return written
+        # Console tools such as yt-dlp redraw their progress using ``\r``.
+        # Streamlit's log viewer does not emulate a terminal, so turn each
+        # redraw into a readable vertical line instead.
+        visible_text = text.replace("\r\n", "\n").replace("\r", "\n")
+        visible_text = visible_text.replace(
+            "Fichier téléchargé :", "\nFichier téléchargé :"
+        )
+        self._publish_youtube_progress(visible_text)
+        log_text = self._without_youtube_download_lines(visible_text)
+        written = super().write(log_text)
+        if log_text:
+            self.job.events.put(("log", log_text))
+        return len(text)
+
+    def _without_youtube_download_lines(self, text: str) -> str:
+        """Keep yt-dlp's progress in the bar and collapse terminal blanks."""
+        if self.job.tool_name != "youtube_downloader":
+            return text
+        visible_lines: list[str] = []
+        for line in text.splitlines(keepends=True):
+            if line.lstrip().startswith("[download]"):
+                continue
+            if line.strip() == "Conversion du flux audio en MP3…":
+                if self._youtube_audio_conversion_announced:
+                    continue
+                self._youtube_audio_conversion_announced = True
+            if not line.strip():
+                if (
+                    self._youtube_has_visible_content
+                    and not self._youtube_last_line_is_blank
+                ):
+                    visible_lines.append("\n")
+                    self._youtube_last_line_is_blank = True
+                continue
+            visible_lines.append(line)
+            self._youtube_has_visible_content = True
+            self._youtube_last_line_is_blank = False
+        return "".join(visible_lines)
+
+    def _publish_youtube_progress(self, text: str) -> None:
+        """Use yt-dlp's rendered percentage as a robust Streamlit fallback."""
+        if self.job.tool_name != "youtube_downloader":
+            return
+        for match in re.finditer(
+            r"\[download\]\s+(\d+(?:\.\d+)?)%\s+of\s+([^\n]+)",
+            text,
+        ):
+            percentage = float(match.group(1))
+            details = match.group(2).strip()
+            self.job.events.put(
+                (
+                    "progress",
+                    (
+                        0,
+                        round(percentage),
+                        f"Téléchargement YouTube — {percentage:.1f} % — {details}",
+                    ),
+                )
+            )
 
 
 def _run_treatment_worker(job: TreatmentJob, runner: ToolRunner) -> None:
@@ -318,8 +452,9 @@ def _run_treatment_worker(job: TreatmentJob, runner: ToolRunner) -> None:
         )
         job.events.put(("validation_error", message))
     except Exception as exc:  # The main thread renders the full diagnostic.
-        logging.getLogger("toolbox_pb").exception(
-            "Le traitement %s a échoué.", job.tool_name
+        error_text = str(exc).strip() or type(exc).__name__
+        logging.getLogger("toolbox_pb").error(
+            "Le traitement %s a échoué : %s", job.tool_name, error_text
         )
         job.events.put(("error", f"{exc}\n{traceback.format_exc()}"))
     else:
@@ -339,9 +474,24 @@ def _drain_treatment_events(job: TreatmentJob) -> None:
             position, percent, label = payload
             job.progress[position] = (percent, label)
         elif event == "done":
-            job.status = "done"
             job.is_empty_folder = bool(payload)
-            job.output += f"Traitement terminé : {job.tool_name}\n"
+            job.output += f"\nTraitement terminé : {job.tool_name}\n"
+            follow_up_is_required = (
+                job.follow_up_required is None or job.follow_up_required()
+            )
+            if (
+                job.follow_up_runner is not None
+                and job.follow_up_label
+                and follow_up_is_required
+            ):
+                job.status = "awaiting_follow_up"
+                job.follow_up_deadline = perf_counter() + 10
+                job.output += (
+                    f"\nLancement de {job.follow_up_label} dans 10 secondes "
+                    "sans réponse.\n"
+                )
+                continue
+            job.status = "done"
             if (
                 job.open_output_on_success
                 and job.output_dir is not None
@@ -363,6 +513,19 @@ def _drain_treatment_events(job: TreatmentJob) -> None:
             job.error = str(payload)
 
 
+def _launch_follow_up(job: TreatmentJob) -> None:
+    """Launch a queued post-download treatment in a fresh worker."""
+    if job.follow_up_runner is None or job.follow_up_label is None:
+        return
+    _run_tool(
+        job.follow_up_label,
+        job.follow_up_runner,
+        origin_tool_name=job.origin_tool_name or job.tool_name,
+        output_dir=job.follow_up_output_dir,
+        open_output_on_success=job.follow_up_open_output_on_success,
+    )
+
+
 @st.fragment(run_every="0.5s")
 def _render_active_treatment() -> None:
     """Refresh the active treatment without blocking the other controls."""
@@ -370,6 +533,45 @@ def _render_active_treatment() -> None:
     if not isinstance(job, TreatmentJob):
         return
     _drain_treatment_events(job)
+
+    if job.status == "awaiting_follow_up":
+        deadline = job.follow_up_deadline or perf_counter()
+        remaining = max(0, ceil(deadline - perf_counter()))
+        if remaining == 0:
+            _launch_follow_up(job)
+            st.rerun()
+        st.warning(
+            f"Lancer {job.follow_up_label} ? Démarrage automatique dans "
+            f"{remaining} seconde(s)."
+        )
+        launch_column, skip_column = st.columns(2)
+        with launch_column:
+            if st.button(
+                "Lancer maintenant",
+                key="launch_download_follow_up",
+                type="primary",
+                width="stretch",
+            ):
+                _launch_follow_up(job)
+                st.rerun()
+        with skip_column:
+            if st.button(
+                "Ne pas lancer",
+                key="skip_download_follow_up",
+                width="stretch",
+            ):
+                job.follow_up_runner = None
+                job.status = "done"
+                job.output += f"{job.follow_up_label} ignoré.\n"
+                if (
+                    job.open_output_on_success
+                    and job.output_dir is not None
+                    and not job.output_folder_opened
+                ):
+                    _open_in_file_explorer(job.output_dir, "de sortie")
+                    job.output_folder_opened = True
+                st.rerun()
+        return
 
     st.caption(f"Sortie du traitement : {job.tool_name}")
     progress_items = sorted(job.progress.items()) or [
@@ -453,7 +655,19 @@ def _startup_report() -> str:
     return f"{version}\n\nCode lancé le : {st.session_state.code_launch_time}"
 
 
-def _run_tool(tool_name: str, runner: ToolRunner) -> None:
+def _run_tool(
+    tool_name: str,
+    runner: ToolRunner,
+    *,
+    origin_tool_name: str | None = None,
+    output_dir: Path | None = None,
+    follow_up_label: str | None = None,
+    follow_up_runner: ToolRunner | None = None,
+    follow_up_required: FollowUpRequirement | None = None,
+    follow_up_output_dir: Path | None = None,
+    open_output_on_success: bool | None = None,
+    follow_up_open_output_on_success: bool | None = None,
+) -> None:
     """Start one treatment without blocking the Streamlit interaction loop."""
     active_job = st.session_state.get("active_treatment")
     if (
@@ -475,11 +689,21 @@ def _run_tool(tool_name: str, runner: ToolRunner) -> None:
     )
     job = TreatmentJob(
         tool_name=tool_name,
-        output_dir=APP_CONFIG.OUTPUT_DIR,
-        open_output_on_success=st.session_state.get(
-            "flag_OPEN_OUTPUT_DIR_AFTER_TREATMENT",
-            APP_CONFIG.OPEN_OUTPUT_DIR_AFTER_TREATMENT,
+        origin_tool_name=origin_tool_name,
+        output_dir=output_dir or APP_CONFIG.OUTPUT_DIR,
+        open_output_on_success=(
+            st.session_state.get(
+                "flag_OPEN_OUTPUT_DIR_AFTER_TREATMENT",
+                APP_CONFIG.OPEN_OUTPUT_DIR_AFTER_TREATMENT,
+            )
+            if open_output_on_success is None
+            else open_output_on_success
         ),
+        follow_up_label=follow_up_label,
+        follow_up_runner=follow_up_runner,
+        follow_up_required=follow_up_required,
+        follow_up_output_dir=follow_up_output_dir,
+        follow_up_open_output_on_success=follow_up_open_output_on_success,
     )
     worker = Thread(
         target=_run_treatment_worker,
@@ -507,15 +731,344 @@ def _run_video_encodor_with_image_reductor(cfg: AppConfig) -> bool:
     return video_folder_is_empty and image_folder_is_empty
 
 
+def _encode_downloaded_youtube_videos(
+    downloaded_files: list[Path],
+    cfg: AppConfig,
+) -> bool:
+    """Encode newly downloaded videos only, keeping output files flat."""
+    if not downloaded_files:
+        raise ValueError("Aucun fichier YouTube téléchargé n’est disponible.")
+
+    target_suffix = ".mp4"
+    for downloaded_file in downloaded_files:
+        if not downloaded_file.is_file():
+            raise FileNotFoundError(
+                f"Fichier téléchargé introuvable : {downloaded_file}"
+            )
+        stem = downloaded_file.stem.removesuffix("_download")
+        processed_path = cfg.OUTPUT_DIR / f"{stem}_processed{target_suffix}"
+        if processed_path.exists():
+            emit(f"Fichier déjà traité : {processed_path.name}")
+            continue
+
+        should_encode, preflight_message = _youtube_video_encodor_preflight(
+            downloaded_file, cfg
+        )
+        # This diagnostic is useful in the Streamlit console but does not
+        # need to clutter the persistent application log.
+        emit(f"\n{preflight_message}", log=False)
+        if not should_encode:
+            continue
+
+        before_size = downloaded_file.stat().st_size
+        emit("\nLancement de Video_encodor…")
+
+        with TemporaryDirectory(prefix="toolbox_pb_youtube_") as temp_name:
+            temp_root = Path(temp_name)
+            input_dir = temp_root / "input"
+            output_dir = temp_root / "output"
+            input_dir.mkdir()
+            staged_input = input_dir / f"{stem}{downloaded_file.suffix}"
+            shutil.copy2(downloaded_file, staged_input)
+            staging_cfg = replace(
+                cfg,
+                INPUT_DIR=input_dir,
+                OUTPUT_DIR=output_dir,
+            )
+            video_encodor(staging_cfg)
+
+            generated_files = sorted(output_dir.rglob(f"*{target_suffix}"))
+            if not generated_files:
+                raise ValueError(
+                    f"Le traitement n’a produit aucun fichier {target_suffix}."
+                )
+            processed_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(generated_files[0]), processed_path)
+            emit(f"Fichier traité : {processed_path.name}")
+            after_size = processed_path.stat().st_size
+            size_delta = before_size - after_size
+            if size_delta >= 0:
+                difference = (
+                    f"réduction de {func_global_module.format_bytes(size_delta)} "
+                    f"({size_delta / before_size * 100:.1f} %)"
+                )
+            else:
+                difference = (
+                    f"augmentation de {func_global_module.format_bytes(-size_delta)} "
+                    f"({-size_delta / before_size * 100:.1f} %)"
+                )
+            emit(
+                "Taille Video_encodor : "
+                f"{func_global_module.format_bytes(before_size)} → "
+                f"{func_global_module.format_bytes(after_size)} "
+                f"({difference})"
+            )
+    return False
+
+
+def _youtube_video_encodor_preflight(
+    video_path: Path,
+    cfg: AppConfig,
+) -> tuple[bool, str]:
+    """Decide conservatively whether H.265 encoding should reduce a download."""
+    try:
+        metadata = get_all_metadata(video_path)
+    except (OSError, RuntimeError, ValueError) as exc:
+        return (
+            False,
+            "Analyse avant Video_encodor impossible ; encodage ignoré par "
+            f"précaution ({exc}).",
+        )
+    return _youtube_video_encodor_preflight_from_metadata(metadata, cfg)
+
+
+def _youtube_video_encodor_preflight_from_metadata(
+    metadata: dict[str, object],
+    cfg: AppConfig,
+) -> tuple[bool, str]:
+    """Estimate a size reduction from FFprobe metadata without re-encoding."""
+    streams = metadata.get("streams")
+    format_info = metadata.get("format")
+    if not isinstance(streams, list):
+        return False, "Analyse avant Video_encodor indisponible ; encodage ignoré."
+
+    video_stream = next(
+        (
+            stream
+            for stream in streams
+            if isinstance(stream, dict) and stream.get("codec_type") == "video"
+        ),
+        None,
+    )
+    if not isinstance(video_stream, dict):
+        return False, "Aucun flux vidéo détecté ; Video_encodor ignoré.\n"
+
+    codec = str(video_stream.get("codec_name") or "inconnu").casefold()
+    height_value = video_stream.get("height")
+    height = height_value if isinstance(height_value, int) else None
+    source_bitrate = _youtube_total_bitrate_kbps(format_info, streams)
+    target_bitrate = _youtube_target_bitrate_kbps(height, cfg)
+    source_label = (
+        f"{source_bitrate:.0f} kb/s"
+        if source_bitrate is not None
+        else "indisponible"
+    )
+    resolution_label = f"{height}p" if height is not None else "inconnue"
+    analysis = (
+        "Analyse avant Video_encodor :\n"
+        f"- Codec source : {codec.upper()}\n"
+        f"- Résolution : {resolution_label}\n"
+        f"- Débit actuel : {source_label}\n"
+        f"- Débit H.265 estimé : {target_bitrate:.0f} kb/s\n"
+    )
+
+    if codec in {"av1", "hevc", "h265"}:
+        return (
+            False,
+            f"{analysis}\nVideo_encodor ignoré : la source est déjà encodée "
+            f"avec {codec.upper()}, un gain de taille n’est pas attendu.\n",
+        )
+    if source_bitrate is None:
+        return (
+            False,
+            f"{analysis}\nVideo_encodor ignoré : le débit source est "
+            "indisponible, donc une réduction ne peut pas être estimée.\n",
+        )
+
+    minimum_source_bitrate = target_bitrate * (
+        1 + cfg.YOUTUBE_VIDEO_ENCODOR_MIN_EXPECTED_SAVINGS_PERCENT / 100
+    )
+    if source_bitrate < minimum_source_bitrate:
+        return (
+            False,
+            f"{analysis}\nVideo_encodor ignoré : la taille augmenterait "
+            "probablement ou le gain estimé serait inférieur à "
+            f"{cfg.YOUTUBE_VIDEO_ENCODOR_MIN_EXPECTED_SAVINGS_PERCENT:.0f} %.\n",
+        )
+
+    expected_savings = (1 - target_bitrate / source_bitrate) * 100
+    return (
+        True,
+        f"{analysis}\nEncodage recommandé : réduction estimée d’environ "
+        f"{expected_savings:.1f} %.",
+    )
+
+
+def _youtube_total_bitrate_kbps(
+    format_info: object,
+    streams: list[object],
+) -> float | None:
+    """Read the total source bitrate, falling back to individual streams."""
+    if isinstance(format_info, dict):
+        bitrate = _youtube_bitrate_kbps(format_info.get("bit_rate"))
+        if bitrate is not None:
+            return bitrate
+
+    stream_bitrates = [
+        bitrate
+        for stream in streams
+        if isinstance(stream, dict)
+        for bitrate in [_youtube_bitrate_kbps(stream.get("bit_rate"))]
+        if bitrate is not None
+    ]
+    return sum(stream_bitrates) if stream_bitrates else None
+
+
+def _youtube_bitrate_kbps(value: object) -> float | None:
+    """Convert one FFprobe bitrate value from bit/s to kb/s."""
+    try:
+        bitrate = float(value)
+    except (TypeError, ValueError):
+        return None
+    return bitrate / 1_000 if bitrate > 0 else None
+
+
+def _youtube_target_bitrate_kbps(height: int | None, cfg: AppConfig) -> float:
+    """Return the first configured H.265 bitrate tier covering ``height``."""
+    tiers = cfg.YOUTUBE_VIDEO_ENCODOR_TARGET_TOTAL_BITRATE_KBPS_BY_HEIGHT
+    if height is not None:
+        for maximum_height, bitrate in tiers:
+            if height <= maximum_height:
+                return float(bitrate)
+    return float(tiers[-1][1])
+
+
+def _youtube_video_codec(video_path: Path) -> str:
+    """Return the first video codec reported by FFprobe for a download."""
+    metadata = get_all_metadata(video_path)
+    return _youtube_video_codec_from_metadata(metadata, video_path)
+
+
+def _youtube_video_codec_from_metadata(metadata: dict[str, object], video_path: Path) -> str:
+    """Extract the first video codec from FFprobe metadata."""
+    streams = metadata.get("streams")
+    if not isinstance(streams, list):
+        raise ValueError(f"Aucun flux vidéo détecté dans : {video_path.name}")
+    for stream in streams:
+        if not isinstance(stream, dict) or stream.get("codec_type") != "video":
+            continue
+        codec = str(stream.get("codec_name") or "").casefold()
+        if codec:
+            return codec
+    raise ValueError(f"Aucun codec vidéo détecté dans : {video_path.name}")
+
+
+def _youtube_video_specs(video_path: Path) -> tuple[str, str, int | None]:
+    """Return the detected codec and a readable technical summary."""
+    metadata = get_all_metadata(video_path)
+    codec = _youtube_video_codec_from_metadata(metadata, video_path)
+    try:
+        file_size = func_global_module.format_bytes(video_path.stat().st_size)
+    except OSError:
+        file_size = "indisponible"
+
+    format_info = metadata.get("format")
+    streams = metadata.get("streams")
+    video_stream = next(
+        (
+            stream
+            for stream in streams
+            if isinstance(stream, dict) and stream.get("codec_type") == "video"
+        ),
+        {},
+    ) if isinstance(streams, list) else {}
+    details = [
+        "\nSpécifications de la vidéo téléchargée :",
+        f"- Fichier : {video_path.name}",
+        f"- Taille : {file_size}",
+        f"- Codec vidéo : {codec.upper()}",
+    ]
+    if isinstance(format_info, dict):
+        duration = format_info.get("duration")
+        if duration is not None:
+            formatted_duration = format_duration_hms(duration)
+            if formatted_duration != "N/A":
+                details.append(f"- Durée : {formatted_duration}")
+    video_height: int | None = None
+    if isinstance(video_stream, dict):
+        width, height = video_stream.get("width"), video_stream.get("height")
+        if isinstance(width, int) and isinstance(height, int):
+            video_height = height
+            details.append(f"- Résolution : {width}×{height}")
+        bitrate = video_stream.get("bit_rate")
+        if bitrate is None and isinstance(format_info, dict):
+            bitrate = format_info.get("bit_rate")
+        try:
+            details.append(f"- Débit : {round(float(bitrate) / 1_000):.0f} kb/s")
+        except (TypeError, ValueError):
+            pass
+    return codec, "\n".join(details), video_height
+
+
+def _youtube_requested_level_notice(
+    media_format: str,
+    requested_video_height: str,
+    requested_audio_bitrate: str,
+    *,
+    actual_video_height: int | None = None,
+    actual_audio_bitrate: float | None = None,
+) -> str | None:
+    """Explain when YouTube supplied a lower level than the requested one."""
+    if media_format == "MP4":
+        expected_height = int(requested_video_height)
+        if actual_video_height is not None and actual_video_height < expected_height:
+            return (
+                f"Définition demandée : {expected_height}p indisponible ; "
+                f"définition utilisée : {actual_video_height}p."
+            )
+        return None
+
+    expected_bitrate = int(requested_audio_bitrate)
+    if (
+        actual_audio_bitrate is not None
+        and round(actual_audio_bitrate) != expected_bitrate
+    ):
+        return (
+            f"Débit audio demandé : {expected_bitrate} kb/s indisponible ; "
+            f"débit utilisé : {round(actual_audio_bitrate)} kb/s."
+        )
+    return None
+
+
+def _find_new_youtube_files(
+    output_dir: Path,
+    existing_files: set[Path],
+    media_format: str,
+) -> list[Path]:
+    """Find final media files created by a legacy downloader result."""
+    suffix = ".mp3" if media_format == "MP3" else ".mp4"
+    return sorted(
+        (
+            path
+            for path in output_dir.iterdir()
+            if path not in existing_files and path.suffix.lower() == suffix
+        ),
+        key=lambda path: path.name.casefold(),
+    )
+
+
+def _is_youtube_subtitle_download_error(exc: ValueError) -> bool:
+    """Recognize yt-dlp failures limited to an optional subtitle request."""
+    message = str(exc).casefold()
+    return (
+        "subtitle" in message
+        and (
+            "unable to download video subtitles" in message
+            or "http error 429" in message
+        )
+    )
+
+
 def _open_in_file_explorer(path: Path, label: str) -> None:
     """Open a configured folder and focus its Explorer window on Windows."""
     if not path.is_dir():
         st.error(f"Le dossier {label.lower()} n’existe pas : {path}")
         return
+    status = st.empty()
+    target_path = path.resolve()
+    status.info(f"Ouverture de Windows Explorer sur : {target_path}")
     try:
-        # The helper PowerShell script is used to focus the Explorer window
-        # on the folder.
-        subprocess.Popen(
+        completed = subprocess.run(
             (
                 "powershell.exe",
                 "-NoProfile",
@@ -525,14 +1078,35 @@ def _open_in_file_explorer(path: Path, label: str) -> None:
                 "Hidden",
                 "-File",
                 str(FOCUS_EXPLORER_SCRIPT),
-                str(path.resolve()),
+                str(target_path),
             ),
             creationflags=subprocess.CREATE_NO_WINDOW,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            timeout=8,
         )
+    except subprocess.TimeoutExpired:
+        status.warning(
+            "Windows Explorer a été demandé, mais Focus Explorer n’a pas "
+            "répondu dans les 8 secondes."
+        )
+        return
     except OSError as exc:
         st.error(f"Impossible d’ouvrir le dossier {label.lower()} : {exc}")
+        return
+
+    if completed.returncode == 0:
+        status.success(
+            completed.stdout.strip()
+            or f"Windows Explorer ouvert sur : {target_path}"
+        )
+        return
+
+    details = completed.stderr.strip() or completed.stdout.strip()
+    status.error(
+        f"Impossible d’ouvrir Windows Explorer sur {target_path}. "
+        f"Détail : {details or f'code PowerShell {completed.returncode}'}"
+    )
 
 
 def _launch_cli() -> None:
@@ -594,6 +1168,10 @@ def _tool_card(
         before_column, after_column = st.columns(2)
         with before_column:
             with st.container(border=True):
+                st.markdown(
+                    "### :material/cloud: :material/movie:",
+                    text_alignment="center",
+                )
                 st.markdown("#### Avant")
                 if before_image:
                     st.image(
@@ -604,6 +1182,10 @@ def _tool_card(
                 st.write(before_example)
         with after_column:
             with st.container(border=True):
+                st.markdown(
+                    "### :material/computer: :material/video_file:",
+                    text_alignment="center",
+                )
                 st.markdown("#### Après")
                 if after_image:
                     st.image(
@@ -1008,6 +1590,234 @@ def _category_pdf(cfg: AppConfig) -> None:
     )
 
 
+def _category_web(cfg: AppConfig) -> None:
+    """Render the local YouTube-to-MP3/MP4 downloader."""
+    expanded_key = "youtube_downloader_expanded"
+    is_expanded = st.session_state.get(expanded_key, False)
+    header_icon_column, header_button_column = st.columns(
+        [2.1, 7.9], gap=None, vertical_alignment="center"
+    )
+    with header_icon_column:
+        st.image(
+            _tool_icon("youtube_downloader"),
+            width=208,
+            alt="Téléchargement YouTube audio ou vidéo",
+        )
+    with header_button_column:
+        if st.button(
+            f"{'▾' if is_expanded else '▸'} YouTube Downloader",
+            key="youtube_downloader_toggle",
+            width="stretch",
+        ):
+            st.session_state[expanded_key] = not is_expanded
+
+    if not st.session_state.get(expanded_key, False):
+        return
+
+    with st.container(border=True):
+        st.write(
+            "Télécharge une vidéo YouTube que vous êtes autorisé à conserver, "
+            "au format audio MP3 ou vidéo MP4. Les fichiers sont écrits dans "
+            "le dossier de sortie de la toolbox."
+        )
+        st.info(
+            "Utilisez cette fonction uniquement pour vos propres vidéos ou du "
+            "contenu dont le téléchargement est autorisé.",
+            icon=":material/copyright:",
+        )
+        before_column, after_column = st.columns(2)
+        with before_column:
+            with st.container(border=True):
+                st.markdown("#### Avant")
+                st.write(
+                    """:material/language: **Vidéo présente sur le Web**
+
+`https://www.youtube.com/watch?v=exemple`
+
+- Hébergée sur YouTube"""
+                )
+        with after_column:
+            with st.container(border=True):
+                st.markdown("#### Après")
+                st.write(
+                    f""":material/computer: **Fichier multimédia présent sur le PC**
+
+`{cfg.OUTPUT_DIR}\\video_download.mp4`
+
+- Fichier local MP4 ou MP3"""
+                )
+        output_type_key = "youtube_downloader_output_type"
+        legacy_output_type = st.session_state.get(output_type_key)
+        if legacy_output_type == "Audio MP3":
+            st.session_state[output_type_key] = "MP3"
+        elif legacy_output_type == "Vidéo MP4":
+            st.session_state[output_type_key] = "MP4"
+        output_type = st.segmented_control(
+            "Format de sortie",
+            options=("MP3", "MP4"),
+            default="MP3",
+            format_func=lambda value: (
+                "♫ Audio MP3" if value == "MP3" else "🎞️ Vidéo MP4"
+            ),
+            required=True,
+            key=output_type_key,
+        )
+        with st.form("youtube_downloader_form", border=False):
+            url = st.text_input(
+                "URL YouTube",
+                key="youtube_downloader_url",
+                placeholder="https://www.youtube.com/watch?v=…",
+                help="Les liens youtube.com et youtu.be sont acceptés.",
+            )
+            if output_type == "MP3":
+                mp3_bitrate = st.selectbox(
+                    "Débit audio MP3",
+                    options=MP3_BITRATES,
+                    index=MP3_BITRATES.index("160"),
+                    format_func=lambda value: f"{value} kb/s",
+                    key="youtube_downloader_bitrate",
+                )
+                media_format = "MP3"
+                video_quality = "1080"
+            else:
+                video_quality = st.selectbox(
+                    "Qualité vidéo maximale",
+                    options=VIDEO_QUALITIES,
+                    index=VIDEO_QUALITIES.index("1080"),
+                    format_func=lambda value: f"{value}p",
+                    key="youtube_downloader_quality",
+                )
+                media_format = "MP4"
+                mp3_bitrate = "160"
+                download_subtitles = st.checkbox(
+                    "Télécharger les sous-titres SRT",
+                    value=False,
+                    key="youtube_downloader_subtitles",
+                    help=(
+                        "Priorité : sous-titre fourni français seul ; sinon, "
+                        "sous-titre fourni anglais et sous-titre automatique "
+                        "français de YouTube lorsqu’ils sont disponibles."
+                    ),
+                )
+            if output_type == "MP3":
+                download_subtitles = False
+            submitted = st.form_submit_button(
+                "Télécharger",
+                type="primary",
+                icon=":material/download:",
+            )
+
+        if submitted:
+            if not url.strip():
+                st.warning(
+                    "Renseignez une URL YouTube avant de lancer le téléchargement."
+                )
+            elif media_format not in {"MP3", "MP4"}:
+                st.warning("Choisissez un format de sortie.")
+            else:
+                download_options = YouTubeDownloadOptions(
+                    url=url,
+                    output_dir=cfg.OUTPUT_DIR,
+                    media_format=media_format,
+                    video_quality=video_quality,
+                    mp3_bitrate=mp3_bitrate,
+                    download_subtitles=download_subtitles,
+                )
+                downloaded_files: list[Path] = []
+                existing_output_files = set(cfg.OUTPUT_DIR.iterdir())
+
+                def download_runner() -> bool:
+                    try:
+                        download_result = download_youtube_media(download_options)
+                    except ValueError as exc:
+                        # A worker created before a hot reload can still hold
+                        # the older downloader, where an optional subtitle
+                        # failure also raised for an already-written video.
+                        if not _is_youtube_subtitle_download_error(exc):
+                            raise
+                        recovered_files = _find_new_youtube_files(
+                            cfg.OUTPUT_DIR,
+                            existing_output_files,
+                            media_format,
+                        )
+                        if not recovered_files:
+                            raise
+                        downloaded_files.extend(recovered_files)
+                        emit(
+                            "Sous-titres indisponibles ; le fichier média "
+                            "a bien été téléchargé.",
+                            log=False,
+                        )
+                        download_result = recovered_files
+                    if isinstance(download_result, list):
+                        for downloaded_file in download_result:
+                            if downloaded_file not in downloaded_files:
+                                downloaded_files.append(downloaded_file)
+                    else:
+                        # A worker started before hot reload can retain the
+                        # previous boolean-returning downloader function.
+                        downloaded_files.extend(
+                            _find_new_youtube_files(
+                                cfg.OUTPUT_DIR,
+                                existing_output_files,
+                                media_format,
+                            )
+                        )
+                    if not downloaded_files:
+                        raise ValueError(
+                            "Le téléchargement YouTube n’a produit aucun "
+                            "fichier final."
+                        )
+                    if media_format == "MP4":
+                        for downloaded_file in downloaded_files:
+                            _, specs, actual_height = _youtube_video_specs(
+                                downloaded_file
+                            )
+                            # Useful in the Streamlit console, but too verbose
+                            # for the persistent process log.
+                            emit("\n", specs, log=False)
+                            notice = _youtube_requested_level_notice(
+                                media_format,
+                                video_quality,
+                                mp3_bitrate,
+                                actual_video_height=actual_height,
+                            )
+                            if notice:
+                                emit(notice)
+                        return _encode_downloaded_youtube_videos(
+                            downloaded_files, cfg
+                        )
+                    for downloaded_file in downloaded_files:
+                        notice = _youtube_requested_level_notice(
+                            media_format,
+                            video_quality,
+                            mp3_bitrate,
+                            actual_audio_bitrate=probe_audio_bitrate_kbps(
+                                downloaded_file
+                            ),
+                        )
+                        if notice:
+                            emit(notice)
+                    return False
+
+                _run_tool(
+                    "youtube_downloader",
+                    download_runner,
+                    output_dir=download_options.output_dir,
+                    open_output_on_success=True,
+                )
+
+        active_job = st.session_state.get("active_treatment")
+        if (
+            isinstance(active_job, TreatmentJob)
+            and (
+                active_job.tool_name == "youtube_downloader"
+                or active_job.origin_tool_name == "youtube_downloader"
+            )
+        ):
+            _render_active_treatment()
+
+
 def _category_file(cfg: AppConfig) -> None:
     _tool_card(
         "file_timeline_sorter",
@@ -1085,6 +1895,410 @@ def _category_file(cfg: AppConfig) -> None:
     )
 
 
+def _recent_folder_entries(folder: Path, limit: int = 5) -> list[Path]:
+    """Return the most recently modified direct children of a folder."""
+    if not folder.is_dir():
+        return []
+    try:
+        return sorted(
+            (
+                path
+                for path in folder.iterdir()
+                if path.name.casefold() != ".gitkeep"
+            ),
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )[:limit]
+    except OSError:
+        return []
+
+
+def _folder_entry_icon(path: Path) -> str:
+    """Choose a compact Material icon for a folder preview entry."""
+    if path.is_dir():
+        return "folder"
+    suffix = path.suffix.lower()
+    if suffix in APP_CONFIG.INPUT_ACCEPTED_VIDEO_FILES:
+        return "movie"
+    if suffix in APP_CONFIG.INPUT_ACCEPTED_AUDIO_FILES:
+        return "audio_file"
+    if suffix in APP_CONFIG.INPUT_ACCEPTED_IMAGE_FILES:
+        return "image"
+    if suffix == ".pdf":
+        return "picture_as_pdf"
+    return "description"
+
+
+def _folder_summary(folder: Path) -> str:
+    """Return a compact, human-readable inventory for a folder preview."""
+    try:
+        entries = list(folder.iterdir())
+    except OSError:
+        return "Contenu indisponible"
+
+    counts = {"video": 0, "audio": 0, "image": 0, "pdf": 0, "folder": 0}
+    total_bytes = 0
+    for entry in entries:
+        if entry.is_dir():
+            counts["folder"] += 1
+            continue
+        try:
+            total_bytes += entry.stat().st_size
+        except OSError:
+            continue
+        suffix = entry.suffix.lower()
+        if suffix in APP_CONFIG.INPUT_ACCEPTED_VIDEO_FILES:
+            counts["video"] += 1
+        elif suffix in APP_CONFIG.INPUT_ACCEPTED_AUDIO_FILES:
+            counts["audio"] += 1
+        elif suffix in APP_CONFIG.INPUT_ACCEPTED_IMAGE_FILES:
+            counts["image"] += 1
+        elif suffix == ".pdf":
+            counts["pdf"] += 1
+
+    parts = [
+        f"{len(entries)} élément(s)",
+        func_global_module.format_bytes(total_bytes),
+    ]
+    labels = {
+        "video": "vidéo(s)",
+        "audio": "audio(s)",
+        "image": "image(s)",
+        "pdf": "PDF",
+        "folder": "dossier(s)",
+    }
+    parts.extend(f"{count} {labels[kind]}" for kind, count in counts.items() if count)
+    return " · ".join(parts)
+
+
+@st.cache_data(show_spinner=False)
+def _cached_folder_media_metadata(
+    path_text: str, modification_ns: int, size_bytes: int
+) -> dict[str, object]:
+    """Read FFprobe data once per visible version of a media file."""
+    del modification_ns, size_bytes
+    try:
+        return get_all_metadata(Path(path_text))
+    except (OSError, RuntimeError, ValueError):
+        return {}
+
+
+def _folder_entry_details(entry: Path) -> str:
+    """Build concise, useful metadata for one folder-preview entry."""
+    try:
+        stats = entry.stat()
+    except OSError:
+        return "Informations indisponibles"
+
+    modified = datetime.fromtimestamp(stats.st_mtime).strftime("%d/%m %H:%M")
+    if entry.is_dir():
+        return f"Dossier · modifié le {modified}"
+
+    details = [func_global_module.format_bytes(stats.st_size), modified]
+    suffix = entry.suffix.lower()
+    if suffix in APP_CONFIG.INPUT_ACCEPTED_IMAGE_FILES:
+        try:
+            from PIL import Image
+
+            with Image.open(entry) as image:
+                details.append(f"{image.width}×{image.height}")
+        except (ImportError, OSError):
+            pass
+        return " · ".join(details)
+
+    if suffix not in (
+        *APP_CONFIG.INPUT_ACCEPTED_VIDEO_FILES,
+        *APP_CONFIG.INPUT_ACCEPTED_AUDIO_FILES,
+    ):
+        return " · ".join(details)
+
+    metadata = _cached_folder_media_metadata(
+        str(entry), stats.st_mtime_ns, stats.st_size
+    )
+    format_info = metadata.get("format")
+    streams = metadata.get("streams")
+    if not isinstance(format_info, dict) or not isinstance(streams, list):
+        return " · ".join(details)
+
+    duration = format_info.get("duration")
+    if duration is not None:
+        formatted_duration = format_duration_hms(duration)
+        if formatted_duration != "N/A":
+            details.append(formatted_duration)
+    video_stream = next(
+        (
+            stream
+            for stream in streams
+            if isinstance(stream, dict) and stream.get("codec_type") == "video"
+        ),
+        None,
+    )
+    audio_stream = next(
+        (
+            stream
+            for stream in streams
+            if isinstance(stream, dict) and stream.get("codec_type") == "audio"
+        ),
+        None,
+    )
+    primary_stream = video_stream or audio_stream
+    if isinstance(primary_stream, dict):
+        codec = primary_stream.get("codec_name")
+        if codec:
+            details.append(str(codec).upper())
+        width, height = primary_stream.get("width"), primary_stream.get("height")
+        if isinstance(width, int) and isinstance(height, int):
+            details.append(f"{width}×{height}")
+        bitrate = primary_stream.get("bit_rate") or format_info.get("bit_rate")
+        try:
+            details.append(f"{round(float(bitrate) / 1_000):.0f} kb/s")
+        except (TypeError, ValueError):
+            pass
+    return " · ".join(details)
+
+
+def _render_folder_preview(
+    folder: Path, label: str, accent: str, *, border: bool = True
+) -> None:
+    """Show a small live file browser without leaving the Streamlit page."""
+    entries = _recent_folder_entries(folder)
+    gitkeep_path = folder / ".gitkeep"
+    with st.container(border=border, height=330):
+        if not folder.is_dir():
+            st.caption(f":{accent}[Dossier {label.lower()} introuvable.]")
+            return
+        if not entries and not gitkeep_path.is_file():
+            st.markdown(f":small[Dossier {label.lower()} vide.]")
+            return
+        st.markdown(f":small[{_folder_summary(folder)}]")
+        st.markdown(":small[Aperçu · 5 plus récents]")
+        for entry in entries:
+            entry_name = re.sub(r"([\\`*_\[\]])", r"\\\1", entry.name)
+            detail_text = re.sub(
+                r"([\\`*_\[\]])",
+                r"\\\1",
+                _folder_entry_details(entry),
+            )
+            st.markdown(
+                f":small[:material/{_folder_entry_icon(entry)}: {entry_name}]"
+            )
+            st.caption(f"*{detail_text}*")
+        if gitkeep_path.is_file():
+            st.caption(":gray[:small[:material/description: .gitkeep]]")
+
+
+def _clear_folder_content(folder: Path) -> int:
+    """Delete direct folder contents while retaining its root ``.gitkeep``."""
+    if not folder.is_dir():
+        raise FileNotFoundError(f"Dossier introuvable : {folder}")
+
+    deleted_count = 0
+    for entry in folder.iterdir():
+        if entry.name.casefold() == ".gitkeep":
+            continue
+        if entry.is_dir() and not entry.is_symlink():
+            shutil.rmtree(entry)
+        else:
+            entry.unlink()
+        deleted_count += 1
+    return deleted_count
+
+
+def _select_files_to_import() -> list[Path] | None:
+    """Open Windows' native file picker and return the selected files."""
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+    except ImportError as exc:
+        raise RuntimeError("Le sélecteur de fichiers Windows est indisponible.") from exc
+
+    root = None
+    try:
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes("-topmost", True)
+        selected = filedialog.askopenfilenames(
+            parent=root,
+            title="Importer des fichiers dans INPUT",
+            filetypes=(("Tous les fichiers", "*.*"),),
+        )
+    except tk.TclError as exc:
+        raise RuntimeError("Impossible d’ouvrir le sélecteur de fichiers.") from exc
+    finally:
+        if root is not None:
+            root.destroy()
+    return [Path(path) for path in selected] if selected else None
+
+
+def _select_export_folder(initial_directory: Path) -> Path | None:
+    """Open Windows' native folder picker for an OUTPUT export."""
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+    except ImportError as exc:
+        raise RuntimeError("Le sélecteur de dossier Windows est indisponible.") from exc
+
+    root = None
+    try:
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes("-topmost", True)
+        selected = filedialog.askdirectory(
+            parent=root,
+            title="Choisir le dossier d’export",
+            initialdir=str(initial_directory),
+            mustexist=True,
+        )
+    except tk.TclError as exc:
+        raise RuntimeError("Impossible d’ouvrir le sélecteur de dossier.") from exc
+    finally:
+        if root is not None:
+            root.destroy()
+    return Path(selected) if selected else None
+
+
+def _available_copy_path(destination: Path, filename: str) -> Path:
+    """Return a destination that never overwrites an existing file."""
+    candidate = destination / filename
+    if not candidate.exists():
+        return candidate
+    source_path = Path(filename)
+    for index in range(1, 10_000):
+        candidate = destination / f"{source_path.stem} ({index}){source_path.suffix}"
+        if not candidate.exists():
+            return candidate
+    raise FileExistsError(f"Trop de fichiers portant le nom : {filename}")
+
+
+def _copy_files_to_folder(sources: list[Path], destination: Path) -> int:
+    """Copy files into a folder, preserving metadata and avoiding overwrites."""
+    if not destination.is_dir():
+        raise FileNotFoundError(f"Dossier de destination introuvable : {destination}")
+
+    copied_count = 0
+    for source in sources:
+        if not source.is_file():
+            continue
+        try:
+            if source.parent.resolve() == destination.resolve():
+                continue
+        except OSError:
+            pass
+        target = _available_copy_path(destination, source.name)
+        shutil.copy2(source, target)
+        copied_count += 1
+    return copied_count
+
+
+def _export_output_files(output_dir: Path, destination: Path) -> int:
+    """Copy OUTPUT files to a chosen folder, excluding the Git placeholder."""
+    if not output_dir.is_dir():
+        raise FileNotFoundError(f"Dossier OUTPUT introuvable : {output_dir}")
+    try:
+        if output_dir.resolve() == destination.resolve():
+            raise ValueError("Le dossier d’export doit être différent d’OUTPUT.")
+    except OSError:
+        pass
+    sources = [
+        path
+        for path in output_dir.iterdir()
+        if path.is_file() and path.name.casefold() != ".gitkeep"
+    ]
+    return _copy_files_to_folder(sources, destination)
+
+
+@st.fragment(key="folder_shortcuts", run_every=2.0)
+def _render_folder_shortcuts(cfg: AppConfig) -> None:
+    """Render folder actions independently from the rest of the interface."""
+    with st.container(border=True):
+        input_text, input_icon = st.columns([3.5, 1.5], vertical_alignment="center")
+        with input_text:
+            st.markdown("## :material/input: :blue[INPUT]")
+            if st.button(
+                "Import",
+                key="import_input_files",
+                icon=":material/drive_folder_upload:",
+                help="Choisit des fichiers et les copie dans INPUT.",
+                type="secondary",
+                width="content",
+            ):
+                try:
+                    selected_files = _select_files_to_import()
+                    copied_count = (
+                        _copy_files_to_folder(selected_files, cfg.INPUT_DIR)
+                        if selected_files
+                        else 0
+                    )
+                except (OSError, RuntimeError) as exc:
+                    st.error(f"Impossible d’importer les fichiers : {exc}")
+                else:
+                    if selected_files:
+                        st.success(f"{copied_count} fichier(s) importé(s) dans INPUT.")
+            if st.button(
+                "❌ :red[Clear]",
+                key="clear_input_folder",
+                help="Supprime tout le contenu sauf le fichier .gitkeep.",
+                type="secondary",
+                width="content",
+            ):
+                try:
+                    deleted_count = _clear_folder_content(cfg.INPUT_DIR)
+                except OSError as exc:
+                    st.error(f"Impossible de vider INPUT : {exc}")
+                else:
+                    st.success(f"INPUT vidé ({deleted_count} élément(s)).")
+        with input_icon:
+            _folder_open_icon("input", cfg.INPUT_DIR, "INPUT")
+        input_path = str(cfg.INPUT_DIR).replace("_", r"\_")
+        st.markdown(f":blue[:small[{input_path}]]", wrap=False)
+        _render_folder_preview(cfg.INPUT_DIR, "INPUT", accent="red", border=False)
+    with st.container(border=True):
+        output_text, output_icon = st.columns([3.5, 1.5], vertical_alignment="center")
+        with output_text:
+            st.markdown("## :material/output: :green[OUTPUT]")
+            if st.button(
+                "Export",
+                key="export_output_files",
+                icon=":material/drive_folder_upload:",
+                help="Choisit un dossier et y copie les fichiers d’OUTPUT.",
+                type="secondary",
+                width="content",
+            ):
+                try:
+                    export_folder = _select_export_folder(cfg.OUTPUT_DIR)
+                    copied_count = (
+                        _export_output_files(cfg.OUTPUT_DIR, export_folder)
+                        if export_folder is not None
+                        else 0
+                    )
+                except (OSError, RuntimeError, ValueError) as exc:
+                    st.error(f"Impossible d’exporter les fichiers : {exc}")
+                else:
+                    if export_folder is not None:
+                        st.success(
+                            f"{copied_count} fichier(s) exporté(s) vers "
+                            f"{export_folder}."
+                        )
+            if st.button(
+                "❌ :red[Clear]",
+                key="clear_output_folder",
+                help="Supprime tout le contenu sauf le fichier .gitkeep.",
+                type="secondary",
+                width="content",
+            ):
+                try:
+                    deleted_count = _clear_folder_content(cfg.OUTPUT_DIR)
+                except OSError as exc:
+                    st.error(f"Impossible de vider OUTPUT : {exc}")
+                else:
+                    st.success(f"OUTPUT vidé ({deleted_count} élément(s)).")
+        with output_icon:
+            _folder_open_icon("output", cfg.OUTPUT_DIR, "OUTPUT")
+        output_path = str(cfg.OUTPUT_DIR).replace("_", r"\_")
+        st.markdown(f":green[:small[{output_path}]]", wrap=False)
+        _render_folder_preview(
+            cfg.OUTPUT_DIR, "OUTPUT", accent="green", border=False
+        )
 def main() -> None:
     """Build the Streamlit navigation and the selected category view."""
     # Configure the page before creating any Streamlit element.
@@ -1120,7 +2334,14 @@ def main() -> None:
                 [1.5, 3.5], vertical_alignment="center"
             )
             with icon_column:
-                st.image(icon_path, width=56)
+                if icon_path is None:
+                    st.markdown(":material/language:")
+                else:
+                    st.image(
+                        icon_path,
+                        width=56,
+                        alt=f"Catégorie {category_name}",
+                    )
             with button_column:
                 if st.button(
                     category_name,
@@ -1136,50 +2357,32 @@ def main() -> None:
         category = st.session_state.selected_category
         st.divider()
 
-        # Show the configured paths separately from the open-folder controls
-        # so long Windows paths remain readable in the narrow sidebar.
-        # Keep labels and their long filesystem paths separate for readability.
-        st.markdown(":green[**Entrée**]")
-        st.markdown(
-            (
-                "<span style='color: #2e8b57; font-size: 0.6rem;'>"
-                f"{escape(str(cfg.INPUT_DIR))}</span>"
-            ),
-            unsafe_allow_html=True,
-        )
-        if st.button(
-            "Ouvrir le dossier d’entrée",
-            key="open_input",
-            width="stretch",
-        ):
-            _open_in_file_explorer(cfg.INPUT_DIR, "d’entrée")
-        st.markdown(":blue[**Sortie**]")
-        st.markdown(
-            (
-                "<span style='color: #1e90ff; font-size: 0.6rem;'>"
-                f"{escape(str(cfg.OUTPUT_DIR))}</span>"
-            ),
-            unsafe_allow_html=True,
-        )
-        if st.button(
-            "Ouvrir le dossier de sortie",
-            key="open_output",
-            width="stretch",
-        ):
-            _open_in_file_explorer(cfg.OUTPUT_DIR, "de sortie")
+        # Folder buttons live in their own fragment so clicking one does not
+        # rerun or visually reset a treatment in the main page.
+        _render_folder_shortcuts(cfg)
         st.divider()
         with st.expander("Diagnostic", expanded=False):
             # The launch timestamp is set once per browser session.
             st.code(_startup_report(), language="text")
             st.caption("Versions Python, bibliothèques et outils externes")
             st.code(_environment_report(), language="text")
-            st.caption("Flags de cette session")
-            for flag in SESSION_FLAGS:
-                if f"flag_{flag}" not in st.session_state:
-                    st.session_state[f"flag_{flag}"] = getattr(
-                        APP_CONFIG, flag
-                    )
-                st.checkbox(flag, key=f"flag_{flag}")
+            st.html(
+                """
+                <style>
+                .st-key-session_flags [data-testid="stCheckbox"] label p {
+                    font-size: 0.875rem;
+                }
+                </style>
+                """
+            )
+            with st.container(key="session_flags", gap="xsmall"):
+                st.caption("Flags de cette session")
+                for flag in SESSION_FLAGS:
+                    if f"flag_{flag}" not in st.session_state:
+                        st.session_state[f"flag_{flag}"] = getattr(
+                            APP_CONFIG, flag
+                        )
+                    st.checkbox(flag, key=f"flag_{flag}")
             for value in SESSION_VALUES:
                 if f"value_{value}" not in st.session_state:
                     st.session_state[f"value_{value}"] = getattr(
@@ -1241,6 +2444,7 @@ def main() -> None:
         "Audio": _category_audio,
         "PDF": _category_pdf,
         "Fichier": _category_file,
+        "Web": _category_web,
     }
     renderers[category](cfg)
 

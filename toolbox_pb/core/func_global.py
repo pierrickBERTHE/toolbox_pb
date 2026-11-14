@@ -464,8 +464,9 @@ def consume_ffmpeg_progress(
             if not line:
                 break
 
-            # Look for lines like "out_time_ms=12345678" to get current progress
-            match = re.search(r"out_time_ms=(\d+)", line)
+            # FFmpeg progress lines look like "out_time_ms=12345678" 
+            # or "out_time_us=12345678"
+            match = re.search(r"out_time_(?:ms|us)=(\d+)", line)
             if match:
                 current_time = int(match.group(1)) / 1_000_000
                 delta = current_time - last_time

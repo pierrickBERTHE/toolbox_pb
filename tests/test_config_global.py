@@ -28,7 +28,13 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parents[1] / 'toolbox_pb'))
 
 # Import the module to test
-from toolbox_pb.core.config_global import AppConfig, APP_CONFIG
+from toolbox_pb.core.config_global import (
+    APP_CONFIG,
+    IMAGE_EXAMPLE_DIR,
+    PACKAGE_DIR,
+    PROJECT_DIR,
+    AppConfig,
+)
 
 
 # -----------------------------
@@ -74,6 +80,9 @@ def test_codecs_configuration():
 
 def test_paths_are_path_objects():
     """All paths must be pathlib.Path instances."""
+    assert isinstance(PROJECT_DIR, Path)
+    assert isinstance(PACKAGE_DIR, Path)
+    assert isinstance(IMAGE_EXAMPLE_DIR, Path)
     assert isinstance(APP_CONFIG.ROOT, Path)
     assert isinstance(APP_CONFIG.LOG_DIR, Path)
     assert isinstance(APP_CONFIG.INPUT_DIR, Path)
@@ -82,6 +91,9 @@ def test_paths_are_path_objects():
 
 def test_paths_structure():
     """Verify logical folder structure."""
+    assert PROJECT_DIR == APP_CONFIG.ROOT
+    assert PACKAGE_DIR == PROJECT_DIR / "toolbox_pb"
+    assert IMAGE_EXAMPLE_DIR == PROJECT_DIR / "image" / "examples"
     assert APP_CONFIG.LOG_DIR.parent == APP_CONFIG.ROOT
     assert APP_CONFIG.INPUT_DIR.parent.name == "data"
     assert APP_CONFIG.OUTPUT_DIR.parent.name == "data"

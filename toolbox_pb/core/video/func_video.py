@@ -192,8 +192,9 @@ def prepare_video_for_assembly(
 
     Some phone files declare a high nominal frame rate (for example 120 FPS)
     while their timestamped frames run at about 30 FPS. FFmpeg rewrites these
-    video frames with a cadence that differs from toolbox_pb.core.audio. FFmpeg rewrites these
     exceptional sources with their average FPS before they are assembled.
+    FFmpeg applies the source display orientation (as VLC does), then the
+    resulting encoded pixels are saved without a rotation tag.
     """
     # Check the declared (r_frame_rate) and average FPS (avg_frame_rate) 
     # of the video stream
@@ -213,7 +214,8 @@ def prepare_video_for_assembly(
     # Build the FFmpeg command to normalize the video frame rate
     command = [
         "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
-        "-i", str(video_path), "-map", "0:v:0", "-map", "0:a?",
+        "-i", str(video_path),
+        "-map", "0:v:0", "-map", "0:a?",
         "-vf", f"fps={average_fps:.8f}", "-fps_mode", "cfr",
         "-c:v", codec_video, "-c:a", codec_audio,
         "-metadata:s:v:0", "rotate=0", str(output_path),
@@ -1936,9 +1938,10 @@ def get_video_frame_size_from_paths(
 ) -> tuple[int, int] | None:
     """
     Compute the output frame size (width, height) that can fit all input
-    videos, respecting their aspect ratios and the optional maximum height.
+    videos, respecting their displayed aspect ratios and the optional maximum
+    height. This matches FFmpeg's default auto-rotation and VLC's display.
     """
-    # Compute the display dimensions of each video in the list
+    # Use the displayed dimensions, as FFmpeg/VLC auto-rotate tagged sources.
     sizes = [probe_video_display_dimensions(p) for p in paths]
     sizes = [s for s in sizes if s]
     if not sizes:
@@ -2134,31 +2137,24 @@ def render_normalized_source_clip(
     codec_audio: str,
     output_path: Path,
 ) -> float:
-    """
-    Trim, rotate, scale/pad and re-encode exactly one source clip with a
-    direct FFmpeg command, then report its resulting duration.
+    """Trim, scale/pad and re-encode one clip with VLC-like orientation.
 
-    Rotation is applied explicitly via -noautorotate + transpose, instead
-    of relying on FFmpeg's implicit autorotate, whose support varies by
-    build and silently produces a squashed/stretched picture when absent.
+    FFmpeg auto-rotates tagged sources before filtering, then the normalized
+    clip is written with its orientation baked into pixels and no rotation tag.
     """
     # Compute the start time and duration for trimming
     trim_start = float(start or 0)
     trim_duration = compute_trim_duration(prepared_path, start, end)
 
-    # Probe the source video for its rotation and display dimensions
-    rotation = probe_video_rotation(prepared_path)
+    # Dimensions match FFmpeg's displayed (auto-rotated) video frame.
     source_size = probe_video_display_dimensions(prepared_path) or frame_size
 
     # Compute the scaled size that fits within the target frame while preserving aspect ratio
     scaled_width, scaled_height = fit_visual_size_in_frame(source_size, frame_size)
     width, height = frame_size
     
-    # Build the FFmpeg filter chain for rotation, scaling, padding, and frame rate adjustment
-    rotation_filter = build_rotation_filter(rotation)
+    # FFmpeg's default auto-rotation happens before this filter chain.
     filters = []
-    if rotation_filter:
-        filters.append(rotation_filter)
     filters.append(f"scale={scaled_width}:{scaled_height}")
     filters.append(f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black")
     filters.append("setsar=1")
@@ -2168,7 +2164,6 @@ def render_normalized_source_clip(
     # Build the FFmpeg command to process the video clip
     command = [
         "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
-        "-noautorotate",
         "-i", str(prepared_path),
         "-ss", str(trim_start), "-t", str(trim_duration),
         "-vf", video_filter,
@@ -2232,7 +2227,8 @@ def concat_normalized_clips_ffmpeg(
         _run_ffmpeg_silently([
             "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
             "-f", "concat", "-safe", "0", "-i", str(concat_file),
-            "-c", "copy", str(concatenated_path),
+            "-c", "copy",
+            str(concatenated_path),
         ])
 
         # No subtitles or comment to add: the concat result is the output
