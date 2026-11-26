@@ -56,9 +56,12 @@ def copy_jpeg_files_from_audio_folders(
     # for each audio folder
     copied_files = 0
     audio_folders = {audio_file.parent for audio_file in audio_files}
-    for audio_folder in sorted(audio_folders, key=lambda path: str(path).lower()):
+    for audio_folder in sorted(
+        audio_folders, key=lambda path: str(path).lower()
+    ):
         jpeg_paths = [
-            path for path in audio_folder.iterdir()
+            path
+            for path in audio_folder.iterdir()
             if path.is_file() and path.suffix.lower() in {".jpg", ".jpeg"}
         ]
         if not jpeg_paths:
@@ -94,10 +97,14 @@ def audio_compressor(cfg: AppConfig) -> bool:
     # Check that the configured MP3 bitrate is positive
     bitrate_kbps = cfg.AUDIO_COMPRESSOR_MP3_BITRATE_KBPS
     if bitrate_kbps <= 0:
-        raise ValueError("AUDIO_COMPRESSOR_MP3_BITRATE_KBPS doit être positif.")
+        raise ValueError(
+            "AUDIO_COMPRESSOR_MP3_BITRATE_KBPS doit être positif."
+        )
 
     # Find all audio files in the input directory
-    audio_files = find_audio_files(cfg.INPUT_DIR, cfg.INPUT_ACCEPTED_AUDIO_FILES)
+    audio_files = find_audio_files(
+        cfg.INPUT_DIR, cfg.INPUT_ACCEPTED_AUDIO_FILES
+    )
     if not audio_files:
         return True
 
@@ -121,7 +128,6 @@ def audio_compressor(cfg: AppConfig) -> bool:
 
     # Process each audio file
     for input_path in audio_files:
-
         # Determine the input bitrate and output subdirectory
         input_bitrate_kbps = probe_audio_bitrate_kbps(input_path)
 
@@ -130,7 +136,7 @@ def audio_compressor(cfg: AppConfig) -> bool:
             input_path, cfg.INPUT_DIR, cfg.OUTPUT_DIR
         )
 
-        # if the input file is an MP3 and its bitrate is less than or equal 
+        # if the input file is an MP3 and its bitrate is less than or equal
         # to the configured bitrate, copy it without re-encoding
         if (
             input_path.suffix.lower() == ".mp3"
@@ -154,11 +160,15 @@ def audio_compressor(cfg: AppConfig) -> bool:
             continue
 
         # Determine the output file name, adding a suffix if there are duplicates
-        relative_stem = input_path.relative_to(cfg.INPUT_DIR).with_suffix("").as_posix()
-        
+        relative_stem = (
+            input_path.relative_to(cfg.INPUT_DIR).with_suffix("").as_posix()
+        )
+
         # If there are duplicate stems, append the original file extension to the output name
         if relative_stem in duplicate_stems:
-            output_name = f"{input_path.stem}_{input_path.suffix[1:].lower()}.mp3"
+            output_name = (
+                f"{input_path.stem}_{input_path.suffix[1:].lower()}.mp3"
+            )
         else:
             output_name = f"{input_path.stem}.mp3"
         output_path = output_subdir / output_name
@@ -184,7 +194,11 @@ def audio_compressor(cfg: AppConfig) -> bool:
                 bitrate_kbps=bitrate_kbps,
                 processing_comment=processing_comment,
             )
-        except (FileNotFoundError, subprocess.CalledProcessError, OSError) as exc:
+        except (
+            FileNotFoundError,
+            subprocess.CalledProcessError,
+            OSError,
+        ) as exc:
             output_path.unlink(missing_ok=True)
             failed_files += 1
             emit(f"Audio ignoré : {input_path.name} ({exc})")

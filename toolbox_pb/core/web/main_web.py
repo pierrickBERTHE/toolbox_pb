@@ -35,6 +35,7 @@ WINDOWS_FILE_LOCK_RETRIES = 3
 @dataclass(frozen=True)
 class YouTubeDownloadOptions:
     """User-selected settings for one YouTube download."""
+
     url: str
     output_dir: Path
     media_format: str
@@ -47,7 +48,10 @@ def _validate_youtube_url(url: str) -> str:
     """Return a safe YouTube URL or raise a readable validation error."""
     value = url.strip()
     parsed = urlparse(value)
-    if parsed.scheme not in {"http", "https"} or parsed.netloc.lower() not in YOUTUBE_HOSTS:
+    if (
+        parsed.scheme not in {"http", "https"}
+        or parsed.netloc.lower() not in YOUTUBE_HOSTS
+    ):
         raise ValueError(
             "Saisissez une URL YouTube valide (youtube.com ou youtu.be)."
         )
@@ -124,7 +128,9 @@ def download_youtube_media(options: YouTubeDownloadOptions) -> list[Path]:
             yt_dlp,
             ydl_options,
             url,
-            mp3_bitrate=(options.mp3_bitrate if options.media_format == "MP3" else None),
+            mp3_bitrate=(
+                options.mp3_bitrate if options.media_format == "MP3" else None
+            ),
         )
     except ImportError as exc:
         raise ValueError(
@@ -133,7 +139,9 @@ def download_youtube_media(options: YouTubeDownloadOptions) -> list[Path]:
     except Exception as exc:
         # yt-dlp exposes several error classes whose public shape changes over
         # time. Convert them into an input error while retaining a useful text.
-        raise ValueError(f"\nTéléchargement YouTube impossible : {exc}") from exc
+        raise ValueError(
+            f"\nTéléchargement YouTube impossible : {exc}"
+        ) from exc
 
     if options.media_format == "MP3":
         _remove_new_audio_intermediates(options.output_dir, existing_files)
@@ -148,7 +156,9 @@ def download_youtube_media(options: YouTubeDownloadOptions) -> list[Path]:
         key=lambda path: path.name.casefold(),
     )
     if not downloaded_files:
-        raise ValueError("\nLe téléchargement YouTube n’a produit aucun fichier final.")
+        raise ValueError(
+            "\nLe téléchargement YouTube n’a produit aucun fichier final."
+        )
     if subtitle_selection:
         media_file = downloaded_files[0]
         for language, is_automatic in subtitle_selection:
@@ -221,13 +231,19 @@ def _preferred_subtitle_language(
     tracks: dict[object, object], language_prefix: str
 ) -> str | None:
     """Choose an exact language tag before a regional variant."""
-    available = sorted(str(language) for language, values in tracks.items() if values)
+    available = sorted(
+        str(language) for language, values in tracks.items() if values
+    )
     if language_prefix in available:
         return language_prefix
     prefix = f"{language_prefix}-"
     return next(
-        (language for language in available if language.casefold().startswith(prefix)),
-        None
+        (
+            language
+            for language in available
+            if language.casefold().startswith(prefix)
+        ),
+        None,
     )
 
 
@@ -331,10 +347,16 @@ def _download_with_file_lock_retry(
 
 def _is_transient_windows_file_lock(exc: BaseException) -> bool:
     """Recognize the Windows sharing violation reported by yt-dlp/FFmpeg."""
-    if getattr(exc, "winerror", None) == 32 or getattr(exc, "errno", None) == 32:
+    if (
+        getattr(exc, "winerror", None) == 32
+        or getattr(exc, "errno", None) == 32
+    ):
         return True
     message = str(exc).casefold()
-    return "[winerror 32]" in message or "utilisé par un autre processus" in message
+    return (
+        "[winerror 32]" in message
+        or "utilisé par un autre processus" in message
+    )
 
 
 def _remove_new_audio_intermediates(
@@ -361,7 +383,9 @@ class _YouTubeProgressReporter:
     def report(self, status: dict[str, object]) -> None:
         """Update one bar per downloaded media stream, without raw CLI noise."""
         state = status.get("status")
-        filename = str(status.get("tmpfilename") or status.get("filename") or "")
+        filename = str(
+            status.get("tmpfilename") or status.get("filename") or ""
+        )
         info = status.get("info_dict")
         if not filename and isinstance(info, dict):
             filename = str(info.get("format_id") or info.get("id") or "")
@@ -407,7 +431,11 @@ class _YouTubeProgressReporter:
         """Return one stream's percentage, including HLS fragment progress."""
         downloaded = status.get("downloaded_bytes")
         total = status.get("total_bytes") or status.get("total_bytes_estimate")
-        if isinstance(downloaded, (int, float)) and isinstance(total, (int, float)) and total > 0:
+        if (
+            isinstance(downloaded, (int, float))
+            and isinstance(total, (int, float))
+            and total > 0
+        ):
             local_percentage = min(downloaded / total * 100, 100)
         else:
             percent_text = str(status.get("_percent_str", ""))
@@ -424,7 +452,9 @@ class _YouTubeProgressReporter:
             and fragment_index > 0
         ):
             return min(
-                ((fragment_index - 1) + local_percentage / 100) / fragment_count * 100,
+                ((fragment_index - 1) + local_percentage / 100)
+                / fragment_count
+                * 100,
                 100,
             )
         return local_percentage
@@ -441,7 +471,7 @@ def _make_progress_extract_audio_postprocessor(
     )
 
     class ProgressExtractAudioPP(FFmpegExtractAudioPP):
-        """FFmpegExtractAudioPP that reports ``out_time_ms`` to Streamlit."""
+        """FFmpegExtractAudioPP that reports ``out_time_ms`` to the UI."""
 
         def run(self, information: dict[str, object]):
             duration = information.get("duration")
@@ -450,7 +480,7 @@ def _make_progress_extract_audio_postprocessor(
             except (TypeError, ValueError):
                 self._toolbox_duration = 0.0
             # yt-dlp can invoke the same post-processor more than once while
-            # preparing the target file.  Keep the Streamlit console concise.
+            # preparing the target file. Keep the graphical console concise.
             if not getattr(self, "_toolbox_conversion_announced", False):
                 emit("\nConversion du flux audio en MP3…", log=False)
                 self._toolbox_conversion_announced = True

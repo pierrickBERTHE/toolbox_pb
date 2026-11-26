@@ -52,7 +52,9 @@ def is_timeline_filename(filename: str) -> bool:
     return bool(_TIMELINE_PREFIX.match(filename))
 
 
-def build_timeline_filename(input_path: Path, modification_time: datetime) -> str:
+def build_timeline_filename(
+    input_path: Path, modification_time: datetime
+) -> str:
     """Build a sortable filename that retains the original filename and suffix."""
 
     return f"{modification_time:%Y-%m-%d_%H-%M-%S}__{input_path.name}"
@@ -96,13 +98,13 @@ def _normalize_french_month(month: str) -> str:
 
 
 def _levenshtein_distance(left: str, right: str) -> int:
-    """Return the Levenshtein distance between two strings. 
-    it is the number of single-character edits (insertions, deletions, or 
+    """Return the Levenshtein distance between two strings.
+    it is the number of single-character edits (insertions, deletions, or
     substitutions) required to change one string into the other.
-    
-    for exemple, the Levenshtein distance between "octobre" and "octobr" is 1, 
+
+    for exemple, the Levenshtein distance between "octobre" and "octobr" is 1,
     because only one character needs to be removed to make the two strings identical.
-    but the Levenshtein distance between "octobre" and "novembre" is 6, 
+    but the Levenshtein distance between "octobre" and "novembre" is 6,
     because six characters need to be changed to make the two strings identical.
     """
     previous_row = list(range(len(right) + 1))
@@ -166,14 +168,18 @@ def build_dated_folder_name(folder_name: str) -> str | None:
         parsed_date = date(
             int(match.group("year")),
             month_number,
-            int(day_text[:-2] if day_text.casefold().endswith("er") else day_text),
+            int(
+                day_text[:-2]
+                if day_text.casefold().endswith("er")
+                else day_text
+            ),
         )
     except ValueError:
         return None
 
     # Remove a date wherever it occurs. Separators left at either edge are
     # dropped, while repeated separators in a middle position collapse to one.
-    title = folder_name[:match.start()] + folder_name[match.end():]
+    title = folder_name[: match.start()] + folder_name[match.end() :]
     title = re.sub(r"\s{2,}", " ", title)
     title = re.sub(r"(?:\s*[-–—]\s*){2,}", " - ", title)
     title = title.strip(" \t-–—")
@@ -218,7 +224,9 @@ def clean_contents(path: Path) -> int:
     before = get_size(path)
     for item in path.iterdir():
         try:
-            shutil.rmtree(item, ignore_errors=True) if item.is_dir() else item.unlink()
+            shutil.rmtree(
+                item, ignore_errors=True
+            ) if item.is_dir() else item.unlink()
         except OSError:
             pass
     return max(0, before - get_size(path))
@@ -228,9 +236,9 @@ def format_size(num_bytes: int) -> str:
     """
     Format a size in decimal megabytes below 1 GB, otherwise in gigabytes.
     """
-    if num_bytes < 1000 ** 3:
-        return f"{num_bytes / (1000 ** 2):.1f} Mo"
-    return f"{num_bytes / (1000 ** 3):.1f} Go"
+    if num_bytes < 1000**3:
+        return f"{num_bytes / (1000**2):.1f} Mo"
+    return f"{num_bytes / (1000**3):.1f} Go"
 
 
 def get_cli_caches() -> list[tuple[str, Path, list[str]]]:
@@ -239,11 +247,7 @@ def get_cli_caches() -> list[tuple[str, Path, list[str]]]:
     for name, dir_cmd, clean_cmd in config_global.CLI_CLEAN_COMMANDS:
         try:
             result = subprocess.run(
-                dir_cmd,
-                capture_output=True,
-                text=True,
-                timeout=60,
-                check=True
+                dir_cmd, capture_output=True, text=True, timeout=60, check=True
             )
             if not result.stdout.strip():
                 raise ValueError("empty cache directory")
@@ -268,5 +272,3 @@ def run_cli_cleaners(caches: list[tuple[str, Path, list[str]]]) -> int:
             emit(f"{name} : unable to clean cache ({exc})")
         total_freed += max(0, before - get_size(cache_path))
     return total_freed
-
-

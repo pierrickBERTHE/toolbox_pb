@@ -39,10 +39,14 @@ def raise_if_cancelled(proc: subprocess.Popen | None = None) -> None:
     if not is_cancelled():
         return
     if proc is not None and proc.poll() is None:
+        # Ask FFmpeg to exit cleanly first so it can release its output file.
         proc.terminate()
         try:
             proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
+            # A stuck child must not keep the UI job alive indefinitely.
             proc.kill()
             proc.wait()
-    raise ProcessingCancelled("Traitement arrêté à la demande de l’utilisateur.")
+    raise ProcessingCancelled(
+        "Traitement arrêté à la demande de l’utilisateur."
+    )

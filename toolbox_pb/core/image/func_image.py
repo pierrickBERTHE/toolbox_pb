@@ -6,6 +6,7 @@ Pierrick BERTHE
 mail: pierrick.berthe@gmx.fr
 August 2026
 """
+
 # Imports standard
 import argparse
 import json
@@ -46,7 +47,9 @@ def build_image_processing_comment(
             )
     except OSError:
         previous_comment = None
-    return build_processing_comment(previous_comment, feature, image_codec=image_codec)
+    return build_processing_comment(
+        previous_comment, feature, image_codec=image_codec
+    )
 
 
 def load_background_remover():
@@ -126,7 +129,9 @@ def reduce_image_for_screen(
     if output_format not in {".jpg", ".jpeg", ".png"}:
         raise ValueError(f"Unsupported image format: {input_path.suffix}")
     if output_path.suffix.lower() != output_format:
-        raise ValueError("output_path must keep the same extension as input_path")
+        raise ValueError(
+            "output_path must keep the same extension as input_path"
+        )
 
     # Ensure the output directory exists and prepare a temporary candidate path for saving the image
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -135,7 +140,6 @@ def reduce_image_for_screen(
     try:
         # Open the input image and apply EXIF orientation
         with Image.open(input_path) as source:
-
             # Apply EXIF orientation to the image
             image = ImageOps.exif_transpose(source)
 
@@ -190,7 +194,10 @@ def reduce_image_for_screen(
                 png_info = PngImagePlugin.PngInfo()
                 png_info.add_text("Comment", processing_comment)
                 save_kwargs.update(
-                    format="PNG", optimize=True, compress_level=9, pnginfo=png_info
+                    format="PNG",
+                    optimize=True,
+                    compress_level=9,
+                    pnginfo=png_info,
                 )
 
             if output_format in {".jpg", ".jpeg"}:
@@ -208,12 +215,12 @@ def reduce_image_for_screen(
         if output_size >= input_size:
             candidate_path.unlink()
             return None
-        
+
         # If the recompressed image is smaller, replace the original
         candidate_path.replace(output_path)
         preserve_file_modification_time(input_path, output_path)
         return input_size, output_size
-    
+
     # Handle any OSError that occurs during image processing
     except OSError as exc:
         if candidate_path.exists():
@@ -241,7 +248,7 @@ def parse_defilor_extra_args(raw_args: str | None) -> argparse.Namespace:
 
     # Tokenize the raw arguments string to handle quoted values properly.
     tokens = shlex.split(raw_args) if raw_args else []
-    
+
     # Parse the arguments and handle errors gracefully.
     try:
         args, unknown = parser.parse_known_args(tokens)
@@ -352,7 +359,7 @@ def get_image_size(image_path: Path) -> tuple[int, int]:
             f"- ffprobe details: {details if details else 'no details'}"
         ) from exc
 
-    # Parse the ffprobe output and extract width and height, with error handling 
+    # Parse the ffprobe output and extract width and height, with error handling
     payload = json.loads(result.stdout)
     streams = payload.get("streams", [])
     if not streams:
@@ -387,7 +394,7 @@ def build_scroll_expression(
 
     # calculate the duration of the scrolling phase based on the scroll speed
     scroll_duration = travel_px / scroll_speed_px_s
-    
+
     # Calculate the total duration of the video
     total_duration = hold_start + scroll_duration + hold_end
 
@@ -444,10 +451,7 @@ def generate_image_defilor(
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Crop vertically using a time-based y expression, then enforce 4:2:0 output.
-    vf = (
-        f"crop={image_width}:{output_height}:0:'{y_expr}',"
-        "format=yuv420p"
-    )
+    vf = f"crop={image_width}:{output_height}:0:'{y_expr}',format=yuv420p"
 
     # Build the ffmpeg command with progress output and error handling
     cmd = [
@@ -493,9 +497,7 @@ def generate_image_defilor(
         emit()
         desc = f"Image defilor: {image_path.name}"
         error_lines = consume_ffmpeg_progress(
-            proc,
-            duration=duration,
-            desc=desc
+            proc, duration=duration, desc=desc
         )
 
         # Wait for the process to finish and check for errors

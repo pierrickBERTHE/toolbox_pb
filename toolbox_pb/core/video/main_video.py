@@ -1,5 +1,5 @@
 """
-Ce fichier contient les fonctions principales pour le traitement vidéo de 
+Ce fichier contient les fonctions principales pour le traitement vidéo de
 la toolbox_pb.
 
 Auteurs :
@@ -7,6 +7,7 @@ Pierrick BERTHE
 mail : pierrick.berthe@gmx.fr
 Décembre 2025
 """
+
 # import custom librairies
 import filecmp
 import logging
@@ -21,11 +22,43 @@ import toolbox_pb.core.func_global as func_glob
 from toolbox_pb.core.events import emit
 
 
+def _format_video_error(exc: Exception) -> str:
+    """Turn an FFmpeg exception into a useful, user-facing diagnostic."""
+    if isinstance(exc, FileNotFoundError):
+        return "FFmpeg est introuvable. Installez-le puis ajoutez-le au PATH."
+
+    details = ""
+    if isinstance(exc, subprocess.CalledProcessError):
+        details = str(exc.stderr or exc.output or "").strip()
+    if not details:
+        return (
+            "FFmpeg n’a pas pu traiter ce fichier. Il est peut-être "
+            "corrompu ou utilise un codec non pris en charge."
+        )
+
+    normalized = " ".join(details.split())
+    lower_details = normalized.lower()
+    if "invalid data" in lower_details or "moov atom not found" in lower_details:
+        cause = "Le fichier semble incomplet ou corrompu."
+    elif "no such file" in lower_details:
+        cause = "Un fichier ou un dossier nécessaire est introuvable."
+    elif "permission denied" in lower_details:
+        cause = "Accès refusé : fermez le fichier s’il est ouvert dans un autre programme."
+    elif "no space left" in lower_details:
+        cause = "Espace disque insuffisant pour créer le fichier de sortie."
+    else:
+        cause = "FFmpeg a signalé une erreur lors de la lecture ou de l’encodage."
+    return f"{cause} Détail FFmpeg : {normalized[:500]}"
+
+
 def _is_unchanged_input_copy(input_path, output_path) -> bool:
     """
     Return True only for an output created by shutil.copy2 from its input.
     """
-    if not output_path.exists() or input_path.stat().st_size != output_path.stat().st_size:
+    if (
+        not output_path.exists()
+        or input_path.stat().st_size != output_path.stat().st_size
+    ):
         return False
     if input_path.stat().st_mtime_ns != output_path.stat().st_mtime_ns:
         return False
@@ -39,7 +72,9 @@ def _extract_and_filter_assembled_srt(assembled_video: Path) -> None:
         "\n✅ VIDEO_ASSEMBLOR_EXTRACT_AND_FILTER_DATES activé : "
         "extraction puis filtrage des sous-titres."
     )
-    with tempfile.TemporaryDirectory(prefix="video_assemblor_srt_") as temp_name:
+    with tempfile.TemporaryDirectory(
+        prefix="video_assemblor_srt_"
+    ) as temp_name:
         temp_dir = Path(temp_name)
         extracted_video = temp_dir / assembled_video.name
         extracted_srt = temp_dir / f"{assembled_video.stem}.srt"
@@ -64,7 +99,7 @@ def _extract_and_filter_assembled_srt(assembled_video: Path) -> None:
         subtitles = func_vid.parse_srt_cues(
             extracted_srt.read_text(encoding="utf-8-sig")
         )
-        
+
         # print statistics before and after filtering
         func_vid.print_srt_date_statistics(
             "Avant filtrage", func_vid.get_srt_date_statistics(subtitles)
@@ -73,7 +108,8 @@ def _extract_and_filter_assembled_srt(assembled_video: Path) -> None:
         filtered_subtitles = func_vid.filter_duplicate_srt_dates(subtitles)
 
         func_vid.print_srt_date_statistics(
-            "Après filtrage", func_vid.get_srt_date_statistics(filtered_subtitles)
+            "Après filtrage",
+            func_vid.get_srt_date_statistics(filtered_subtitles),
         )
         func_vid.print_duplicate_srt_dates(filtered_subtitles)
 
@@ -81,7 +117,7 @@ def _extract_and_filter_assembled_srt(assembled_video: Path) -> None:
         extracted_srt.write_text(
             func_vid.format_srt_cues(filtered_subtitles), encoding="utf-8"
         )
-        
+
         # replace the original files with the filtered ones
         extracted_video.replace(assembled_video)
         extracted_srt.replace(assembled_video.with_suffix(".srt"))
@@ -112,11 +148,12 @@ def video_encodor(cfg: AppConfig) -> bool:
     unchanged_videos = 0
     already_encoded_videos = 0
     failed_videos = 0
-    for input_file in progress(video_files, desc="Video_encodor", unit="vidéo"):
-
+    for input_file in progress(
+        video_files, desc="Video_encodor", unit="vidéo"
+    ):
         # --- CREATE OUTPUT SUBDIR STRUCTURE BASED ON INPUT FILE PATH ---
         output_subdir = func_glob.build_output_subdir_from_input(
-                input_file, config["input_dir"], config["output_dir"]
+            input_file, config["input_dir"], config["output_dir"]
         )
 
         # ------------- FILENAME FOR OUTPUT VIDEO -------------
@@ -128,12 +165,13 @@ def video_encodor(cfg: AppConfig) -> bool:
             config["add_codec"],
         )
 
-
         # ------------- ENCODE VIDEO IF NOT ALREADY DONE -------------
         func_glob.print_section(f"Encodage de la vidéo : {input_file.name}")
 
         # Check if already encoded
-        if output_path.exists() and not _is_unchanged_input_copy(input_file, output_path):
+        if output_path.exists() and not _is_unchanged_input_copy(
+            input_file, output_path
+        ):
             emit("Encodage déjà réalisé.")
             already_encoded_videos += 1
         else:
@@ -146,15 +184,23 @@ def video_encodor(cfg: AppConfig) -> bool:
                     codec_video=config["codec_v"],
                     codec_audio=config["codec_a"],
                     processing_comment=func_glob.build_video_processing_comment(
-                        input_file, "video_encodor", config["codec_v"], config["codec_a"]
+                        input_file,
+                        "video_encodor",
+                        config["codec_v"],
+                        config["codec_a"],
                     ),
                 )
-            except (subprocess.CalledProcessError, RuntimeError, OSError) as exc:
+            except (
+                subprocess.CalledProcessError,
+                RuntimeError,
+                OSError,
+            ) as exc:
                 failed_videos += 1
                 if output_path.exists():
                     output_path.unlink()
                 emit(
-                    f"Vidéo ignorée : {input_file.name} ({exc})",
+                    f"Vidéo ignorée : {input_file.name}. "
+                    f"{_format_video_error(exc)}",
                     level=logging.ERROR,
                 )
                 continue
@@ -169,13 +215,13 @@ def video_encodor(cfg: AppConfig) -> bool:
         if config["print_all_keys"]:
             emit("Méta avant l'encodage :", log=False)
             func_vid.print_metadata_summary_all_keys(meta_before)
-            
+
             emit("\nMéta après l'encodage :", log=False)
             func_vid.print_metadata_summary_all_keys(meta_after)
-        
+
         # Print metadata differences
         func_vid.print_metadata_diff_summary(meta_before, meta_after)
-        
+
         # Get size reduction stats and print them
         stats = func_vid.compute_size_reduction(meta_before, meta_after)
         func_vid.print_size_reduction(stats)
@@ -204,8 +250,8 @@ def video_assemblor(cfg: AppConfig) -> bool:
 
     # create file output path
     output_path = (
-        config["output_dir"] /
-        f"assembled_v-{config['codec_v']}_a-{config['codec_a']}{config['suffix']}"
+        config["output_dir"]
+        / f"assembled_v-{config['codec_v']}_a-{config['codec_a']}{config['suffix']}"
     )
 
     # ------------- ENCODE AND ASSEMBLE VIDEOS -------------
@@ -217,9 +263,11 @@ def video_assemblor(cfg: AppConfig) -> bool:
         is_empty_folder = False
     else:
         # Check for video files in the input directory
-        video_files = list(cfg.INPUT_DIR.rglob('*'))
+        video_files = list(cfg.INPUT_DIR.rglob("*"))
         video_files = [
-            f for f in video_files if func_glob.is_processable_file(f)
+            f
+            for f in video_files
+            if func_glob.is_processable_file(f)
             and f.suffix.lower() in cfg.INPUT_ACCEPTED_VIDEO_FILES
         ]
 
@@ -244,7 +292,7 @@ def video_assemblor(cfg: AppConfig) -> bool:
         sequence = func_vid.resolve_video_sequence(
             input_dir=cfg.INPUT_DIR,
             accepted_ext=cfg.INPUT_ACCEPTED_VIDEO_FILES,
-            segments=segments
+            segments=segments,
         )
 
         # print input files used
@@ -261,7 +309,7 @@ def video_assemblor(cfg: AppConfig) -> bool:
         source_temp_dir = tempfile.TemporaryDirectory(
             prefix="video_assembly_source_"
         )
-        
+
         # Prepare each video for assembly: normalize FPS, codec, and audio stream
         prepared_paths = [
             func_vid.prepare_video_for_assembly(
@@ -294,7 +342,6 @@ def video_assemblor(cfg: AppConfig) -> bool:
                 leave=True,
                 bar_format="{l_bar}{bar}| {n:.0f}/{total:.0f} [{elapsed}<{remaining}]",
             ) as global_progress_bar:
-
                 # Render one source at a time: only one FFmpeg encode at
                 # once, so peak memory stays bounded regardless of count
                 for index, (item, prepared_path) in enumerate(
@@ -323,14 +370,20 @@ def video_assemblor(cfg: AppConfig) -> bool:
                     global_progress_bar.update(1)
 
             # Optionally create a temporary date subtitle file
-            with tempfile.TemporaryDirectory(prefix="video_assemblor_") as temp_dir_name:
+            with tempfile.TemporaryDirectory(
+                prefix="video_assemblor_"
+            ) as temp_dir_name:
                 subtitle_paths = []
-                preserved_subtitles_path = Path(temp_dir_name) / "input_subtitles.srt"
+                preserved_subtitles_path = (
+                    Path(temp_dir_name) / "input_subtitles.srt"
+                )
 
                 # Write preserved input subtitles if they exist
                 if func_vid.write_video_assemblor_input_subtitles_srt(
-                    sequence, duration_clips, preserved_subtitles_path,
-                    Path(temp_dir_name)
+                    sequence,
+                    duration_clips,
+                    preserved_subtitles_path,
+                    Path(temp_dir_name),
                 ):
                     subtitle_paths.append(preserved_subtitles_path)
 
@@ -338,12 +391,16 @@ def video_assemblor(cfg: AppConfig) -> bool:
                 if cfg.VIDEO_ASSEMBLOR_ADD_DATE_SUBTITLES:
                     candidate_path = Path(temp_dir_name) / "dates.srt"
                     if func_vid.write_video_assemblor_date_srt(
-                        sequence, duration_clips, candidate_path,
-                        display_duration=cfg.SRT_DURATION_SECONDS
+                        sequence,
+                        duration_clips,
+                        candidate_path,
+                        display_duration=cfg.SRT_DURATION_SECONDS,
                     ):
                         subtitle_paths.append(candidate_path)
                     else:
-                        emit("Aucune date valide trouvée dans les noms des vidéos.")
+                        emit(
+                            "Aucune date valide trouvée dans les noms des vidéos."
+                        )
 
                 # Stream-copy every normalized source into the final file
                 func_vid.concat_normalized_clips_ffmpeg(
@@ -354,8 +411,8 @@ def video_assemblor(cfg: AppConfig) -> bool:
                         sequence[0]["path"],
                         "video_assemblor",
                         config["codec_v"],
-                        config["codec_a"]
-                    )
+                        config["codec_a"],
+                    ),
                 )
 
         finally:
@@ -406,21 +463,23 @@ def video_audio_decalator(cfg: AppConfig, delay: float | None = None) -> bool:
     """
     # Import configuration
     config = func_glob.parse_config(cfg)
-    
+
     if delay is None:
         raise ValueError("Un délai de décalage audio doit être fourni.")
 
     # ------------- LOOP THROUGH ALL FILES IN INPUT DIR -------------
     is_empty_folder = True
-    for input_file in config["input_dir"].rglob('*'):
-
+    for input_file in config["input_dir"].rglob("*"):
         # ------- IGNORE NON-VIDEO FILES AND DIRECTORIES -------
-        if not func_glob.is_processable_file(input_file) or input_file.suffix.lower() not in config["accepted_file"]:
+        if (
+            not func_glob.is_processable_file(input_file)
+            or input_file.suffix.lower() not in config["accepted_file"]
+        ):
             continue
 
         # --- CREATE OUTPUT SUBDIR STRUCTURE BASED ON INPUT FILE PATH ---
         output_subdir = func_glob.build_output_subdir_from_input(
-                input_file, config["input_dir"], config["output_dir"]
+            input_file, config["input_dir"], config["output_dir"]
         )
 
         # ------------- FILENAME FOR OUTPUT VIDEO -------------
@@ -429,7 +488,7 @@ def video_audio_decalator(cfg: AppConfig, delay: float | None = None) -> bool:
             output_subdir,
             config["suffix"],
             config["codec_v"],
-            config["add_codec"]
+            config["add_codec"],
         )
 
         # Check if already decalated
@@ -472,17 +531,17 @@ def video_volume_adjust(cfg: AppConfig) -> bool:
 
     # ------------- LOOP THROUGH ALL FILES IN INPUT DIR -------------
     is_empty_folder = True
-    for input_file in config["input_dir"].rglob('*'):
-
+    for input_file in config["input_dir"].rglob("*"):
         # ------- IGNORE NON-VIDEO FILES AND DIRECTORIES -------
-        if not func_glob.is_processable_file(input_file) or input_file.suffix.lower() not in config["accepted_file"]:
+        if (
+            not func_glob.is_processable_file(input_file)
+            or input_file.suffix.lower() not in config["accepted_file"]
+        ):
             continue
 
         # create file output path
         stem_file = input_file.stem
-        output_path = (
-            config["output_dir"] / f"{stem_file}{config['suffix']}"
-        )
+        output_path = config["output_dir"] / f"{stem_file}{config['suffix']}"
 
         # Check if already boosted
         if output_path.exists():
@@ -538,7 +597,7 @@ def video_rotator(cfg: AppConfig, angle: int | str | None = None) -> bool:
                 processing_comment=func_glob.build_video_processing_comment(
                     input_file,
                     f"video_rotator | Rotation image : {angle}°",
-                    config["codec_v"]
+                    config["codec_v"],
                 ),
             )
         is_empty_folder = False
@@ -561,17 +620,17 @@ def video_srt_extractor(cfg: AppConfig) -> bool:
 
     # ------------- LOOP THROUGH ALL FILES IN INPUT DIR -------------
     is_empty_folder = True
-    for input_file in config["input_dir"].rglob('*'):
-
+    for input_file in config["input_dir"].rglob("*"):
         # ------- IGNORE NON-VIDEO FILES AND DIRECTORIES -------
-        if not func_glob.is_processable_file(input_file) or input_file.suffix.lower() not in config["accepted_file"]:
+        if (
+            not func_glob.is_processable_file(input_file)
+            or input_file.suffix.lower() not in config["accepted_file"]
+        ):
             continue
 
         # create file output paths (video + sidecar SRT)
         stem_file = input_file.stem
-        output_path = (
-            config["output_dir"] / f"{stem_file}{config['suffix']}"
-        )
+        output_path = config["output_dir"] / f"{stem_file}{config['suffix']}"
         srt_output_path = config["output_dir"] / f"{stem_file}.srt"
 
         # Check if already extracted
@@ -609,10 +668,14 @@ def video_srt_date_filtrator(
     is_empty_folder = True
 
     # for each SRT file in the input directory (or provided source files)
-    subtitle_files = source_files if source_files is not None else sorted(
-        path
-        for path in cfg.INPUT_DIR.rglob("*")
-        if path.suffix.lower() in {".srt", ".txt"}
+    subtitle_files = (
+        source_files
+        if source_files is not None
+        else sorted(
+            path
+            for path in cfg.INPUT_DIR.rglob("*")
+            if path.suffix.lower() in {".srt", ".txt"}
+        )
     )
     destination_dir = output_dir or cfg.OUTPUT_DIR
     for input_file in subtitle_files:
@@ -646,7 +709,8 @@ def video_srt_date_filtrator(
         # print statistics after filtering
         emit()
         func_vid.print_srt_date_statistics(
-            "Après filtrage", func_vid.get_srt_date_statistics(filtered_subtitles)
+            "Après filtrage",
+            func_vid.get_srt_date_statistics(filtered_subtitles),
         )
         func_vid.print_duplicate_srt_dates(filtered_subtitles)
         is_empty_folder = False
@@ -692,7 +756,7 @@ def video_ass_hard_integrator(cfg: AppConfig) -> bool:
     """Convert input SRT files to ASS when needed, then burn them into videos."""
     # Import configuration
     config = func_glob.parse_config(cfg)
-    
+
     # Find all SRT, ASS, and video files in the input directory
     srt_files = func_vid.find_files_by_extensions(cfg.INPUT_DIR, [".srt"])
     ass_files = func_vid.find_files_by_extensions(cfg.INPUT_DIR, [".ass"])
@@ -708,9 +772,12 @@ def video_ass_hard_integrator(cfg: AppConfig) -> bool:
     # Create a mapping of subtitle files by their stem (filename without extension)
     subtitle_files = srt_files or ass_files
     subtitle_by_stem = {
-        subtitle_file.stem.lower(): subtitle_file for subtitle_file in subtitle_files
+        subtitle_file.stem.lower(): subtitle_file
+        for subtitle_file in subtitle_files
     }
-    shared_subtitle_path = subtitle_files[0] if len(subtitle_files) == 1 else None
+    shared_subtitle_path = (
+        subtitle_files[0] if len(subtitle_files) == 1 else None
+    )
     template_path = cfg.ROOT / "data" / "template" / "template_sous_titre.ass"
     if srt_files and not template_path.is_file():
         emit(f"⚠️ Modèle ASS introuvable : {template_path}")
@@ -718,13 +785,17 @@ def video_ass_hard_integrator(cfg: AppConfig) -> bool:
 
     # loop through all video files and integrate the corresponding ASS subtitles
     processed_video = False
-    with tempfile.TemporaryDirectory(prefix="video_ass_hard_integrator_") as temp_name:
+    with tempfile.TemporaryDirectory(
+        prefix="video_ass_hard_integrator_"
+    ) as temp_name:
         temp_dir = Path(temp_name)
         converted_ass_paths = {}
 
         # If there are SRT files, convert them to ASS using the template
         if srt_files:
-            emit("\n    ==> Lancement intégré du Vidéo_convert_srt_to_ass...\n")
+            emit(
+                "\n    ==> Lancement intégré du Vidéo_convert_srt_to_ass...\n"
+            )
             for srt_file in srt_files:
                 ass_path = temp_dir / f"{srt_file.stem}.ass"
                 func_vid.convert_srt_to_ass(
@@ -744,7 +815,9 @@ def video_ass_hard_integrator(cfg: AppConfig) -> bool:
                 input_file.stem.lower()
             )
             if subtitle_path is None:
-                emit(f"⚠️ Aucun fichier SRT ou ASS associé à : {input_file.name}")
+                emit(
+                    f"⚠️ Aucun fichier SRT ou ASS associé à : {input_file.name}"
+                )
                 continue
             ass_path = converted_ass_paths.get(subtitle_path, subtitle_path)
 
@@ -770,8 +843,10 @@ def video_ass_hard_integrator(cfg: AppConfig) -> bool:
                     codec_video=config["codec_v"],
                     codec_audio=config["codec_a"],
                     processing_comment=func_glob.build_video_processing_comment(
-                        input_file, "video_ass_hard_integrator",
-                        config["codec_v"], config["codec_a"],
+                        input_file,
+                        "video_ass_hard_integrator",
+                        config["codec_v"],
+                        config["codec_a"],
                     ),
                 )
             processed_video = True
@@ -795,17 +870,17 @@ def video_srt_integrator(cfg: AppConfig) -> bool:
 
     # ------------- LOOP THROUGH ALL FILES IN INPUT DIR -------------
     is_empty_folder = True
-    for input_file in config["input_dir"].rglob('*'):
-
+    for input_file in config["input_dir"].rglob("*"):
         # ------- IGNORE NON-VIDEO FILES AND DIRECTORIES -------
-        if not func_glob.is_processable_file(input_file) or input_file.suffix.lower() not in config["accepted_file"]:
+        if (
+            not func_glob.is_processable_file(input_file)
+            or input_file.suffix.lower() not in config["accepted_file"]
+        ):
             continue
 
         # create file output path
         stem_file = input_file.stem
-        output_path = (
-            config["output_dir"] / f"{stem_file}{config['suffix']}"
-        )
+        output_path = config["output_dir"] / f"{stem_file}{config['suffix']}"
 
         # Check if already boosted
         if output_path.exists():
@@ -836,14 +911,18 @@ def image_diapo_video_creator(cfg: AppConfig) -> bool:
     """
     # extract configuration values
     duration = cfg.IMAGE_DIAPO_DURATION_SECONDS
-    
+
     # Validate configuration values
     if duration <= 0:
-        raise ValueError("IMAGE_DIAPO_DURATION_SECONDS doit être strictement positif.")
+        raise ValueError(
+            "IMAGE_DIAPO_DURATION_SECONDS doit être strictement positif."
+        )
     if cfg.IMAGE_DIAPO_FPS <= 0:
         raise ValueError("IMAGE_DIAPO_FPS doit être strictement positif.")
     if cfg.IMAGE_DIAPO_MAX_HEIGHT <= 0:
-        raise ValueError("IMAGE_DIAPO_MAX_HEIGHT doit être strictement positif.")
+        raise ValueError(
+            "IMAGE_DIAPO_MAX_HEIGHT doit être strictement positif."
+        )
 
     # ------------ FIND IMAGE AND AUDIO FILES -------------
     image_files = func_vid.find_files_by_extensions(
@@ -856,7 +935,9 @@ def image_diapo_video_creator(cfg: AppConfig) -> bool:
         cfg.INPUT_DIR, cfg.INPUT_ACCEPTED_AUDIO_FILES
     )
     if len(audio_files) > 1:
-        raise ValueError("Un seul fichier audio est autorisé dans le dossier d'entrée.")
+        raise ValueError(
+            "Un seul fichier audio est autorisé dans le dossier d'entrée."
+        )
 
     # ----------- CALCULATE FRAME SIZE -------------
     image_dimensions = [

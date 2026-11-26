@@ -10,7 +10,12 @@ from typing import Any
 class SilentProgress:
     """Progress object used when an interface does not supply a renderer."""
 
-    def __init__(self, iterable: Iterable[Any] | None = None, total: float | None = None, **_: Any) -> None:
+    def __init__(
+        self,
+        iterable: Iterable[Any] | None = None,
+        total: float | None = None,
+        **_: Any,
+    ) -> None:
         self.iterable = iterable
         self.total = total if total is not None else self._get_length(iterable)
         self.n = 0.0
@@ -48,6 +53,8 @@ _progress_factory: ProgressFactory = SilentProgress
 
 def progress(*args: Any, **kwargs: Any) -> Any:
     """Create a progress reporter supplied by the active user interface."""
+    # Core modules only depend on this small factory, not on NiceGUI, tqdm, or
+    # any other concrete renderer.
     return _progress_factory(*args, **kwargs)
 
 
@@ -60,4 +67,6 @@ def use_progress_factory(factory: ProgressFactory) -> Iterator[None]:
     try:
         yield
     finally:
+        # Always restore the previous renderer so a temporary UI adapter does
+        # not leak into the next CLI or test invocation.
         _progress_factory = previous_factory

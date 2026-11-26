@@ -6,6 +6,7 @@ Pierrick BERTHE
 mail : pierrick.berthe@gmx.fr
 Mai 2026
 """
+
 # Imports standard
 from io import BytesIO
 import math
@@ -117,19 +118,21 @@ def build_watermark_page(
 
     # Anchor the first visible text near the bottom-left of the PDF page
     margin = font_size * 0.75
-    anchor_x = ((margin - page_width / 2) + (margin - page_height / 2)) / math.sqrt(2)
-    anchor_y = ((margin - page_height / 2) - (margin - page_width / 2)) / math.sqrt(2)
+    anchor_x = (
+        (margin - page_width / 2) + (margin - page_height / 2)
+    ) / math.sqrt(2)
+    anchor_y = (
+        (margin - page_height / 2) - (margin - page_width / 2)
+    ) / math.sqrt(2)
 
     # ------------- DRAW WATERMARK TEXT -------------
     row_index = 0
     y = anchor_y - diagonal_span
     while y <= y_max:
-
         # Keep each line anchored from the visible left side of the page.
         x = anchor_x + (y - anchor_y)
         col_index = 0
         while x <= x_max:
-
             # Alternate pale colors depending on the row and column
             color_index = (row_index + col_index) % len(watermark_colors)
             c.setFillColor(watermark_colors[color_index])
@@ -189,7 +192,6 @@ def add_text_watermark_to_pdf(
 
     # ------------- ADD WATERMARK TO EACH PAGE -------------
     for page in writer.pages:
-
         # Get page dimensions to generate a matching watermark overlay
         width = float(page.mediabox.width)
         height = float(page.mediabox.height)
@@ -223,7 +225,9 @@ def merge_pdf_files(input_paths: Sequence[Path], output_path: Path) -> None:
     if not input_paths:
         raise ValueError("Au moins un PDF est nécessaire pour l'assemblage.")
     if output_path.suffix.lower() != ".pdf":
-        raise ValueError(f"Le fichier de sortie n'est pas un PDF : {output_path}")
+        raise ValueError(
+            f"Le fichier de sortie n'est pas un PDF : {output_path}"
+        )
 
     for input_path in input_paths:
         if not input_path.is_file():
@@ -244,7 +248,9 @@ def merge_pdf_files(input_paths: Sequence[Path], output_path: Path) -> None:
     emit(f"PDF assemblé : {output_path}")
 
 
-def alternate_pdf_pages(odd_path: Path, even_path: Path, output_path: Path) -> None:
+def alternate_pdf_pages(
+    odd_path: Path, even_path: Path, output_path: Path
+) -> None:
     """Interleave odd and even pages, beginning with the first odd page."""
     # import the necessary PDF libraries lazily
     PdfReader, PdfWriter, _, _ = _import_pdf_dependencies()

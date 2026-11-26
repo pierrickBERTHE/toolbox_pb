@@ -41,9 +41,11 @@ def configure_file_logging(
     _logger.setLevel(_resolve_log_level(level))
 
     if _file_handler is not None:
-        same_path = enabled and Path(_file_handler.baseFilename) == (
-            log_dir / "process_log.txt"
-        ).resolve()
+        same_path = (
+            enabled
+            and Path(_file_handler.baseFilename)
+            == (log_dir / "process_log.txt").resolve()
+        )
         if same_path:
             return
         _logger.removeHandler(_file_handler)
@@ -56,10 +58,12 @@ def configure_file_logging(
     log_path = log_dir / "process_log.txt"
     log_dir.mkdir(parents=True, exist_ok=True)
     _file_handler = logging.FileHandler(log_path, encoding="utf-8")
-    _file_handler.setFormatter(logging.Formatter(
-        "%(asctime)s | %(levelname)s | %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    ))
+    _file_handler.setFormatter(
+        logging.Formatter(
+            "%(asctime)s | %(levelname)s | %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    )
     _logger.addHandler(_file_handler)
 
 
@@ -80,6 +84,7 @@ def emit(
 
 def ui_only(function: Callable[..., Any]) -> Callable[..., Any]:
     """Keep a verbose display helper out of the persistent process log."""
+
     @wraps(function)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         token = _write_to_file.set(False)
