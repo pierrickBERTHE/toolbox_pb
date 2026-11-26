@@ -20,6 +20,7 @@ Test Coverage (functional tests):
     - Output naming with codec info: Tests output filenames include codec identifiers when enabled
     - Metadata workflow: Tests full metadata extraction, comparison, and reporting during encoding
 """
+
 # general imports
 import subprocess
 import sys
@@ -28,16 +29,17 @@ from unittest import mock
 import pytest
 
 # Add the toolbox_pb directory to sys.path for imports
-sys.path.append(str(Path(__file__).resolve().parents[2] / 'toolbox_pb'))
+sys.path.append(str(Path(__file__).resolve().parents[2] / "toolbox_pb"))
 
 # local imports
 from toolbox_pb.core.config_global import AppConfig
-from toolbox_pb.core.video.main_video import video_encodor
+from toolbox_pb.core.video.main_video import _format_video_error, video_encodor
 
 
 # -----------------------------
 # Fixtures
 # -----------------------------
+
 
 @pytest.fixture
 def fake_config(tmp_path):
@@ -71,22 +73,21 @@ def fake_config(tmp_path):
         SUFFIX_OUTPUT_VIDEO=".mp4",
         SUFFIX_OUTPUT_IMAGE=".jpg",
         SUFFIX_OUTPUT_PDF=".pdf",
-
         ROOT=tmp_path,
         LOG_DIR=tmp_path / "log",
         INPUT_DIR=input_dir,
         OUTPUT_DIR=output_dir,
         SEGMENT_DIR=segment_dir,
-
         LOG_TO_FILE=False,
         ADD_CODEC_NAME_IN_OUTPUT=False,
-        VIDEO_ENCODOR_PRINT_ALL_KEYS_IN_METADATA_SUMMARY=False
+        VIDEO_ENCODOR_PRINT_ALL_KEYS_IN_METADATA_SUMMARY=False,
     )
 
 
 # -----------------------------
 # Main tests
 # -----------------------------
+
 
 def test_ignore_non_video_files(fake_config):
     """
@@ -98,13 +99,26 @@ def test_ignore_non_video_files(fake_config):
     (fake_config.INPUT_DIR / "photo.jpg").touch()
 
     # Mock all functions with side effects
-    with mock.patch("toolbox_pb.core.video.main_video.func_vid.encode_full_video") as m_encode, \
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.get_all_metadata", return_value={}), \
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.print_metadata_diff_summary"), \
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.compute_size_reduction", return_value={}), \
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.print_size_reduction"), \
-        mock.patch("toolbox_pb.core.func_global.print_section"):
-
+    with (
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.encode_full_video"
+        ) as m_encode,
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.get_all_metadata",
+            return_value={},
+        ),
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.print_metadata_diff_summary"
+        ),
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.compute_size_reduction",
+            return_value={},
+        ),
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.print_size_reduction"
+        ),
+        mock.patch("toolbox_pb.core.func_global.print_section"),
+    ):
         # Run the function under test
         video_encodor(fake_config)
 
@@ -123,13 +137,26 @@ def test_encode_video_when_not_existing(fake_config):
     input_video.touch()
 
     # Mock all functions with side effects
-    with mock.patch("toolbox_pb.core.video.main_video.func_vid.encode_full_video") as m_encode, \
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.get_all_metadata", return_value={}), \
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.print_metadata_diff_summary"), \
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.compute_size_reduction", return_value={}), \
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.print_size_reduction"), \
-        mock.patch("toolbox_pb.core.func_global.print_section"):
-
+    with (
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.encode_full_video"
+        ) as m_encode,
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.get_all_metadata",
+            return_value={},
+        ),
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.print_metadata_diff_summary"
+        ),
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.compute_size_reduction",
+            return_value={},
+        ),
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.print_size_reduction"
+        ),
+        mock.patch("toolbox_pb.core.func_global.print_section"),
+    ):
         # Run the function under test
         video_encodor(fake_config)
 
@@ -145,7 +172,9 @@ def test_encode_video_when_not_existing(fake_config):
         assert kwargs["codec_audio"] == fake_config.CODEC_AUDIO
 
 
-def test_video_encodor_skips_failed_video_and_cleans_partial_output(fake_config, capsys):
+def test_video_encodor_skips_failed_video_and_cleans_partial_output(
+    fake_config, capsys
+):
     """
     A FFmpeg failure must not stop the batch or leave a partial output.
     """
@@ -158,16 +187,26 @@ def test_video_encodor_skips_failed_video_and_cleans_partial_output(fake_config,
         kwargs["output_path"].write_bytes(b"partial mp4")
         raise subprocess.CalledProcessError(1, ["ffmpeg"])
 
-    with mock.patch(
-        "toolbox_pb.core.video.main_video.func_vid.encode_full_video",
-        side_effect=fail_encoding,
-    ) as m_encode, \
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.get_all_metadata") as m_get_meta, \
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.print_metadata_diff_summary"), \
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.compute_size_reduction", return_value={}), \
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.print_size_reduction"), \
-        mock.patch("toolbox_pb.core.func_global.print_section"):
-
+    with (
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.encode_full_video",
+            side_effect=fail_encoding,
+        ) as m_encode,
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.get_all_metadata"
+        ) as m_get_meta,
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.print_metadata_diff_summary"
+        ),
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.compute_size_reduction",
+            return_value={},
+        ),
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.print_size_reduction"
+        ),
+        mock.patch("toolbox_pb.core.func_global.print_section"),
+    ):
         is_empty = video_encodor(fake_config)
 
     captured = capsys.readouterr()
@@ -176,7 +215,21 @@ def test_video_encodor_skips_failed_video_and_cleans_partial_output(fake_config,
     m_get_meta.assert_not_called()
     assert not output_video.exists()
     assert "Vidéo ignorée : broken.mp4" in captured.out
+    assert "fichier. Il est peut-être corrompu" in captured.out
     assert "1 ignorée(s) après erreur" in captured.out
+
+
+def test_format_video_error_includes_the_relevant_ffmpeg_diagnostic():
+    error = subprocess.CalledProcessError(
+        1,
+        ["ffmpeg"],
+        output="moov atom not found\nInvalid data found when processing input",
+    )
+
+    message = _format_video_error(error)
+
+    assert "incomplet ou corrompu" in message
+    assert "moov atom not found" in message
 
 
 def test_skip_encoding_if_output_exists(fake_config, capsys):
@@ -190,20 +243,36 @@ def test_skip_encoding_if_output_exists(fake_config, capsys):
     output_video.write_bytes(b"encoded video")
 
     # Mock all functions with side effects
-    with mock.patch("toolbox_pb.core.video.main_video.func_vid.encode_full_video") as m_encode, \
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.get_all_metadata", return_value={}), \
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.print_metadata_diff_summary"), \
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.compute_size_reduction", return_value={}), \
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.print_size_reduction"), \
-        mock.patch("toolbox_pb.core.func_global.print_section"), \
-        mock.patch("toolbox_pb.core.video.main_video.func_glob.build_output_path", return_value=output_video):
-
+    with (
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.encode_full_video"
+        ) as m_encode,
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.get_all_metadata",
+            return_value={},
+        ),
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.print_metadata_diff_summary"
+        ),
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.compute_size_reduction",
+            return_value={},
+        ),
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.print_size_reduction"
+        ),
+        mock.patch("toolbox_pb.core.func_global.print_section"),
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_glob.build_output_path",
+            return_value=output_video,
+        ),
+    ):
         # Run the function under test
         video_encodor(fake_config)
-        
+
         # Ensure function not called
         m_encode.assert_not_called()
-        
+
         # Verify message : "déjà réalisé" exists
         captured = capsys.readouterr()
         assert "Encodage déjà réalisé" in captured.out
@@ -219,23 +288,38 @@ def test_output_name_with_codec_flag(fake_config):
     """
 
     # Create a modified config with ADD_CODEC_NAME_IN_OUTPUT enabled
-    fake_config = fake_config.__class__(**{
-        **fake_config.__dict__,
-        "ADD_CODEC_NAME_IN_OUTPUT": True,
-    })
+    fake_config = fake_config.__class__(
+        **{
+            **fake_config.__dict__,
+            "ADD_CODEC_NAME_IN_OUTPUT": True,
+        }
+    )
 
     # Create a fake input video
     input_video = fake_config.INPUT_DIR / "video.mp4"
     input_video.touch()
 
     # Mock all functions with side effects
-    with mock.patch("toolbox_pb.core.video.main_video.func_vid.encode_full_video") as m_encode, \
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.get_all_metadata", return_value={}), \
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.print_metadata_diff_summary"), \
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.compute_size_reduction", return_value={}), \
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.print_size_reduction"), \
-        mock.patch("toolbox_pb.core.func_global.print_section"):
-
+    with (
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.encode_full_video"
+        ) as m_encode,
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.get_all_metadata",
+            return_value={},
+        ),
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.print_metadata_diff_summary"
+        ),
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.compute_size_reduction",
+            return_value={},
+        ),
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.print_size_reduction"
+        ),
+        mock.patch("toolbox_pb.core.func_global.print_section"),
+    ):
         # Run the function under test
         video_encodor(fake_config)
 
@@ -255,24 +339,41 @@ def test_print_all_metadata_when_flag_enabled(fake_config):
     """
 
     # Enable VIDEO_ENCODOR_PRINT_ALL_KEYS_IN_METADATA_SUMMARY as True
-    fake_config = fake_config.__class__(**{
-        **fake_config.__dict__,
-        "VIDEO_ENCODOR_PRINT_ALL_KEYS_IN_METADATA_SUMMARY": True
-    })
+    fake_config = fake_config.__class__(
+        **{
+            **fake_config.__dict__,
+            "VIDEO_ENCODOR_PRINT_ALL_KEYS_IN_METADATA_SUMMARY": True,
+        }
+    )
 
     # Create a fake input video
     input_video = fake_config.INPUT_DIR / "video.mp4"
     input_video.touch()
 
     # Mock all functions with side effects
-    with mock.patch("toolbox_pb.core.video.main_video.func_vid.encode_full_video"), \
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.get_all_metadata", return_value={"size": 123}), \
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.print_metadata_summary_all_keys") as m_print_all, \
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.print_metadata_diff_summary"), \
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.compute_size_reduction", return_value={}), \
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.print_size_reduction"), \
-        mock.patch("toolbox_pb.core.func_global.print_section"):
-
+    with (
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.encode_full_video"
+        ),
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.get_all_metadata",
+            return_value={"size": 123},
+        ),
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.print_metadata_summary_all_keys"
+        ) as m_print_all,
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.print_metadata_diff_summary"
+        ),
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.compute_size_reduction",
+            return_value={},
+        ),
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.print_size_reduction"
+        ),
+        mock.patch("toolbox_pb.core.func_global.print_section"),
+    ):
         # Run the function under test
         video_encodor(fake_config)
 
@@ -284,68 +385,85 @@ def test_print_all_metadata_when_flag_enabled(fake_config):
 # Additional Functional Tests
 # ==============================
 
+
 def test_video_encodor_complete_workflow(fake_config):
     """
     Functional test: Complete video encoding workflow with multiple files.
-    
+
     Verifies that video_encodor correctly processes multiple input files,
     applies appropriate codecs, generates output with correct naming,
     and computes compression statistics.
     """
-    
+
     # Create multiple input video files with different names
     video1 = fake_config.INPUT_DIR / "intro.mp4"
     video2 = fake_config.INPUT_DIR / "main_content.mp4"
     video1.touch()
     video2.touch()
-    
+
     # Mock all dependencies
-    with mock.patch("toolbox_pb.core.video.main_video.func_vid.encode_full_video") as m_encode, \
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.get_all_metadata") as m_get_meta, \
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.print_metadata_diff_summary") as m_print_diff, \
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.compute_size_reduction") as m_compute_reduction, \
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.print_size_reduction") as m_print_reduction, \
-        mock.patch("toolbox_pb.core.func_global.print_section"):
-        
+    with (
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.encode_full_video"
+        ) as m_encode,
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.get_all_metadata"
+        ) as m_get_meta,
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.print_metadata_diff_summary"
+        ) as m_print_diff,
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.compute_size_reduction"
+        ) as m_compute_reduction,
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.print_size_reduction"
+        ) as m_print_reduction,
+        mock.patch("toolbox_pb.core.func_global.print_section"),
+    ):
         # Configure metadata mocks
         metadata_before = {"format": {"size": "5000000"}}
         metadata_after = {"format": {"size": "2500000"}}
-        m_get_meta.side_effect = [metadata_before, metadata_after, metadata_before, metadata_after]
-        
+        m_get_meta.side_effect = [
+            metadata_before,
+            metadata_after,
+            metadata_before,
+            metadata_after,
+        ]
+
         # Configure size reduction mocks
         m_compute_reduction.side_effect = [
             {
                 "size_before": 5000000,
                 "size_after": 2500000,
                 "reduction_percent": 50.0,
-                "compression_factor": 2.0
+                "compression_factor": 2.0,
             },
             {
                 "size_before": 5000000,
                 "size_after": 2500000,
                 "reduction_percent": 50.0,
-                "compression_factor": 2.0
-            }
+                "compression_factor": 2.0,
+            },
         ]
-        
+
         # Run the function
         video_encodor(fake_config)
-        
+
         # Verify encoding was called for both videos
         assert m_encode.call_count == 2
-        
+
         # Verify metadata was retrieved before and after for each video
         assert m_get_meta.call_count == 4
-        
+
         # Verify size reduction was computed for both videos
         assert m_compute_reduction.call_count == 2
-        
+
         # Verify differences were printed for both videos
         assert m_print_diff.call_count == 2
-        
+
         # Verify size reduction was printed for both videos
         assert m_print_reduction.call_count == 2
-        
+
         # Validate encoding calls have correct parameters
         encode_calls = m_encode.call_args_list
         for call in encode_calls:
@@ -357,39 +475,52 @@ def test_video_encodor_complete_workflow(fake_config):
 def test_video_encodor_mixed_files(fake_config):
     """
     Functional test: Processing directory with mixed file types.
-    
+
     Verifies that video_encodor correctly:
     - Ignores non-video files (txt, json, etc.)
     - Encodes only video files matching the configured extensions
     - Handles empty directories gracefully
     """
-    
+
     # Create a mix of file types
     video_file = fake_config.INPUT_DIR / "video.mp4"
     text_file = fake_config.INPUT_DIR / "readme.txt"
     config_file = fake_config.INPUT_DIR / "config.json"
     image_file = fake_config.INPUT_DIR / "thumbnail.png"
-    
+
     # Physically create the files on disk
     video_file.touch()
     text_file.touch()
     config_file.touch()
     image_file.touch()
-    
+
     # Mock all dependencies
-    with mock.patch("toolbox_pb.core.video.main_video.func_vid.encode_full_video") as m_encode, \
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.get_all_metadata", return_value={}), \
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.print_metadata_diff_summary"), \
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.compute_size_reduction", return_value={}), \
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.print_size_reduction"), \
-        mock.patch("toolbox_pb.core.func_global.print_section"):
-        
+    with (
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.encode_full_video"
+        ) as m_encode,
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.get_all_metadata",
+            return_value={},
+        ),
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.print_metadata_diff_summary"
+        ),
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.compute_size_reduction",
+            return_value={},
+        ),
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.print_size_reduction"
+        ),
+        mock.patch("toolbox_pb.core.func_global.print_section"),
+    ):
         # Run the function
         video_encodor(fake_config)
-        
+
         # Verify only the video file was encoded (not other file types)
         assert m_encode.call_count == 1
-        
+
         # Verify the correct file was passed
         call_kwargs = m_encode.call_args.kwargs
         assert call_kwargs["input_path"] == video_file
@@ -398,36 +529,51 @@ def test_video_encodor_mixed_files(fake_config):
 def test_video_encodor_with_codec_name_in_output(fake_config):
     """
     Functional test: Output naming with codec information included.
-    
+
     Verifies that when ADD_CODEC_NAME_IN_OUTPUT is enabled,
     output filenames correctly include the video codec identifier.
     """
-    
+
     # Enable codec name in output
-    fake_config = fake_config.__class__(**{
-        **fake_config.__dict__,
-        "ADD_CODEC_NAME_IN_OUTPUT": True,
-        "CODEC_VIDEO": "libx265"
-    })
-    
+    fake_config = fake_config.__class__(
+        **{
+            **fake_config.__dict__,
+            "ADD_CODEC_NAME_IN_OUTPUT": True,
+            "CODEC_VIDEO": "libx265",
+        }
+    )
+
     # Create input video
     input_video = fake_config.INPUT_DIR / "original_video.mp4"
     input_video.touch()
-    
+
     # Mock all dependencies
-    with mock.patch("toolbox_pb.core.video.main_video.func_vid.encode_full_video") as m_encode, \
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.get_all_metadata", return_value={}), \
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.print_metadata_diff_summary"), \
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.compute_size_reduction", return_value={}), \
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.print_size_reduction"), \
-        mock.patch("toolbox_pb.core.func_global.print_section"):
-        
+    with (
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.encode_full_video"
+        ) as m_encode,
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.get_all_metadata",
+            return_value={},
+        ),
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.print_metadata_diff_summary"
+        ),
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.compute_size_reduction",
+            return_value={},
+        ),
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.print_size_reduction"
+        ),
+        mock.patch("toolbox_pb.core.func_global.print_section"),
+    ):
         # Run the function
         video_encodor(fake_config)
-        
+
         # Get the output path used
         output_path = m_encode.call_args.kwargs["output_path"]
-        
+
         # Verify codec name is in the output filename
         assert "libx265" in output_path.name
         assert output_path.suffix == ".mp4"
@@ -437,7 +583,7 @@ def test_video_encodor_with_codec_name_in_output(fake_config):
 def test_video_encodor_metadata_workflow(fake_config):
     """
     Functional test: Complete metadata extraction and reporting workflow.
-    
+
     Verifies that video_encodor:
     - Extracts metadata before encoding
     - Extracts metadata after encoding
@@ -446,73 +592,98 @@ def test_video_encodor_metadata_workflow(fake_config):
     """
 
     # Enable full metadata printing
-    fake_config = fake_config.__class__(**{
-        **fake_config.__dict__,
-        "VIDEO_ENCODOR_PRINT_ALL_KEYS_IN_METADATA_SUMMARY": True
-    })
+    fake_config = fake_config.__class__(
+        **{
+            **fake_config.__dict__,
+            "VIDEO_ENCODOR_PRINT_ALL_KEYS_IN_METADATA_SUMMARY": True,
+        }
+    )
 
     # Create input video
     input_video = fake_config.INPUT_DIR / "video.mp4"
     input_video.touch()
-    
+
     # Define sample metadata before and after encoding
     metadata_before = {
         "format": {
             "filename": "video.mp4",
             "size": "10000000",
-            "duration": "60"
+            "duration": "60",
         },
         "streams": [
-            {"codec_type": "video", "codec_name": "h264", "width": 1920, "height": 1080}
-        ]
+            {
+                "codec_type": "video",
+                "codec_name": "h264",
+                "width": 1920,
+                "height": 1080,
+            }
+        ],
     }
-    
+
     metadata_after = {
         "format": {
             "filename": "video.mp4",
             "size": "5000000",
-            "duration": "60"
+            "duration": "60",
         },
         "streams": [
-            {"codec_type": "video", "codec_name": "h265", "width": 1920, "height": 1080}
-        ]
+            {
+                "codec_type": "video",
+                "codec_name": "h265",
+                "width": 1920,
+                "height": 1080,
+            }
+        ],
     }
-    
+
     # Mock all dependencies
-    with mock.patch("toolbox_pb.core.video.main_video.func_vid.encode_full_video") as m_encode, \
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.get_all_metadata") as m_get_meta, \
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.print_metadata_summary_all_keys") as m_print_all, \
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.print_metadata_diff_summary") as m_print_diff, \
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.compute_size_reduction") as m_compute, \
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.print_size_reduction") as m_print_reduction, \
-        mock.patch("toolbox_pb.core.func_global.print_section"):
-        
+    with (
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.encode_full_video"
+        ) as m_encode,
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.get_all_metadata"
+        ) as m_get_meta,
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.print_metadata_summary_all_keys"
+        ) as m_print_all,
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.print_metadata_diff_summary"
+        ) as m_print_diff,
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.compute_size_reduction"
+        ) as m_compute,
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.print_size_reduction"
+        ) as m_print_reduction,
+        mock.patch("toolbox_pb.core.func_global.print_section"),
+    ):
         # Configure metadata sequence
         m_get_meta.side_effect = [metadata_before, metadata_after]
-        
+
         # Configure compression stats
         m_compute.return_value = {
             "size_before": 10000000,
             "size_after": 5000000,
             "reduction_percent": 50.0,
-            "compression_factor": 2.0
+            "compression_factor": 2.0,
         }
-        
+
         # Run the function
         video_encodor(fake_config)
-        
+
         # Verify metadata functions were called correctly
         assert m_get_meta.call_count == 2
-        
+
         # Verify full metadata was printed (before and after)
         assert m_print_all.call_count == 2
-        
+
         # Verify metadata differences were printed
         assert m_print_diff.call_count == 1
         m_print_diff.assert_called_with(metadata_before, metadata_after)
-        
+
         # Verify compression statistics were computed
         assert m_compute.call_count == 1
-        
+
         # Verify size reduction was printed
         assert m_print_reduction.call_count == 1

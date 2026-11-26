@@ -1,6 +1,7 @@
 """
 Unit tests for the image.func_image module
 """
+
 # Imports standard
 import sys
 import json
@@ -67,7 +68,9 @@ def test_load_background_remover_explains_missing_dependency(monkeypatch):
     """A missing withoutbg package should produce an actionable error."""
     monkeypatch.setitem(sys.modules, "withoutbg", None)
 
-    with pytest.raises(RuntimeError, match="dépendance withoutbg est manquante"):
+    with pytest.raises(
+        RuntimeError, match="dépendance withoutbg est manquante"
+    ):
         load_background_remover()
 
 
@@ -144,7 +147,9 @@ def test_extract_pdf_images_to_files_without_images(tmp_path):
 def test_extract_pdf_images_to_files_validates_path_and_extension(tmp_path):
     """It should reject a missing file and a file that is not a PDF."""
     with pytest.raises(FileNotFoundError):
-        extract_pdf_images_to_files(tmp_path / "missing.pdf", tmp_path / "rendered")
+        extract_pdf_images_to_files(
+            tmp_path / "missing.pdf", tmp_path / "rendered"
+        )
 
     image = tmp_path / "photo.jpg"
     image.touch()
@@ -164,7 +169,7 @@ def test_get_image_size_success(tmp_path):
     # Create a dummy image file
     image = tmp_path / "img.jpg"
     image.touch()
-    
+
     # Mock subprocess.run to return a successful ffprobe output
     payload = {"streams": [{"width": 1920, "height": 1080}]}
     completed = subprocess.CompletedProcess(
@@ -173,7 +178,10 @@ def test_get_image_size_success(tmp_path):
         stdout=json.dumps(payload),
         stderr="",
     )
-    with mock.patch("toolbox_pb.core.image.func_image.subprocess.run", return_value=completed):
+    with mock.patch(
+        "toolbox_pb.core.image.func_image.subprocess.run",
+        return_value=completed,
+    ):
         width, height = get_image_size(image)
 
     # Assert the returned dimensions match the mocked output
@@ -193,7 +201,10 @@ def test_get_image_size_no_streams(tmp_path):
         stdout=json.dumps({"streams": []}),
         stderr="",
     )
-    with mock.patch("toolbox_pb.core.image.func_image.subprocess.run", return_value=completed):
+    with mock.patch(
+        "toolbox_pb.core.image.func_image.subprocess.run",
+        return_value=completed,
+    ):
         with pytest.raises(RuntimeError, match="No image stream detected"):
             get_image_size(image)
 
@@ -203,17 +214,25 @@ def test_get_image_size_wraps_ffprobe_launch_and_process_errors(tmp_path):
     image = tmp_path / "img.jpg"
     image.touch()
 
-    with mock.patch(
-        "toolbox_pb.core.image.func_image.subprocess.run", side_effect=FileNotFoundError
-    ), pytest.raises(RuntimeError, match="ffprobe not found"):
+    with (
+        mock.patch(
+            "toolbox_pb.core.image.func_image.subprocess.run",
+            side_effect=FileNotFoundError,
+        ),
+        pytest.raises(RuntimeError, match="ffprobe not found"),
+    ):
         get_image_size(image)
 
     process_error = subprocess.CalledProcessError(
         1, ["ffprobe"], output="", stderr="invalid image"
     )
-    with mock.patch(
-        "toolbox_pb.core.image.func_image.subprocess.run", side_effect=process_error
-    ), pytest.raises(RuntimeError, match="invalid image"):
+    with (
+        mock.patch(
+            "toolbox_pb.core.image.func_image.subprocess.run",
+            side_effect=process_error,
+        ),
+        pytest.raises(RuntimeError, match="invalid image"),
+    ):
         get_image_size(image)
 
 
@@ -228,8 +247,12 @@ def test_get_image_size_rejects_missing_dimensions(tmp_path):
         stderr="",
     )
 
-    with mock.patch("toolbox_pb.core.image.func_image.subprocess.run", return_value=completed), pytest.raises(
-        RuntimeError, match="Invalid dimensions"
+    with (
+        mock.patch(
+            "toolbox_pb.core.image.func_image.subprocess.run",
+            return_value=completed,
+        ),
+        pytest.raises(RuntimeError, match="Invalid dimensions"),
     ):
         get_image_size(image)
 
@@ -269,10 +292,20 @@ def test_generate_image_defilor_calls_ffmpeg_and_progress(tmp_path):
 
     # Mock several functions to isolate the ffmpeg call and progress parsing
     fake_proc = DummyProc(returncode=0)
-    with mock.patch("toolbox_pb.core.image.func_image.get_image_size", return_value=(1200, 2000)), \
-        mock.patch("toolbox_pb.core.image.func_image.consume_ffmpeg_progress", return_value=[]), \
-        mock.patch("toolbox_pb.core.image.func_image.subprocess.Popen", return_value=fake_proc) as popen_mock:
-
+    with (
+        mock.patch(
+            "toolbox_pb.core.image.func_image.get_image_size",
+            return_value=(1200, 2000),
+        ),
+        mock.patch(
+            "toolbox_pb.core.image.func_image.consume_ffmpeg_progress",
+            return_value=[],
+        ),
+        mock.patch(
+            "toolbox_pb.core.image.func_image.subprocess.Popen",
+            return_value=fake_proc,
+        ) as popen_mock,
+    ):
         # Act
         generate_image_defilor(
             image_path=image,
@@ -299,24 +332,29 @@ def test_generate_image_defilor_calls_ffmpeg_and_progress(tmp_path):
     [
         (
             {"output_height": 0, "fps": 60, "scroll_speed_px_s": 35.0},
-            "output_height must be > 0"
+            "output_height must be > 0",
         ),
         (
             {"output_height": 100, "fps": 0, "scroll_speed_px_s": 35.0},
-            "fps must be > 0"
+            "fps must be > 0",
         ),
         (
             {"output_height": 100, "fps": 60, "scroll_speed_px_s": 0},
-            "scroll_speed_px_s must be > 0"
+            "scroll_speed_px_s must be > 0",
         ),
     ],
 )
-def test_generate_image_defilor_validation_errors(tmp_path, kwargs, expected_message):
+def test_generate_image_defilor_validation_errors(
+    tmp_path, kwargs, expected_message
+):
     """It should fail fast on invalid numeric inputs."""
     image = tmp_path / "img.jpg"
     image.touch()
     output = tmp_path / "out.mp4"
-    with mock.patch("toolbox_pb.core.image.func_image.get_image_size", return_value=(800, 600)):
+    with mock.patch(
+        "toolbox_pb.core.image.func_image.get_image_size",
+        return_value=(800, 600),
+    ):
         with pytest.raises(ValueError, match=expected_message):
             generate_image_defilor(
                 image_path=image,
@@ -334,7 +372,10 @@ def test_generate_image_defilor_height_larger_than_image(tmp_path):
     image = tmp_path / "img.jpg"
     image.touch()
     output = tmp_path / "out.mp4"
-    with mock.patch("toolbox_pb.core.image.func_image.get_image_size", return_value=(800, 600)):
+    with mock.patch(
+        "toolbox_pb.core.image.func_image.get_image_size",
+        return_value=(800, 600),
+    ):
         with pytest.raises(ValueError, match="image height"):
             generate_image_defilor(
                 image_path=image,
@@ -349,18 +390,31 @@ def test_generate_image_defilor_height_larger_than_image(tmp_path):
             )
 
 
-def test_generate_image_defilor_raises_runtimeerror_on_ffmpeg_failure(tmp_path):
+def test_generate_image_defilor_raises_runtimeerror_on_ffmpeg_failure(
+    tmp_path,
+):
     """It should wrap ffmpeg process failure as RuntimeError."""
     # Create a dummy image file
     image = tmp_path / "img.jpg"
     image.touch()
     output = tmp_path / "out.mp4"
-    
+
     # Mock several functions to simulate an ffmpeg failure with error messages
     fake_proc = DummyProc(returncode=1)
-    with mock.patch("toolbox_pb.core.image.func_image.get_image_size", return_value=(1200, 2000)), \
-        mock.patch("toolbox_pb.core.image.func_image.consume_ffmpeg_progress", return_value=["error one", "error two"]), \
-        mock.patch("toolbox_pb.core.image.func_image.subprocess.Popen", return_value=fake_proc):
+    with (
+        mock.patch(
+            "toolbox_pb.core.image.func_image.get_image_size",
+            return_value=(1200, 2000),
+        ),
+        mock.patch(
+            "toolbox_pb.core.image.func_image.consume_ffmpeg_progress",
+            return_value=["error one", "error two"],
+        ),
+        mock.patch(
+            "toolbox_pb.core.image.func_image.subprocess.Popen",
+            return_value=fake_proc,
+        ),
+    ):
         with pytest.raises(RuntimeError, match="ffmpeg failed"):
             generate_image_defilor(
                 image_path=image,
@@ -375,7 +429,9 @@ def test_generate_image_defilor_raises_runtimeerror_on_ffmpeg_failure(tmp_path):
             )
 
 
-def test_reduce_image_for_screen_writes_smaller_png_and_keeps_dimensions(tmp_path):
+def test_reduce_image_for_screen_writes_smaller_png_and_keeps_dimensions(
+    tmp_path,
+):
     """It should keep the PNG format, dimensions and transparency."""
     source = tmp_path / "photo.png"
     output = tmp_path / "photo_compressed.png"
@@ -432,17 +488,23 @@ def test_remove_image_background_requires_png_output(tmp_path):
         remove_image_background(source, tmp_path / "result.jpg", mock.Mock())
 
 
-def test_remove_image_background_validates_input_and_wraps_model_error(tmp_path):
+def test_remove_image_background_validates_input_and_wraps_model_error(
+    tmp_path,
+):
     """It should reject missing images and turn model failures into a clear error."""
     with pytest.raises(FileNotFoundError):
-        remove_image_background(tmp_path / "missing.jpg", tmp_path / "result.png", mock.Mock())
+        remove_image_background(
+            tmp_path / "missing.jpg", tmp_path / "result.png", mock.Mock()
+        )
 
     source = tmp_path / "photo.jpg"
     source.touch()
     remover = mock.Mock()
     remover.remove_background.side_effect = RuntimeError("model failure")
 
-    with pytest.raises(RuntimeError, match="Impossible de supprimer l'arrière-plan"):
+    with pytest.raises(
+        RuntimeError, match="Impossible de supprimer l'arrière-plan"
+    ):
         remove_image_background(source, tmp_path / "result.png", remover)
 
 
@@ -468,4 +530,6 @@ def test_reduce_image_for_screen_validates_arguments(
 def test_reduce_image_for_screen_rejects_missing_source(tmp_path):
     """It should fail before attempting to process a nonexistent image."""
     with pytest.raises(FileNotFoundError):
-        reduce_image_for_screen(tmp_path / "missing.jpg", tmp_path / "result.jpg")
+        reduce_image_for_screen(
+            tmp_path / "missing.jpg", tmp_path / "result.jpg"
+        )

@@ -55,7 +55,9 @@ def test_missing_srt_file_returns_true(fake_config, capsys):
     """
     If sous_titre.srt is missing, function returns True and prints warning.
     """
-    with mock.patch("toolbox_pb.core.video.main_video.func_vid.apply_video_srt_ffmpeg") as srt_mock:
+    with mock.patch(
+        "toolbox_pb.core.video.main_video.func_vid.apply_video_srt_ffmpeg"
+    ) as srt_mock:
         result = video_srt_integrator(fake_config)
 
     assert result is True
@@ -73,7 +75,9 @@ def test_empty_input_with_srt_file_returns_true(fake_config):
         encoding="utf-8",
     )
 
-    with mock.patch("toolbox_pb.core.video.main_video.func_vid.apply_video_srt_ffmpeg") as srt_mock:
+    with mock.patch(
+        "toolbox_pb.core.video.main_video.func_vid.apply_video_srt_ffmpeg"
+    ) as srt_mock:
         result = video_srt_integrator(fake_config)
 
     assert result is True
@@ -91,7 +95,9 @@ def test_ignores_non_video_files(fake_config):
     (fake_config.INPUT_DIR / "notes.txt").touch()
     (fake_config.INPUT_DIR / "image.jpg").touch()
 
-    with mock.patch("toolbox_pb.core.video.main_video.func_vid.apply_video_srt_ffmpeg") as srt_mock:
+    with mock.patch(
+        "toolbox_pb.core.video.main_video.func_vid.apply_video_srt_ffmpeg"
+    ) as srt_mock:
         result = video_srt_integrator(fake_config)
 
     assert result is True
@@ -112,7 +118,9 @@ def test_processes_video_when_output_not_exists(fake_config):
     input_video.touch()
     expected_output = fake_config.OUTPUT_DIR / "clip.mp4"
 
-    with mock.patch("toolbox_pb.core.video.main_video.func_vid.apply_video_srt_ffmpeg") as srt_mock:
+    with mock.patch(
+        "toolbox_pb.core.video.main_video.func_vid.apply_video_srt_ffmpeg"
+    ) as srt_mock:
         result = video_srt_integrator(fake_config)
 
     assert result is False
@@ -120,7 +128,7 @@ def test_processes_video_when_output_not_exists(fake_config):
         input_video=input_video,
         output_video=expected_output,
         srt_path=srt_file,
-            processing_comment="toolbox_pb :\nn_1 : video_srt_integrator",
+        processing_comment="toolbox_pb :\nn_1 : video_srt_integrator",
     )
 
 
@@ -136,7 +144,9 @@ def test_skips_already_integrated_file(fake_config, capsys):
     input_video.touch()
     (fake_config.OUTPUT_DIR / "clip.mp4").touch()
 
-    with mock.patch("toolbox_pb.core.video.main_video.func_vid.apply_video_srt_ffmpeg") as srt_mock:
+    with mock.patch(
+        "toolbox_pb.core.video.main_video.func_vid.apply_video_srt_ffmpeg"
+    ) as srt_mock:
         result = video_srt_integrator(fake_config)
 
     assert result is False
@@ -161,7 +171,9 @@ def test_processes_only_missing_outputs_in_mixed_case(fake_config):
     v2.touch()
     (fake_config.OUTPUT_DIR / "a.mp4").touch()
 
-    with mock.patch("toolbox_pb.core.video.main_video.func_vid.apply_video_srt_ffmpeg") as srt_mock:
+    with mock.patch(
+        "toolbox_pb.core.video.main_video.func_vid.apply_video_srt_ffmpeg"
+    ) as srt_mock:
         result = video_srt_integrator(fake_config)
 
     assert result is False
@@ -169,5 +181,5 @@ def test_processes_only_missing_outputs_in_mixed_case(fake_config):
         input_video=v2,
         output_video=fake_config.OUTPUT_DIR / "b.mp4",
         srt_path=srt_file,
-            processing_comment="toolbox_pb :\nn_1 : video_srt_integrator",
+        processing_comment="toolbox_pb :\nn_1 : video_srt_integrator",
     )

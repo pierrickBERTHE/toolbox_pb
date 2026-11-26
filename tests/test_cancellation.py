@@ -51,7 +51,10 @@ def test_raise_if_cancelled_kills_a_process_that_does_not_stop():
     event.set()
     process = mock.Mock()
     process.poll.return_value = None
-    process.wait.side_effect = [__import__("subprocess").TimeoutExpired("ffmpeg", 5), None]
+    process.wait.side_effect = [
+        __import__("subprocess").TimeoutExpired("ffmpeg", 5),
+        None,
+    ]
 
     with use_cancellation_event(event), pytest.raises(ProcessingCancelled):
         raise_if_cancelled(process)

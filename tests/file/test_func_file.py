@@ -10,7 +10,9 @@ sys.path.append(str(Path(__file__).resolve().parents[2] / "toolbox_pb"))
 from toolbox_pb.core.file import func_file
 
 
-def test_get_file_modification_time_uses_the_last_modification_timestamp(tmp_path):
+def test_get_file_modification_time_uses_the_last_modification_timestamp(
+    tmp_path,
+):
     """The timeline source date must come from the file modification time."""
     input_path = tmp_path / "archive.txt"
     input_path.touch()
@@ -22,7 +24,9 @@ def test_get_file_modification_time_uses_the_last_modification_timestamp(tmp_pat
     assert modification_time == datetime(2020, 6, 15, 12, 30, 45)
 
 
-def test_build_timeline_filename_keeps_original_name_and_adds_sortable_date(tmp_path):
+def test_build_timeline_filename_keeps_original_name_and_adds_sortable_date(
+    tmp_path,
+):
     """The date prefix must sort chronologically and preserve the file extension."""
     input_path = tmp_path / "vacances.jpg"
 
@@ -132,8 +136,12 @@ def test_build_dated_folder_name_accepts_missing_accents_and_one_typo():
 
 def test_build_dated_folder_name_rejects_invalid_or_unknown_dates():
     """Reject invalid calendar dates and unknown month names."""
-    assert func_file.build_dated_folder_name("31 avril 2013 - Impossible") is None
-    assert func_file.build_dated_folder_name("9 inconnu 2013 - Meeting") is None
+    assert (
+        func_file.build_dated_folder_name("31 avril 2013 - Impossible") is None
+    )
+    assert (
+        func_file.build_dated_folder_name("9 inconnu 2013 - Meeting") is None
+    )
 
 
 def test_copy_folder_does_not_overwrite_an_existing_destination(tmp_path):
@@ -157,7 +165,9 @@ def test_copy_folder_preserves_the_source_tree(tmp_path):
 
     assert func_file.copy_folder(source, destination) is True
     assert nested_file.read_text(encoding="utf-8") == "content"
-    assert (destination / "nested" / "result.txt").read_text(encoding="utf-8") == "content"
+    assert (destination / "nested" / "result.txt").read_text(
+        encoding="utf-8"
+    ) == "content"
 
 
 def test_cache_size_and_clean_contents_preserve_root(tmp_path):
@@ -190,12 +200,16 @@ def test_get_cli_caches_handles_missing_and_empty_commands(
         ("empty", ["empty", "dir"], ["empty", "clean"]),
         ("missing", ["missing", "dir"], ["missing", "clean"]),
     ]
-    monkeypatch.setattr(func_file.config_global, "CLI_CLEAN_COMMANDS", commands)
+    monkeypatch.setattr(
+        func_file.config_global, "CLI_CLEAN_COMMANDS", commands
+    )
 
     def run(command, **kwargs):
         if command[0] == "missing":
             raise FileNotFoundError("missing tool")
-        return SimpleNamespace(stdout=str(tmp_path) if command[0] == "ok" else " ")
+        return SimpleNamespace(
+            stdout=str(tmp_path) if command[0] == "ok" else " "
+        )
 
     monkeypatch.setattr(func_file.subprocess, "run", run)
     assert func_file.get_cli_caches() == [("ok", tmp_path, ["ok", "clean"])]
@@ -218,6 +232,9 @@ def test_cli_cleaner_measures_partial_cleanup_on_failure(
         return SimpleNamespace(returncode=1)
 
     monkeypatch.setattr(func_file.subprocess, "run", run)
-    assert func_file.run_cli_cleaners([("test", tmp_path, ["test", "clean"])]) == 5
+    assert (
+        func_file.run_cli_cleaners([("test", tmp_path, ["test", "clean"])])
+        == 5
+    )
     assert "cleaning failed or incomplete" in capsys.readouterr().out
     assert (tmp_path / "remaining").is_file()

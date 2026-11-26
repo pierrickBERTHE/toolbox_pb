@@ -16,7 +16,10 @@ from toolbox_pb.core.web.main_web import (
 
 
 def test_youtube_url_validation_accepts_youtube_and_rejects_other_hosts():
-    assert _validate_youtube_url(" https://youtu.be/abc123 ") == "https://youtu.be/abc123"
+    assert (
+        _validate_youtube_url(" https://youtu.be/abc123 ")
+        == "https://youtu.be/abc123"
+    )
     with pytest.raises(ValueError, match="URL YouTube valide"):
         _validate_youtube_url("https://example.org/video")
 
@@ -51,15 +54,19 @@ def test_mp3_download_uses_audio_extraction_settings(monkeypatch, tmp_path):
 
         def download(self, urls):
             captured["urls"] = urls
-            Path(captured["outtmpl"]).parent.joinpath("video_download.mp3").write_bytes(
-                b"mp3"
-            )
-            Path(captured["outtmpl"]).parent.joinpath("video_download.webm").write_bytes(
-                b"webm"
-            )
+            Path(captured["outtmpl"]).parent.joinpath(
+                "video_download.mp3"
+            ).write_bytes(b"mp3")
+            Path(captured["outtmpl"]).parent.joinpath(
+                "video_download.webm"
+            ).write_bytes(b"webm")
 
-    monkeypatch.setitem(sys.modules, "yt_dlp", SimpleNamespace(YoutubeDL=FakeYoutubeDL))
-    monkeypatch.setattr(main_web, "emit", lambda message, **_: messages.append(message))
+    monkeypatch.setitem(
+        sys.modules, "yt_dlp", SimpleNamespace(YoutubeDL=FakeYoutubeDL)
+    )
+    monkeypatch.setattr(
+        main_web, "emit", lambda message, **_: messages.append(message)
+    )
     monkeypatch.setattr(
         main_web,
         "_make_progress_extract_audio_postprocessor",
@@ -85,7 +92,9 @@ def test_mp3_download_uses_audio_extraction_settings(monkeypatch, tmp_path):
     assert any("Fichier MP3 terminé" in message for message in messages)
 
 
-def test_youtube_download_retries_a_temporary_windows_file_lock(monkeypatch, tmp_path):
+def test_youtube_download_retries_a_temporary_windows_file_lock(
+    monkeypatch, tmp_path
+):
     attempts = []
     delays = []
 
@@ -105,13 +114,19 @@ def test_youtube_download_retries_a_temporary_windows_file_lock(monkeypatch, tmp
         def download(self, _urls):
             attempts.append(1)
             if len(attempts) == 1:
-                raise PermissionError(32, "Le processus ne peut pas accéder au fichier")
+                raise PermissionError(
+                    32, "Le processus ne peut pas accéder au fichier"
+                )
             Path(self.options["outtmpl"]).parent.joinpath(
                 "video_download.mp3"
             ).write_bytes(b"mp3")
 
-    monkeypatch.setitem(sys.modules, "yt_dlp", SimpleNamespace(YoutubeDL=FakeYoutubeDL))
-    monkeypatch.setattr(main_web, "sleep", lambda seconds: delays.append(seconds))
+    monkeypatch.setitem(
+        sys.modules, "yt_dlp", SimpleNamespace(YoutubeDL=FakeYoutubeDL)
+    )
+    monkeypatch.setattr(
+        main_web, "sleep", lambda seconds: delays.append(seconds)
+    )
     monkeypatch.setattr(
         main_web,
         "_make_progress_extract_audio_postprocessor",
@@ -120,7 +135,9 @@ def test_youtube_download_retries_a_temporary_windows_file_lock(monkeypatch, tmp
 
     result = download_youtube_media(
         YouTubeDownloadOptions(
-            url="https://youtu.be/abc123", output_dir=tmp_path, media_format="MP3"
+            url="https://youtu.be/abc123",
+            output_dir=tmp_path,
+            media_format="MP3",
         )
     )
 
@@ -131,9 +148,13 @@ def test_youtube_download_retries_a_temporary_windows_file_lock(monkeypatch, tmp
 
 def test_windows_file_lock_recognition_supports_wrapped_yt_dlp_errors():
     assert main_web._is_transient_windows_file_lock(
-        RuntimeError("ERROR: [WinError 32] Le processus ne peut pas accéder au fichier")
+        RuntimeError(
+            "ERROR: [WinError 32] Le processus ne peut pas accéder au fichier"
+        )
     )
-    assert not main_web._is_transient_windows_file_lock(RuntimeError("réseau indisponible"))
+    assert not main_web._is_transient_windows_file_lock(
+        RuntimeError("réseau indisponible")
+    )
 
 
 def test_mp3_conversion_uses_a_custom_progress_postprocessor():
@@ -145,7 +166,9 @@ def test_mp3_conversion_uses_a_custom_progress_postprocessor():
     assert post_processor._preferredquality == 160.0
 
 
-def test_mp3_conversion_postprocessor_forwards_real_ffmpeg_progress(monkeypatch):
+def test_mp3_conversion_postprocessor_forwards_real_ffmpeg_progress(
+    monkeypatch,
+):
     post_processor = main_web._make_progress_extract_audio_postprocessor(
         SimpleNamespace(params={}), "160"
     )
@@ -192,12 +215,14 @@ def test_mp4_download_limits_the_selected_video_quality(monkeypatch, tmp_path):
             return False
 
         def download(self, _urls):
-            Path(captured["outtmpl"]).parent.joinpath("video_download.mp4").write_bytes(
-                b"mp4"
-            )
+            Path(captured["outtmpl"]).parent.joinpath(
+                "video_download.mp4"
+            ).write_bytes(b"mp4")
             return 0
 
-    monkeypatch.setitem(sys.modules, "yt_dlp", SimpleNamespace(YoutubeDL=FakeYoutubeDL))
+    monkeypatch.setitem(
+        sys.modules, "yt_dlp", SimpleNamespace(YoutubeDL=FakeYoutubeDL)
+    )
     download_youtube_media(
         YouTubeDownloadOptions(
             url="https://youtube.com/watch?v=abc123",
@@ -240,9 +265,13 @@ def test_subtitle_selection_honors_manual_french_then_english_and_auto_french(
                 "automatic_captions": automatic,
             }
 
-    assert main_web._select_youtube_subtitle_tracks(
-        SimpleNamespace(YoutubeDL=FakeYoutubeDL), "https://youtu.be/example"
-    ) == expected
+    assert (
+        main_web._select_youtube_subtitle_tracks(
+            SimpleNamespace(YoutubeDL=FakeYoutubeDL),
+            "https://youtu.be/example",
+        )
+        == expected
+    )
 
 
 def test_mp4_download_keeps_one_normalized_srt_subtitle(monkeypatch, tmp_path):
@@ -274,8 +303,12 @@ def test_mp4_download_keeps_one_normalized_srt_subtitle(monkeypatch, tmp_path):
             else:
                 output_dir.joinpath("video_download.mp4").write_bytes(b"mp4")
 
-    monkeypatch.setitem(sys.modules, "yt_dlp", SimpleNamespace(YoutubeDL=FakeYoutubeDL))
-    monkeypatch.setattr(main_web, "emit", lambda message, **_kwargs: messages.append(message))
+    monkeypatch.setitem(
+        sys.modules, "yt_dlp", SimpleNamespace(YoutubeDL=FakeYoutubeDL)
+    )
+    monkeypatch.setattr(
+        main_web, "emit", lambda message, **_kwargs: messages.append(message)
+    )
 
     result = download_youtube_media(
         YouTubeDownloadOptions(
@@ -321,7 +354,9 @@ def test_mp4_download_keeps_english_manual_and_french_auto_subtitles(
 
         def download(self, _urls):
             output_dir = Path(self.options["outtmpl"]).parent
-            if self.options.get("skip_download") and self.options.get("writeautomaticsub"):
+            if self.options.get("skip_download") and self.options.get(
+                "writeautomaticsub"
+            ):
                 output_dir.joinpath("video_download.fr.srt").write_text(
                     "Français automatique", encoding="utf-8"
                 )
@@ -332,7 +367,9 @@ def test_mp4_download_keeps_english_manual_and_french_auto_subtitles(
             else:
                 output_dir.joinpath("video_download.mp4").write_bytes(b"mp4")
 
-    monkeypatch.setitem(sys.modules, "yt_dlp", SimpleNamespace(YoutubeDL=FakeYoutubeDL))
+    monkeypatch.setitem(
+        sys.modules, "yt_dlp", SimpleNamespace(YoutubeDL=FakeYoutubeDL)
+    )
     monkeypatch.setattr(main_web, "emit", lambda *_args, **_kwargs: None)
 
     download_youtube_media(
@@ -344,8 +381,12 @@ def test_mp4_download_keeps_english_manual_and_french_auto_subtitles(
         )
     )
 
-    assert (tmp_path / "video_download.en.srt").read_text(encoding="utf-8") == "English manual"
-    assert (tmp_path / "video_download.fr-auto.srt").read_text(encoding="utf-8") == "Français automatique"
+    assert (tmp_path / "video_download.en.srt").read_text(
+        encoding="utf-8"
+    ) == "English manual"
+    assert (tmp_path / "video_download.fr-auto.srt").read_text(
+        encoding="utf-8"
+    ) == "Français automatique"
     assert len(list(tmp_path.glob("*.srt"))) == 2
     assert options_seen[-1]["skip_download"] is True
     assert options_seen[-1]["subtitleslangs"] == ["fr"]
@@ -377,8 +418,12 @@ def test_subtitle_rate_limit_keeps_the_downloaded_media_successful(
                 "video_download.mp4"
             ).write_bytes(b"mp4")
 
-    monkeypatch.setitem(sys.modules, "yt_dlp", SimpleNamespace(YoutubeDL=FakeYoutubeDL))
-    monkeypatch.setattr(main_web, "emit", lambda message, **_kwargs: messages.append(message))
+    monkeypatch.setitem(
+        sys.modules, "yt_dlp", SimpleNamespace(YoutubeDL=FakeYoutubeDL)
+    )
+    monkeypatch.setattr(
+        main_web, "emit", lambda message, **_kwargs: messages.append(message)
+    )
 
     result = download_youtube_media(
         YouTubeDownloadOptions(
@@ -392,7 +437,9 @@ def test_subtitle_rate_limit_keeps_the_downloaded_media_successful(
     assert [path.name for path in result] == ["video_download.mp4"]
     assert not list(tmp_path.glob("*.srt"))
     assert any("HTTP Error 429" in message for message in messages)
-    assert any("vidéo a bien été téléchargée" in message for message in messages)
+    assert any(
+        "vidéo a bien été téléchargée" in message for message in messages
+    )
 
 
 def test_youtube_progress_combines_hls_fragments():
@@ -424,7 +471,9 @@ def test_youtube_progress_reporter_creates_updates_and_completes_a_bar(
             updates.append(amount)
 
     monkeypatch.setattr(main_web, "progress", lambda **_kwargs: FakeBar())
-    monkeypatch.setattr(main_web, "emit", lambda message, **_kwargs: messages.append(message))
+    monkeypatch.setattr(
+        main_web, "emit", lambda message, **_kwargs: messages.append(message)
+    )
     reporter = _YouTubeProgressReporter("MP3")
     status = {
         "status": "downloading",
@@ -439,4 +488,6 @@ def test_youtube_progress_reporter_creates_updates_and_completes_a_bar(
     reporter.report({"status": "error"})
 
     assert updates == [25.0, 50.0, 25.0]
-    assert any("Flux audio source téléchargé" in message for message in messages)
+    assert any(
+        "Flux audio source téléchargé" in message for message in messages
+    )

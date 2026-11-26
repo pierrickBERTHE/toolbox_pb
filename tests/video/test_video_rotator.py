@@ -50,7 +50,9 @@ def test_validate_rotation_angle_rejects_other_values(angle):
         validate_rotation_angle(angle)
 
 
-def test_rotate_video_ffmpeg_builds_a_clockwise_rotation_command(tmp_path, monkeypatch):
+def test_rotate_video_ffmpeg_builds_a_clockwise_rotation_command(
+    tmp_path, monkeypatch
+):
     input_video = tmp_path / "input.mp4"
     output_video = tmp_path / "output.mp4"
     input_video.touch()
@@ -90,7 +92,10 @@ def test_video_rotator_preserves_the_exact_input_filename(fake_config):
         codec_video="libx264",
         processing_comment=mock.ANY,
     )
-    assert "Rotation image : 270°" in rotate.call_args.kwargs["processing_comment"]
+    assert (
+        "Rotation image : 270°"
+        in rotate.call_args.kwargs["processing_comment"]
+    )
 
 
 def test_video_rotator_rejects_invalid_angle_before_processing(fake_config):

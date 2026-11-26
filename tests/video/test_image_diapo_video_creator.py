@@ -36,11 +36,15 @@ def test_image_diapo_accepts_jpeg_extension(slideshow_config):
     image = slideshow_config.INPUT_DIR / "photo.JPEG"
     image.touch()
 
-    with mock.patch(
-        "toolbox_pb.core.video.main_video.func_vid.get_image_size", return_value=(100, 100)
-    ), mock.patch(
-        "toolbox_pb.core.video.main_video.func_vid.create_image_diapo_ffmpeg"
-    ) as create_diapo:
+    with (
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.get_image_size",
+            return_value=(100, 100),
+        ),
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.create_image_diapo_ffmpeg"
+        ) as create_diapo,
+    ):
         assert image_diapo_video_creator(slideshow_config) is False
 
     assert create_diapo.call_args.kwargs["image_paths"] == [image]
@@ -88,12 +92,15 @@ def test_image_diapo_creates_ordered_video_with_audio(slideshow_config):
     for path in (first, second, audio):
         path.touch()
 
-    with mock.patch(
-        "toolbox_pb.core.video.main_video.func_vid.get_image_size",
-        side_effect=[(1600, 900), (900, 1600)],
-    ) as get_size, mock.patch(
-        "toolbox_pb.core.video.main_video.func_vid.create_image_diapo_ffmpeg"
-    ) as create_diapo:
+    with (
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.get_image_size",
+            side_effect=[(1600, 900), (900, 1600)],
+        ) as get_size,
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.create_image_diapo_ffmpeg"
+        ) as create_diapo,
+    ):
         assert image_diapo_video_creator(slideshow_config) is False
 
     assert get_size.call_args_list == [mock.call(first), mock.call(second)]
@@ -101,14 +108,14 @@ def test_image_diapo_creates_ordered_video_with_audio(slideshow_config):
         image_paths=[first, second],
         input_dir=slideshow_config.INPUT_DIR,
         audio_path=audio,
-        output_path=slideshow_config.OUTPUT_DIR /
-        "image_diapo_video_v-libx265_a-aac.mp4",
+        output_path=slideshow_config.OUTPUT_DIR
+        / "image_diapo_video_v-libx265_a-aac.mp4",
         duration=2.5,
         fps=24,
         frame_size=(2844, 1600),
         codec_video="libx265",
         codec_audio="aac",
-            processing_comment="toolbox_pb :\nn_1 : image_diapo_video_creator | I : libx265",
+        processing_comment="toolbox_pb :\nn_1 : image_diapo_video_creator | I : libx265",
     )
 
 
@@ -116,11 +123,15 @@ def test_image_diapo_creates_video_without_audio(slideshow_config):
     """Audio attachment is skipped when the input directory has no audio file."""
     image = slideshow_config.INPUT_DIR / "slide.jpg"
     image.touch()
-    with mock.patch(
-        "toolbox_pb.core.video.main_video.func_vid.get_image_size", return_value=(100, 100)
-    ), mock.patch(
-        "toolbox_pb.core.video.main_video.func_vid.create_image_diapo_ffmpeg"
-    ) as create_diapo:
+    with (
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.get_image_size",
+            return_value=(100, 100),
+        ),
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.create_image_diapo_ffmpeg"
+        ) as create_diapo,
+    ):
         assert image_diapo_video_creator(slideshow_config) is False
 
     assert create_diapo.call_args.kwargs["audio_path"] is None

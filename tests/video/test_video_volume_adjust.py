@@ -48,7 +48,9 @@ def fake_config(tmp_path):
 
 def test_missing_boosts_csv_returns_true(fake_config, capsys):
     """If boosts.csv is missing, function returns True and prints warning."""
-    with mock.patch("toolbox_pb.core.video.main_video.func_vid.apply_audio_boosts_ffmpeg") as boost_mock:
+    with mock.patch(
+        "toolbox_pb.core.video.main_video.func_vid.apply_audio_boosts_ffmpeg"
+    ) as boost_mock:
         result = video_volume_adjust(fake_config)
 
     assert result is True
@@ -64,7 +66,9 @@ def test_empty_input_with_boosts_csv_returns_true(fake_config):
         encoding="utf-8",
     )
 
-    with mock.patch("toolbox_pb.core.video.main_video.func_vid.apply_audio_boosts_ffmpeg") as boost_mock:
+    with mock.patch(
+        "toolbox_pb.core.video.main_video.func_vid.apply_audio_boosts_ffmpeg"
+    ) as boost_mock:
         result = video_volume_adjust(fake_config)
 
     assert result is True
@@ -80,7 +84,9 @@ def test_ignores_non_video_files(fake_config):
     (fake_config.INPUT_DIR / "notes.txt").touch()
     (fake_config.INPUT_DIR / "image.jpg").touch()
 
-    with mock.patch("toolbox_pb.core.video.main_video.func_vid.apply_audio_boosts_ffmpeg") as boost_mock:
+    with mock.patch(
+        "toolbox_pb.core.video.main_video.func_vid.apply_audio_boosts_ffmpeg"
+    ) as boost_mock:
         result = video_volume_adjust(fake_config)
 
     assert result is True
@@ -90,13 +96,17 @@ def test_ignores_non_video_files(fake_config):
 def test_processes_video_when_output_not_exists(fake_config):
     """A valid input video is processed when output does not exist."""
     boosts_csv = fake_config.SEGMENT_DIR / "boosts.csv"
-    boosts_csv.write_text("start,end,gain_db\n00:00:01,00:00:03,3\n", encoding="utf-8")
+    boosts_csv.write_text(
+        "start,end,gain_db\n00:00:01,00:00:03,3\n", encoding="utf-8"
+    )
 
     input_video = fake_config.INPUT_DIR / "clip.mp4"
     input_video.touch()
     expected_output = fake_config.OUTPUT_DIR / "clip.mp4"
 
-    with mock.patch("toolbox_pb.core.video.main_video.func_vid.apply_audio_boosts_ffmpeg") as boost_mock:
+    with mock.patch(
+        "toolbox_pb.core.video.main_video.func_vid.apply_audio_boosts_ffmpeg"
+    ) as boost_mock:
         result = video_volume_adjust(fake_config)
 
     assert result is False
@@ -104,7 +114,7 @@ def test_processes_video_when_output_not_exists(fake_config):
         input_video=input_video,
         output_video=expected_output,
         csv_path=boosts_csv,
-            processing_comment="toolbox_pb :\nn_1 : video_volume_adjust | Gain audio : +3 dB",
+        processing_comment="toolbox_pb :\nn_1 : video_volume_adjust | Gain audio : +3 dB",
     )
 
 
@@ -118,7 +128,9 @@ def test_skips_already_adjusted_file(fake_config, capsys):
     input_video.touch()
     (fake_config.OUTPUT_DIR / "clip.mp4").touch()
 
-    with mock.patch("toolbox_pb.core.video.main_video.func_vid.apply_audio_boosts_ffmpeg") as boost_mock:
+    with mock.patch(
+        "toolbox_pb.core.video.main_video.func_vid.apply_audio_boosts_ffmpeg"
+    ) as boost_mock:
         result = video_volume_adjust(fake_config)
 
     assert result is False
@@ -130,7 +142,9 @@ def test_skips_already_adjusted_file(fake_config, capsys):
 def test_processes_only_missing_outputs_in_mixed_case(fake_config):
     """Only videos without output are processed in a mixed input/output scenario."""
     boosts_csv = fake_config.SEGMENT_DIR / "boosts.csv"
-    boosts_csv.write_text("start,end,gain_db\n00:00:01,00:00:03,3\n", encoding="utf-8")
+    boosts_csv.write_text(
+        "start,end,gain_db\n00:00:01,00:00:03,3\n", encoding="utf-8"
+    )
 
     v1 = fake_config.INPUT_DIR / "a.mp4"
     v2 = fake_config.INPUT_DIR / "b.mov"
@@ -138,7 +152,9 @@ def test_processes_only_missing_outputs_in_mixed_case(fake_config):
     v2.touch()
     (fake_config.OUTPUT_DIR / "a.mp4").touch()
 
-    with mock.patch("toolbox_pb.core.video.main_video.func_vid.apply_audio_boosts_ffmpeg") as boost_mock:
+    with mock.patch(
+        "toolbox_pb.core.video.main_video.func_vid.apply_audio_boosts_ffmpeg"
+    ) as boost_mock:
         result = video_volume_adjust(fake_config)
 
     assert result is False
@@ -146,7 +162,7 @@ def test_processes_only_missing_outputs_in_mixed_case(fake_config):
         input_video=v2,
         output_video=fake_config.OUTPUT_DIR / "b.mp4",
         csv_path=boosts_csv,
-            processing_comment="toolbox_pb :\nn_1 : video_volume_adjust | Gain audio : +3 dB",
+        processing_comment="toolbox_pb :\nn_1 : video_volume_adjust | Gain audio : +3 dB",
     )
 
 
@@ -160,7 +176,9 @@ def test_multiple_audio_boosts_do_not_list_individual_gain_values(fake_config):
     input_video = fake_config.INPUT_DIR / "clip.mp4"
     input_video.touch()
 
-    with mock.patch("toolbox_pb.core.video.main_video.func_vid.apply_audio_boosts_ffmpeg") as boost_mock:
+    with mock.patch(
+        "toolbox_pb.core.video.main_video.func_vid.apply_audio_boosts_ffmpeg"
+    ) as boost_mock:
         assert video_volume_adjust(fake_config) is False
 
     assert boost_mock.call_args.kwargs["processing_comment"] == (

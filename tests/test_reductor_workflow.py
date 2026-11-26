@@ -16,15 +16,26 @@ import toolbox_pb.ui.reductor_workflow as workflow
 
 @pytest.mark.parametrize(
     ("answer", "expected"),
-    [("n", False), ("non", False), ("o", True), ("unexpected", True), (None, True)],
+    [
+        ("n", False),
+        ("non", False),
+        ("o", True),
+        ("unexpected", True),
+        (None, True),
+    ],
 )
-def test_ask_to_run_complementary_reductor_handles_answers(monkeypatch, answer, expected):
+def test_ask_to_run_complementary_reductor_handles_answers(
+    monkeypatch, answer, expected
+):
     """Only explicit negative answers prevent the complementary launch."""
     monkeypatch.setattr(
         workflow, "_read_timed_confirmation", lambda **_: answer
     )
 
-    assert workflow._ask_to_run_complementary_reductor("Image_reductor") is expected
+    assert (
+        workflow._ask_to_run_complementary_reductor("Image_reductor")
+        is expected
+    )
 
 
 def test_read_timed_confirmation_returns_linux_console_input(monkeypatch):
@@ -37,8 +48,11 @@ def test_read_timed_confirmation_returns_linux_console_input(monkeypatch):
     assert workflow._read_timed_confirmation(1) == "oui"
 
 
-def test_read_timed_confirmation_returns_none_when_select_is_unsupported(monkeypatch):
+def test_read_timed_confirmation_returns_none_when_select_is_unsupported(
+    monkeypatch,
+):
     """Non-interactive standard input is handled as an automatic confirmation."""
+
     def failing_select(*_):
         raise OSError("unsupported")
 
@@ -52,7 +66,9 @@ def test_read_timed_confirmation_returns_none_when_select_is_unsupported(monkeyp
 def test_read_timed_confirmation_reads_and_edits_windows_input(monkeypatch):
     """The Windows branch handles backspace and special keys before Enter."""
     characters = iter(["A", "\b", "O", "\x00", "ignored", "\r"])
-    fake_msvcrt = SimpleNamespace(kbhit=lambda: True, getwch=lambda: next(characters))
+    fake_msvcrt = SimpleNamespace(
+        kbhit=lambda: True, getwch=lambda: next(characters)
+    )
     monkeypatch.setitem(sys.modules, "msvcrt", fake_msvcrt)
     monkeypatch.setattr(workflow.sys, "platform", "win32")
     monkeypatch.setattr(workflow.time, "monotonic", lambda: 0)
@@ -61,7 +77,9 @@ def test_read_timed_confirmation_reads_and_edits_windows_input(monkeypatch):
     assert workflow._read_timed_confirmation(1) == "o"
 
 
-def test_read_timed_confirmation_returns_none_after_windows_timeout(monkeypatch):
+def test_read_timed_confirmation_returns_none_after_windows_timeout(
+    monkeypatch,
+):
     """Windows input also returns None when no keystroke arrives before timeout."""
     fake_msvcrt = SimpleNamespace(kbhit=lambda: False, getwch=lambda: "")
     clock_values = iter([0, 1])
@@ -99,19 +117,25 @@ def test_run_complementary_reductor_runs_matching_tool(
     finder = mock.Mock(return_value=["matching-file"])
     video_runner = mock.Mock(return_value=False)
     image_runner = mock.Mock(return_value=True)
-    monkeypatch.setattr(workflow, "_ask_to_run_complementary_reductor", lambda _: True)
+    monkeypatch.setattr(
+        workflow, "_ask_to_run_complementary_reductor", lambda _: True
+    )
 
     result = workflow._run_complementary_reductor(
         cfg, primary, finder, video_runner, image_runner
     )
 
     assert finder.call_args.args[1] == [expected_extension]
-    selected_runner = video_runner if expected_runner == "video" else image_runner
+    selected_runner = (
+        video_runner if expected_runner == "video" else image_runner
+    )
     selected_runner.assert_called_once_with(cfg)
     assert result is selected_runner.return_value
 
 
-def test_run_complementary_reductor_skips_prompt_without_matching_file(monkeypatch):
+def test_run_complementary_reductor_skips_prompt_without_matching_file(
+    monkeypatch,
+):
     """No prompt or reducer launch occurs when the other file type is absent."""
     cfg = SimpleNamespace(
         INPUT_DIR="input",

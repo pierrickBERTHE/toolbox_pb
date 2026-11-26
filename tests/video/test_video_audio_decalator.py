@@ -55,9 +55,17 @@ def test_processes_video_file(fake_config):
 
     with (
         mock.patch("builtins.input", return_value="0.5"),
-        mock.patch("toolbox_pb.core.video.main_video.func_glob.build_output_subdir_from_input", return_value=fake_config.OUTPUT_DIR),
-        mock.patch("toolbox_pb.core.video.main_video.func_glob.build_output_path", return_value=output_path),
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.shift_audio_no_reencode") as shift_mock,
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_glob.build_output_subdir_from_input",
+            return_value=fake_config.OUTPUT_DIR,
+        ),
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_glob.build_output_path",
+            return_value=output_path,
+        ),
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.shift_audio_no_reencode"
+        ) as shift_mock,
     ):
         result = video_audio_decalator(fake_config, 0.5)
 
@@ -65,7 +73,7 @@ def test_processes_video_file(fake_config):
         input_video=input_file,
         output_video=output_path,
         delay=0.5,
-            processing_comment="toolbox_pb :\nn_1 : video_audio_decalator | Décalage audio : +0.5 s",
+        processing_comment="toolbox_pb :\nn_1 : video_audio_decalator | Décalage audio : +0.5 s",
     )
     assert result is False
 
@@ -80,9 +88,17 @@ def test_skips_already_processed_file(fake_config, capsys):
 
     with (
         mock.patch("builtins.input", return_value="0.5"),
-        mock.patch("toolbox_pb.core.video.main_video.func_glob.build_output_subdir_from_input", return_value=fake_config.OUTPUT_DIR),
-        mock.patch("toolbox_pb.core.video.main_video.func_glob.build_output_path", return_value=output_path),
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.shift_audio_no_reencode") as shift_mock,
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_glob.build_output_subdir_from_input",
+            return_value=fake_config.OUTPUT_DIR,
+        ),
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_glob.build_output_path",
+            return_value=output_path,
+        ),
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.shift_audio_no_reencode"
+        ) as shift_mock,
     ):
         result = video_audio_decalator(fake_config, 0.5)
 
@@ -106,7 +122,9 @@ def test_ignores_non_video_files(fake_config):
 
     with (
         mock.patch("builtins.input", return_value="0.5"),
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.shift_audio_no_reencode") as shift_mock,
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.shift_audio_no_reencode"
+        ) as shift_mock,
     ):
         result = video_audio_decalator(fake_config, 0.5)
 
@@ -128,9 +146,17 @@ def test_negative_delay(fake_config):
 
     with (
         mock.patch("builtins.input", return_value="-0.5"),
-        mock.patch("toolbox_pb.core.video.main_video.func_glob.build_output_subdir_from_input", return_value=fake_config.OUTPUT_DIR),
-        mock.patch("toolbox_pb.core.video.main_video.func_glob.build_output_path", return_value=output_path),
-        mock.patch("toolbox_pb.core.video.main_video.func_vid.shift_audio_no_reencode") as shift_mock,
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_glob.build_output_subdir_from_input",
+            return_value=fake_config.OUTPUT_DIR,
+        ),
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_glob.build_output_path",
+            return_value=output_path,
+        ),
+        mock.patch(
+            "toolbox_pb.core.video.main_video.func_vid.shift_audio_no_reencode"
+        ) as shift_mock,
     ):
         video_audio_decalator(fake_config, -0.5)
 
@@ -138,5 +164,5 @@ def test_negative_delay(fake_config):
         input_video=input_file,
         output_video=output_path,
         delay=-0.5,
-            processing_comment="toolbox_pb :\nn_1 : video_audio_decalator | Décalage audio : -0.5 s",
+        processing_comment="toolbox_pb :\nn_1 : video_audio_decalator | Décalage audio : -0.5 s",
     )
