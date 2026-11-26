@@ -95,7 +95,9 @@ def test_add_text_watermark_writes_a_watermarked_pdf(tmp_path):
     with input_path.open("wb") as output_file:
         writer.write(output_file)
 
-    func_pdf.add_text_watermark_to_pdf(input_path, output_path, "  CONFIDENTIEL  ")
+    func_pdf.add_text_watermark_to_pdf(
+        input_path, output_path, "  CONFIDENTIEL  "
+    )
 
     PdfReader, _, _, _ = func_pdf._import_pdf_dependencies()
     assert output_path.is_file()
@@ -124,7 +126,10 @@ def test_merge_pdf_files_preserves_document_and_page_order(tmp_path):
 
     PdfReader, _, _, _ = func_pdf._import_pdf_dependencies()
     output_pages = PdfReader(str(output_path)).pages
-    assert [(float(page.mediabox.width), float(page.mediabox.height)) for page in output_pages] == [
+    assert [
+        (float(page.mediabox.width), float(page.mediabox.height))
+        for page in output_pages
+    ] == [
         (101.0, 201.0),
         (102.0, 202.0),
         (103.0, 203.0),
@@ -140,7 +145,10 @@ def test_merge_pdf_files_rejects_an_empty_input_list(tmp_path):
 def test_alternate_pdf_pages_orders_pages_and_keeps_last_odd(tmp_path):
     """The result starts with odd pages and retains a final unpaired page."""
     PdfReader, PdfWriter, _, _ = func_pdf._import_pdf_dependencies()
-    for name, widths in (("impaire.pdf", [101, 103, 105]), ("paire.pdf", [102, 104])):
+    for name, widths in (
+        ("impaire.pdf", [101, 103, 105]),
+        ("paire.pdf", [102, 104]),
+    ):
         writer = PdfWriter()
         for width in widths:
             writer.add_blank_page(width=width, height=200)
@@ -148,9 +156,7 @@ def test_alternate_pdf_pages_orders_pages_and_keeps_last_odd(tmp_path):
             writer.write(stream)
     output = tmp_path / "output.pdf"
     func_pdf.alternate_pdf_pages(
-        tmp_path / "impaire.pdf",
-        tmp_path / "paire.pdf",
-        output
+        tmp_path / "impaire.pdf", tmp_path / "paire.pdf", output
     )
     assert [
         float(page.mediabox.width) for page in PdfReader(str(output)).pages
@@ -169,6 +175,6 @@ def test_alternate_pdf_pages_rejects_inconsistent_counts(tmp_path):
         func_pdf.alternate_pdf_pages(
             tmp_path / "impaire.pdf",
             tmp_path / "paire.pdf",
-            tmp_path / "out.pdf"
+            tmp_path / "out.pdf",
         )
     assert not (tmp_path / "out.pdf").exists()

@@ -10,6 +10,7 @@ Test Coverage:
     - System Info: Tests that system dependency information is displayed during initialization
     - Config Flags: Tests that active configuration flags are displayed with their values
 """
+
 # general imports
 import sys
 from pathlib import Path
@@ -18,7 +19,7 @@ import pytest
 from dataclasses import replace
 
 # Add the toolbox_pb directory to sys.path for imports
-sys.path.append(str(Path(__file__).resolve().parents[1] / 'toolbox_pb'))
+sys.path.append(str(Path(__file__).resolve().parents[1] / "toolbox_pb"))
 
 # local imports
 import toolbox_pb.ui.cli as main
@@ -29,13 +30,20 @@ def test_main_prints_git_version(monkeypatch, capsys):
     """Test that the git version is printed on startup."""
 
     # Mock input for "Quitter"
-    monkeypatch.setattr('builtins.input', lambda _: '23')
+    monkeypatch.setattr("builtins.input", lambda _: "23")
     cfg = replace(APP_CONFIG, LOG_TO_FILE=False)
 
     # Mock get_git_version and format_git_version
-    with mock.patch('toolbox_pb.core.func_global.get_git_version', return_value="abc123"), \
-        mock.patch('toolbox_pb.core.func_global.format_git_version', return_value="Version : abc123"):
-
+    with (
+        mock.patch(
+            "toolbox_pb.core.func_global.get_git_version",
+            return_value="abc123",
+        ),
+        mock.patch(
+            "toolbox_pb.core.func_global.format_git_version",
+            return_value="Version : abc123",
+        ),
+    ):
         # Call main and expect SystemExit
         with pytest.raises(SystemExit):
             main.main(cfg)
@@ -47,14 +55,13 @@ def test_main_prints_git_version(monkeypatch, capsys):
 
 def test_main_prints_system_info(monkeypatch, capsys):
     """Test that system info is printed on startup."""
-    
+
     # Mock input for "Quitter"
-    monkeypatch.setattr('builtins.input', lambda _: '23')
+    monkeypatch.setattr("builtins.input", lambda _: "23")
     cfg = replace(APP_CONFIG, LOG_TO_FILE=False)
 
     # Mock print_system_info
-    with mock.patch('toolbox_pb.core.func_global.print_system_info') as m_sys:
-
+    with mock.patch("toolbox_pb.core.func_global.print_system_info") as m_sys:
         # Call main and expect SystemExit
         with pytest.raises(SystemExit):
             main.main(cfg)
@@ -67,12 +74,13 @@ def test_main_prints_config_flags(monkeypatch):
     """Test that config flags are printed on startup."""
 
     # Mock input for "Quitter"
-    monkeypatch.setattr('builtins.input', lambda _: '23')
+    monkeypatch.setattr("builtins.input", lambda _: "23")
     cfg = replace(APP_CONFIG, LOG_TO_FILE=False)
 
     # Mock print_config_flags
-    with mock.patch('toolbox_pb.core.func_global.print_config_flags') as m_flags:
-
+    with mock.patch(
+        "toolbox_pb.core.func_global.print_config_flags"
+    ) as m_flags:
         # Call main and expect SystemExit
         with pytest.raises(SystemExit):
             main.main(cfg)
@@ -90,5 +98,5 @@ def test_main_prints_config_flags(monkeypatch):
                 "VIDEO_ASSEMBLOR_ADD_DATE_SUBTITLES",
                 "VIDEO_ASSEMBLOR_EXTRACT_AND_FILTER_DATES",
                 "VIDEO_ENCODOR_PRINT_ALL_KEYS_IN_METADATA_SUMMARY",
-            ]
+            ],
         )

@@ -30,9 +30,7 @@ import pytest
 # IMPORTS
 # ---------------------------------------------------------------------------
 
-sys.path.append(
-    str(Path(__file__).resolve().parents[2] / "toolbox_pb")
-)
+sys.path.append(str(Path(__file__).resolve().parents[2] / "toolbox_pb"))
 
 from toolbox_pb.core.config_global import AppConfig
 from toolbox_pb.core.video.main_video import video_assemblor
@@ -41,6 +39,7 @@ from toolbox_pb.core.video.main_video import video_assemblor
 # ---------------------------------------------------------------------------
 # FIXTURES
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def fake_config(tmp_path):
@@ -101,12 +100,10 @@ def mock_assembly_probing():
             "toolbox_pb.core.video.main_video.func_vid.prepare_video_for_assembly",
             side_effect=lambda path, *args, **kwargs: path,
         ) as mock_prepare,
-
         mock.patch(
             "toolbox_pb.core.video.main_video.func_vid.get_video_frame_size_from_paths",
             return_value=(1920, 1080),
         ) as mock_frame_size,
-
         mock.patch(
             "toolbox_pb.core.video.main_video.func_vid.get_video_output_fps_from_paths",
             return_value=30.0,
@@ -135,6 +132,7 @@ def mock_input_subtitles():
 # ---------------------------------------------------------------------------
 # HELPERS
 # ---------------------------------------------------------------------------
+
 
 def mock_metadata_dependencies():
     """
@@ -184,6 +182,7 @@ def mock_metadata_dependencies():
 # TEST 1 - VÉRIFICATION DES PARAMÈTRES DE RENDU
 # ---------------------------------------------------------------------------
 
+
 def test_video_assemblor_render_parameters(
     fake_config,
 ):
@@ -207,55 +206,44 @@ def test_video_assemblor_render_parameters(
                 }
             ],
         ),
-
         mock.patch(
             "toolbox_pb.core.video.main_video.func_vid.prepare_video_for_assembly",
             side_effect=lambda path, *args, **kwargs: path,
         ),
-
         mock.patch(
             "toolbox_pb.core.video.main_video.func_vid.get_video_frame_size_from_paths",
             return_value=(1280, 720),
         ),
-
         mock.patch(
             "toolbox_pb.core.video.main_video.func_vid.get_video_output_fps_from_paths",
             return_value=25.0,
         ),
-
         mock.patch(
             "toolbox_pb.core.video.main_video.func_vid.render_normalized_source_clip",
             return_value=6.0,
         ) as mock_render,
-
         mock.patch(
             "toolbox_pb.core.video.main_video.func_vid.concat_normalized_clips_ffmpeg"
         ),
-
         mock.patch(
             "toolbox_pb.core.video.main_video.func_vid.get_all_metadata",
             return_value={"format": {"size": "1000"}},
         ),
-
         mock.patch(
             "toolbox_pb.core.video.main_video.func_vid.print_metadata_diff_summary"
         ),
-
         mock.patch(
             "toolbox_pb.core.video.main_video.func_vid.get_inputs_metadata",
             return_value=[],
         ),
-
         mock.patch(
             "toolbox_pb.core.video.main_video.func_vid.compute_size_reduction_from_inputs",
             return_value={},
         ),
-
         mock.patch(
             "toolbox_pb.core.video.main_video.func_vid.print_size_reduction"
         ),
     ):
-
         video_assemblor(fake_config)
 
     mock_render.assert_called_once()
@@ -277,6 +265,7 @@ def test_video_assemblor_render_parameters(
 # ---------------------------------------------------------------------------
 # TEST 2 - SOUS-TITRES DE DATE
 # ---------------------------------------------------------------------------
+
 
 def test_video_assemblor_date_subtitles(fake_config):
     """
@@ -301,60 +290,48 @@ def test_video_assemblor_date_subtitles(fake_config):
                 }
             ],
         ),
-
         mock.patch(
             "toolbox_pb.core.video.main_video.func_vid.prepare_video_for_assembly",
             side_effect=lambda path, *args, **kwargs: path,
         ),
-
         mock.patch(
             "toolbox_pb.core.video.main_video.func_vid.get_video_frame_size_from_paths",
             return_value=(1920, 1080),
         ),
-
         mock.patch(
             "toolbox_pb.core.video.main_video.func_vid.get_video_output_fps_from_paths",
             return_value=30.0,
         ),
-
         mock.patch(
             "toolbox_pb.core.video.main_video.func_vid.render_normalized_source_clip",
             return_value=10.0,
         ),
-
         mock.patch(
             "toolbox_pb.core.video.main_video.func_vid.write_video_assemblor_date_srt",
             return_value=True,
         ) as mock_dates,
-
         mock.patch(
             "toolbox_pb.core.video.main_video.func_vid.concat_normalized_clips_ffmpeg"
         ),
-
         mock.patch(
             "toolbox_pb.core.video.main_video.func_vid.get_all_metadata",
             return_value={"format": {"size": "1000"}},
         ),
-
         mock.patch(
             "toolbox_pb.core.video.main_video.func_vid.print_metadata_diff_summary"
         ),
-
         mock.patch(
             "toolbox_pb.core.video.main_video.func_vid.get_inputs_metadata",
             return_value=[],
         ),
-
         mock.patch(
             "toolbox_pb.core.video.main_video.func_vid.compute_size_reduction_from_inputs",
             return_value={},
         ),
-
         mock.patch(
             "toolbox_pb.core.video.main_video.func_vid.print_size_reduction"
         ),
     ):
-
         # Le fichier n'existe pas réellement mais resolve_video_sequence
         # est mocké, donc ce n'est pas un problème.
         video_assemblor(fake_config)
@@ -371,6 +348,7 @@ def test_video_assemblor_date_subtitles(fake_config):
 # ---------------------------------------------------------------------------
 # TEST 3 - MÉTADONNÉES ET COMPRESSION
 # ---------------------------------------------------------------------------
+
 
 def test_video_assemblor_metadata_and_compression(fake_config):
     """
@@ -429,31 +407,25 @@ def test_video_assemblor_metadata_and_compression(fake_config):
                 },
             ],
         ),
-
         mock.patch(
             "toolbox_pb.core.video.main_video.func_vid.prepare_video_for_assembly",
             side_effect=lambda path, *args, **kwargs: path,
         ),
-
         mock.patch(
             "toolbox_pb.core.video.main_video.func_vid.get_video_frame_size_from_paths",
             return_value=(1920, 1080),
         ),
-
         mock.patch(
             "toolbox_pb.core.video.main_video.func_vid.get_video_output_fps_from_paths",
             return_value=30.0,
         ),
-
         mock.patch(
             "toolbox_pb.core.video.main_video.func_vid.render_normalized_source_clip",
             side_effect=[50.0, 55.0],
         ),
-
         mock.patch(
             "toolbox_pb.core.video.main_video.func_vid.concat_normalized_clips_ffmpeg"
         ),
-
         mock.patch(
             "toolbox_pb.core.video.main_video.func_vid.get_all_metadata",
             side_effect=[
@@ -462,34 +434,27 @@ def test_video_assemblor_metadata_and_compression(fake_config):
                 metadata_after,
             ],
         ) as mock_get_metadata,
-
         mock.patch(
             "toolbox_pb.core.video.main_video.func_vid.print_metadata_diff_summary"
         ) as mock_print_diff,
-
         mock.patch(
             "toolbox_pb.core.video.main_video.func_vid.get_inputs_metadata",
             return_value=inputs_metadata,
         ) as mock_get_inputs,
-
         mock.patch(
             "toolbox_pb.core.video.main_video.func_vid.compute_size_reduction_from_inputs",
             return_value=compression_stats,
         ) as mock_compute,
-
         mock.patch(
             "toolbox_pb.core.video.main_video.func_vid.print_size_reduction"
         ) as mock_print_reduction,
-
         mock.patch(
             "toolbox_pb.core.video.main_video.func_glob.print_section"
         ) as mock_print_section,
-
         mock.patch(
             "toolbox_pb.core.video.main_video.func_glob.print_step"
         ) as mock_print_step,
     ):
-
         result = video_assemblor(fake_config)
 
     assert result is False
@@ -514,14 +479,13 @@ def test_video_assemblor_metadata_and_compression(fake_config):
         meta_after=metadata_after,
     )
 
-    mock_print_reduction.assert_called_once_with(
-        compression_stats
-    )
+    mock_print_reduction.assert_called_once_with(compression_stats)
 
 
 # ---------------------------------------------------------------------------
 # TEST 4 - PAS DE VIDÉOS
 # ---------------------------------------------------------------------------
+
 
 def test_video_assemblor_empty_input(fake_config):
     """

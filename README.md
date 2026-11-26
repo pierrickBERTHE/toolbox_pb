@@ -2,7 +2,7 @@
 
 Boite a outils Python pour automatiser des traitements multimedia, principalement autour de la video et de l'image.
 
-Le projet fournit une interface Streamlit qui lit les fichiers depuis `data/input`, ecrit les resultats dans `data/output`, et s'appuie sur `FFmpeg`/`FFprobe` pour les operations de traitement.
+Le projet fournit une interface graphique NiceGUI prioritaire et une interface CLI complète. Elles lisent les fichiers depuis `data/input`, écrivent les résultats dans `data/output`, et s'appuient sur `FFmpeg`/`FFprobe` pour les opérations de traitement.
 
 ## Fonctionnalites
 
@@ -33,7 +33,7 @@ Fonctionnalites disponibles dans l'interface :
 - `Folder_date_renammer` : copie les dossiers directement presents dans `data/input` et, lorsqu'un nom contient une date francaise valide, le renomme en `AAMMJJ-titre`. Les mois avec ou sans accent et une faute de frappe non ambiguë sont reconnus ; les dossiers sans date sont copies sans renommage.
 - `Cache_nettoyor` : affiche l'espace occupe avant et apres nettoyage, puis vide les caches locaux connus de Poetry, npm, Windows, Office, Chrome, Teams et Firefox lorsqu'ils existent. Il utilise aussi les commandes officielles de nettoyage des caches `pip` et `uv` lorsqu'elles sont disponibles.
 `-- WEB --`
-- `YouTube Downloader` : télécharge localement une vidéo YouTube autorisée, en MP3 (audio) ou MP4 (vidéo), depuis une URL. Le débit MP3 et la définition maximale MP4 sont sélectionnables. Dans Streamlit, les sous-titres SRT peuvent être récupérés pour les vidéos et le MP4 est analysé puis envoyé automatiquement vers `Video_encodor` uniquement lorsqu'une réduction de taille H.265 est estimée utile. Les fichiers restent directement dans `data/output`, avec les suffixes `_download` et, le cas échéant, `_processed`.
+- `YouTube Downloader` : télécharge localement une vidéo YouTube autorisée, en MP3 (audio) ou MP4 (vidéo), depuis une URL. Le débit MP3 et la définition maximale MP4 sont sélectionnables. Dans NiceGUI, les sous-titres SRT peuvent être récupérés pour les vidéos et le MP4 est analysé puis envoyé automatiquement vers `Video_encodor` uniquement lorsqu'une réduction de taille H.265 est estimée utile. Les fichiers restent directement dans `data/output`, avec les suffixes `_download` et, le cas échéant, `_processed`.
 
 ## Prerequis
 
@@ -63,8 +63,10 @@ poetry run pytest
 Depuis la racine du projet :
 
 ```bash
-poetry run streamlit run toolbox_pb/ui/streamlit_app.py
+poetry run python -m toolbox_pb.ui.nicegui_app
 ```
+
+Puis ouvrir [http://localhost:8080](http://localhost:8080). NiceGUI est l’interface graphique de référence.
 
 Pour utiliser le menu historique dans le terminal :
 
@@ -98,7 +100,7 @@ installation de Python, Poetry ou FFmpeg n'est necessaire sur le PC cible.
 
 Les dossiers locaux `data/input`, `data/output`, `data/segment` et `log` sont
 montes dans le conteneur. Deposez donc les fichiers sources dans `data/input`
-sur Windows, ouvrez `http://localhost:8501`, puis recuperer les fichiers
+sur Windows, ouvrez `http://localhost:8080`, puis recuperer les fichiers
 generes dans `data/output` sur Windows.
 
 Pour reconstruire l'image apres une mise a jour du code :
@@ -162,7 +164,7 @@ toolbox_pb/
 │   │       └── func_file.py    # datation et copie des fichiers
 │   └── ui/
 │       ├── cli.py              # menu interactif historique
-│       ├── streamlit_app.py    # interface web Streamlit
+│       ├── nicegui_app.py      # interface graphique principale
 │       └── reductor_workflow.py # interactions reservees au CLI
 ├── data/
 │   ├── input/                  # fichiers sources a traiter
@@ -238,7 +240,7 @@ fonctionnalites, l'ordre n'a d'importance que lorsqu'il est indique ci-dessous.
 
 ### YouTube Downloader
 
-L'option `22` de l'interface CLI et la catégorie **Web** de Streamlit
+L'option `22` de l'interface CLI et la catégorie **Web** de NiceGUI
 téléchargent une vidéo YouTube uniquement lorsque vous êtes autorisé à la
 récupérer. L'URL doit appartenir à `youtube.com` ou `youtu.be`. Les fichiers
 sont écrits directement dans `data/output` : `data/input` n'est pas utilisé.
@@ -249,17 +251,17 @@ sont écrits directement dans `data/output` : `data/input` n'est pas utilisé.
   supprimés.
 - **MP4 vidéo** : choisissez une définition maximale parmi `2160p`, `1440p`,
   `1080p`, `720p`, `480p` et `360p` ; la valeur par défaut est `1080p`.
-  YouTube peut ne pas proposer le niveau demandé : Streamlit indique alors la
+  YouTube peut ne pas proposer le niveau demandé : NiceGUI indique alors la
   définition réellement utilisée. Le fichier est nommé
   `titre [id]_download.mp4`.
-- **Sous-titres SRT (Streamlit, MP4)** : cette option est désactivée par
+- **Sous-titres SRT (NiceGUI, MP4)** : cette option est désactivée par
   défaut. Un sous-titre fourni en français est prioritaire et produit le seul
   fichier `titre [id]_download.srt`. À défaut, le sous-titre fourni en anglais
   (`.en.srt`) et/ou le sous-titre automatique français de YouTube
   (`.fr-auto.srt`) sont téléchargés lorsqu'ils existent. Un échec optionnel de
   sous-titres, y compris une limitation HTTP 429, ne supprime pas le média déjà
   téléchargé.
-- **Post-traitement vidéo (Streamlit, MP4)** : les caractéristiques du fichier
+- **Post-traitement vidéo (NiceGUI, MP4)** : les caractéristiques du fichier
   téléchargé sont affichées. `Video_encodor` démarre immédiatement seulement
   si une réduction de taille en H.265 est estimée ; il est ignoré pour AV1,
   H.265/HEVC ou lorsqu'une augmentation de taille est probable. Le résultat
@@ -624,6 +626,15 @@ Execution :
 ```bash
 poetry run pytest
 ```
+
+## Dépannage FFmpeg
+
+- Vérifiez `ffmpeg -version` et `ffprobe -version` dans un nouveau terminal.
+- Une vidéo indiquée comme ignorée reste intacte dans `data/input`. Le détail
+  FFmpeg est inscrit dans `log/process_log.txt` lorsque `LOG_TO_FILE=True`.
+- « fichier incomplet ou corrompu » indique généralement un téléchargement
+  interrompu ou un fichier sans conteneur vidéo valide ; ouvrez-le dans VLC ou
+  récupérez une nouvelle copie avant de le relancer.
 
 ## Notes
 

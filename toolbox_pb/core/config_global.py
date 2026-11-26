@@ -47,7 +47,7 @@ CACHE_FOLDERS = [
         p / "cache2"
         for p in (LOCAL / "Mozilla" / "Firefox" / "Profiles").glob("*")
         if (p / "cache2").is_dir()
-    ]
+    ],
 ]
 
 # External CLI commands used to clean caches through their own tool
@@ -66,11 +66,27 @@ DATE_PATTERNS = (
 
 # Accepted files
 INPUT_ACCEPTED_VIDEO_FILES = [
-    ".avi", ".m4v", ".mkv", ".mod", ".mov", ".mp4", ".mpg", ".mts", ".vob", ".webm"
+    ".avi",
+    ".m4v",
+    ".mkv",
+    ".mod",
+    ".mov",
+    ".mp4",
+    ".mpg",
+    ".mts",
+    ".vob",
+    ".webm",
 ]
 INPUT_ACCEPTED_IMAGE_FILES = [".jpeg", ".jpg", ".png"]
 INPUT_ACCEPTED_AUDIO_FILES = [
-    ".aac", ".flac", ".m4a", ".mp3", ".ogg", ".opus", ".wav", ".wma"
+    ".aac",
+    ".flac",
+    ".m4a",
+    ".mp3",
+    ".ogg",
+    ".opus",
+    ".wav",
+    ".wma",
 ]
 INPUT_ACCEPTED_MEDIA_FILES = [
     *INPUT_ACCEPTED_VIDEO_FILES,
@@ -87,7 +103,7 @@ CODEC_AUDIO = "aac"
 # Audio compressor
 AUDIO_COMPRESSOR_MP3_BITRATE_KBPS = 160
 
-# YouTube video encoder settings: 
+# YouTube video encoder settings:
 # only start encoding when an H.265 size reduction is likely.
 YOUTUBE_VIDEO_ENCODOR_MIN_EXPECTED_SAVINGS_PERCENT = 10.0
 YOUTUBE_VIDEO_ENCODOR_TARGET_TOTAL_BITRATE_KBPS_BY_HEIGHT = (
@@ -107,9 +123,7 @@ SUFFIX_OUTPUT_VIDEO = ".mp4"
 SUFFIX_OUTPUT_AUDIO = ".mp3"
 SUFFIX_OUTPUT_IMAGE = ".jpg"
 SUFFIX_OUTPUT_PDF = ".pdf"
-SUFFIX_OUTPUT = [
-    SUFFIX_OUTPUT_VIDEO, SUFFIX_OUTPUT_IMAGE, SUFFIX_OUTPUT_PDF
-]
+SUFFIX_OUTPUT = [SUFFIX_OUTPUT_VIDEO, SUFFIX_OUTPUT_IMAGE, SUFFIX_OUTPUT_PDF]
 
 # Define a constant for the mandatory prefix in the watermark text for PDFs
 WATERMARK_PREFIX = "document exclusivement destiné à "
@@ -117,6 +131,7 @@ WATERMARK_PREFIX = "document exclusivement destiné à "
 # -----------------------------
 # TYPING AND CONFIGURATION CLASSES
 # -----------------------------
+
 
 @dataclass(frozen=True)
 class AppConfig:
@@ -212,13 +227,15 @@ class AppConfig:
             object.__setattr__(self, "INPUT_ACCEPTED_FILES", accepted_files)
 
         if media_files is None:
-            object.__setattr__(self, "INPUT_ACCEPTED_MEDIA_FILES", accepted_files)
+            object.__setattr__(
+                self, "INPUT_ACCEPTED_MEDIA_FILES", accepted_files
+            )
 
 
 # -----------------------------
 # UNIQUE INSTANCE OF AppConfig
 # -----------------------------
-# flags and configuration constants are set above, and the AppConfig instance 
+# flags and configuration constants are set above, and the AppConfig instance
 # is created here for use throughout the project.
 
 APP_CONFIG = AppConfig(
@@ -229,20 +246,17 @@ APP_CONFIG = AppConfig(
     INPUT_ACCEPTED_IMAGE_FILES=INPUT_ACCEPTED_IMAGE_FILES,
     INPUT_ACCEPTED_AUDIO_FILES=INPUT_ACCEPTED_AUDIO_FILES,
     INPUT_ACCEPTED_PDF_FILES=INPUT_ACCEPTED_PDF_FILES,
-
     # Codecs
     CODEC_VIDEO_LIST=CODEC_VIDEO_LIST,
     CODEC_VIDEO=CODEC_VIDEO,
     CODEC_AUDIO=CODEC_AUDIO,
     AUDIO_COMPRESSOR_MP3_BITRATE_KBPS=AUDIO_COMPRESSOR_MP3_BITRATE_KBPS,
-
     # suffix
     SUFFIX_OUTPUT=SUFFIX_OUTPUT,
     SUFFIX_OUTPUT_VIDEO=SUFFIX_OUTPUT_VIDEO,
     SUFFIX_OUTPUT_AUDIO=SUFFIX_OUTPUT_AUDIO,
     SUFFIX_OUTPUT_IMAGE=SUFFIX_OUTPUT_IMAGE,
     SUFFIX_OUTPUT_PDF=SUFFIX_OUTPUT_PDF,
-
     # Paths
     ROOT=ROOT,
     LOG_DIR=LOG_DIR,

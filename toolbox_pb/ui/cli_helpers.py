@@ -2,7 +2,10 @@
 
 from toolbox_pb.core.config_global import AppConfig
 from toolbox_pb.core.image.main_image import image_defilor
-from toolbox_pb.core.video.main_video import video_audio_decalator, video_rotator
+from toolbox_pb.core.video.main_video import (
+    video_audio_decalator,
+    video_rotator,
+)
 from toolbox_pb.core.web.main_web import (
     MP3_BITRATES,
     VIDEO_QUALITIES,
@@ -14,12 +17,18 @@ from toolbox_pb.core.web.main_web import (
 def run_image_defilor_interactive(cfg: AppConfig) -> bool:
     """Ask for optional defilor settings, then invoke the core operation."""
     while True:
-        print("\nOptions disponibles: --height --speed --fps --hold-start --hold-end --codec --crf")
+        print(
+            "\nOptions disponibles: --height --speed --fps --hold-start --hold-end --codec --crf"
+        )
         answer = input("Ajouter des options ? (o/n) : ").strip().lower()
         if answer not in {"o", "oui", "y", "yes", "n", "non", "no"}:
             print("Réponse invalide, veuillez entrer 'o' ou 'n'.\n")
             continue
-        extra_args = input("Entrez les options (ex: --height 720 --speed 50): ").strip() if answer in {"o", "oui", "y", "yes"} else None
+        extra_args = (
+            input("Entrez les options (ex: --height 720 --speed 50): ").strip()
+            if answer in {"o", "oui", "y", "yes"}
+            else None
+        )
         try:
             return image_defilor(cfg, extra_args=extra_args)
         except ValueError as exc:
@@ -69,18 +78,24 @@ def run_youtube_downloader_interactive(cfg: AppConfig) -> bool | None:
     media_choice = media_choice or "1"
     if media_choice == "1":
         media_format = "MP3"
-        bitrate = input(
-            f"Débit MP3 en kb/s ({', '.join(MP3_BITRATES)}) [160] : "
-        ).strip() or "160"
+        bitrate = (
+            input(
+                f"Débit MP3 en kb/s ({', '.join(MP3_BITRATES)}) [160] : "
+            ).strip()
+            or "160"
+        )
         if bitrate not in MP3_BITRATES:
             print("Débit MP3 invalide.")
             return None
         video_quality = "1080"
     elif media_choice == "2":
         media_format = "MP4"
-        video_quality = input(
-            f"Qualité vidéo maximale ({', '.join(VIDEO_QUALITIES)}p) [1080] : "
-        ).strip() or "1080"
+        video_quality = (
+            input(
+                f"Qualité vidéo maximale ({', '.join(VIDEO_QUALITIES)}p) [1080] : "
+            ).strip()
+            or "1080"
+        )
         if video_quality not in VIDEO_QUALITIES:
             print("Qualité vidéo invalide.")
             return None

@@ -1,14 +1,13 @@
 [project]
 name = "toolbox-pb"
 version = "1.0.0"
-description = ""
+description = "Boîte à outils locale de traitements multimédias, avec interfaces NiceGUI et CLI."
 authors = [
     {name = "Pierrick BERTHE",email = "109241887+pierrickBERTHE@users.noreply.github.com"}
 ]
 readme = "README.md"
 requires-python = ">=3.12,<4"
 dependencies = [
-    "pytest (>=9.0.3,<10.0.0)",
     "pypdf (>=7.1.0,<8.0.0)",
     "reportlab (>=4.0.0,<5.0.0)",
     "withoutbg (>=1.1.1,<2.0.0)",
@@ -17,8 +16,8 @@ dependencies = [
     "pygments (>=2.21.0,<3.0.0)",
     "mutagen (>=1.48.1,<2.0.0)",
     "filelock (>=4.2.4,<5.0.0)",
-    "streamlit (>=1.51.0,<2.0.0)",
-    "yt-dlp[default] (>=2026.10.26,<2027.0.0)"
+    "yt-dlp[default] (>=2026.10.26,<2027.0.0)",
+    "nicegui (>=4.0.0,<5.0.0)"
 ]
 
 
@@ -33,3 +32,6 @@ pytest-cov = "^7.0.0"
 [tool.pytest.ini_options]
 addopts = "--cov=toolbox_pb --cov-report=term-missing --cov-report=html --cov-fail-under=80 -p no:cacheprovider"
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 79

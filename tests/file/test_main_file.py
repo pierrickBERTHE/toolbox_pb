@@ -16,7 +16,9 @@ from toolbox_pb.core.file.main_file import (
 )
 
 
-def test_file_timeline_sorter_copies_files_from_their_modification_dates(tmp_path):
+def test_file_timeline_sorter_copies_files_from_their_modification_dates(
+    tmp_path,
+):
     """The generated output prefixes make alphabetical sorting chronological."""
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
@@ -38,14 +40,19 @@ def test_file_timeline_sorter_copies_files_from_their_modification_dates(tmp_pat
         is_empty = file_timeline_sorter(cfg)
 
     assert is_empty is False
-    assert sorted(path.name for path in input_dir.iterdir()) == ["alpha.pdf", "zebra.jpg"]
+    assert sorted(path.name for path in input_dir.iterdir()) == [
+        "alpha.pdf",
+        "zebra.jpg",
+    ]
     assert sorted(path.name for path in output_dir.iterdir()) == [
         "2026-05-01_10-00-00__alpha.pdf",
         "2026-05-02_10-00-00__zebra.jpg",
     ]
 
 
-def test_file_timeline_sorter_copies_already_redated_files_without_new_prefix(tmp_path):
+def test_file_timeline_sorter_copies_already_redated_files_without_new_prefix(
+    tmp_path,
+):
     """Existing prefixes are retained when files are copied to the output."""
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
@@ -73,7 +80,9 @@ def test_file_timeline_sorter_ignores_gitkeep_in_input(tmp_path):
     assert not output_dir.exists()
 
 
-def test_file_str_remover_copies_renamed_files_and_preserves_subdirectories(tmp_path):
+def test_file_str_remover_copies_renamed_files_and_preserves_subdirectories(
+    tmp_path,
+):
     """String removal must copy files without changing the source tree."""
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
@@ -88,7 +97,9 @@ def test_file_str_remover_copies_renamed_files_and_preserves_subdirectories(tmp_
     assert is_empty is False
     assert source_path.is_file()
     assert source_path.read_text(encoding="utf-8") == "source"
-    assert (output_dir / "nested" / "photo.jpg").read_text(encoding="utf-8") == "source"
+    assert (output_dir / "nested" / "photo.jpg").read_text(
+        encoding="utf-8"
+    ) == "source"
 
 
 def test_file_str_remover_ignores_gitkeep_in_input(tmp_path):
@@ -105,7 +116,9 @@ def test_file_str_remover_ignores_gitkeep_in_input(tmp_path):
     assert not output_dir.exists()
 
 
-def test_folder_date_renammer_copies_direct_input_folders_with_renamed_dates(tmp_path):
+def test_folder_date_renammer_copies_direct_input_folders_with_renamed_dates(
+    tmp_path,
+):
     input_dir = tmp_path / "input"
     input_dir.mkdir()
     source_folder = input_dir / "9 mai 2013 - Meeting d'Aubagne (800m+1500m)"
@@ -142,8 +155,14 @@ def test_cache_nettoyor_reports_sizes_before_and_after(tmp_path, capsys):
     (cache / "file").write_bytes(b"x" * 2_000_000)
     with (
         mock.patch("toolbox_pb.core.file.main_file.CACHE_FOLDERS", [cache]),
-        mock.patch("toolbox_pb.core.file.main_file.func_file.get_cli_caches", return_value=[]),
-        mock.patch("toolbox_pb.core.file.main_file.func_file.run_cli_cleaners", return_value=0),
+        mock.patch(
+            "toolbox_pb.core.file.main_file.func_file.get_cli_caches",
+            return_value=[],
+        ),
+        mock.patch(
+            "toolbox_pb.core.file.main_file.func_file.run_cli_cleaners",
+            return_value=0,
+        ),
     ):
         cache_nettoyor()
 

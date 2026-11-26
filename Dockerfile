@@ -21,5 +21,5 @@ RUN python -m pip install --upgrade pip \
 # Les dossiers sont aussi montes depuis Windows par docker-compose.yml.
 RUN mkdir -p /app/data/input /app/data/output /app/data/segment /app/log
 
-EXPOSE 8501
-CMD ["streamlit", "run", "toolbox_pb/ui/streamlit_app.py", "--server.address=0.0.0.0"]
+EXPOSE 8080
+CMD ["python", "-m", "toolbox_pb.ui.nicegui_app"]

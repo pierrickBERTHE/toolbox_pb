@@ -18,6 +18,7 @@ List of tested functions:
 - video codec is in video codec list
 - no empty critical configuration fields
 """
+
 # general imports
 from pathlib import Path
 import pytest
@@ -25,7 +26,7 @@ import sys
 from pathlib import Path
 
 # Add the toolbox_pb directory to sys.path for imports
-sys.path.append(str(Path(__file__).resolve().parents[1] / 'toolbox_pb'))
+sys.path.append(str(Path(__file__).resolve().parents[1] / "toolbox_pb"))
 
 # Import the module to test
 from toolbox_pb.core.config_global import (
@@ -40,6 +41,7 @@ from toolbox_pb.core.config_global import (
 # -----------------------------
 # General tests on AppConfig
 # -----------------------------
+
 
 def test_app_config_is_instance():
     """APP_CONFIG must be an instance of AppConfig."""
@@ -56,9 +58,10 @@ def test_app_config_is_frozen():
 # Codec fields tests
 # -----------------------------
 
+
 def test_codecs_configuration():
     """Verify video and audio codec configuration."""
-    
+
     # Verify type and content of INPUT_ACCEPTED_FILES
     assert isinstance(APP_CONFIG.INPUT_ACCEPTED_FILES, list)
     assert ".mp4" in APP_CONFIG.INPUT_ACCEPTED_FILES
@@ -77,6 +80,7 @@ def test_codecs_configuration():
 # -----------------------------
 # Paths tests
 # -----------------------------
+
 
 def test_paths_are_path_objects():
     """All paths must be pathlib.Path instances."""
@@ -103,22 +107,32 @@ def test_paths_structure():
 # Flags tests
 # -----------------------------
 
+
 def test_flags_are_booleans():
     """All flags must be boolean values."""
     assert isinstance(APP_CONFIG.LOG_TO_FILE, bool)
     assert APP_CONFIG.LOG_LEVEL in {"DEBUG", "INFO", "WARNING", "ERROR"}
     assert isinstance(APP_CONFIG.ADD_CODEC_NAME_IN_OUTPUT, bool)
-    assert isinstance(APP_CONFIG.IMAGE_REDUCTOR_ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT, bool)
+    assert isinstance(
+        APP_CONFIG.IMAGE_REDUCTOR_ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT, bool
+    )
     assert isinstance(APP_CONFIG.IMAGE_REDUCTOR_JPEG_QUALITY, int)
     assert 0 <= APP_CONFIG.IMAGE_REDUCTOR_JPEG_QUALITY <= 100
-    assert isinstance(APP_CONFIG.IMAGE_WITHOUTBG_ADD_WITHOUTBG_IN_NAME_IN_OUTPUT, bool)
-    assert isinstance(APP_CONFIG.VIDEO_ENCODOR_PRINT_ALL_KEYS_IN_METADATA_SUMMARY, bool)
-    assert isinstance(APP_CONFIG.VIDEO_ASSEMBLOR_EXTRACT_AND_FILTER_DATES, bool)
+    assert isinstance(
+        APP_CONFIG.IMAGE_WITHOUTBG_ADD_WITHOUTBG_IN_NAME_IN_OUTPUT, bool
+    )
+    assert isinstance(
+        APP_CONFIG.VIDEO_ENCODOR_PRINT_ALL_KEYS_IN_METADATA_SUMMARY, bool
+    )
+    assert isinstance(
+        APP_CONFIG.VIDEO_ASSEMBLOR_EXTRACT_AND_FILTER_DATES, bool
+    )
 
 
 # -----------------------------
 # Global consistency tests
 # -----------------------------
+
 
 def test_video_codec_is_in_codec_list():
     """

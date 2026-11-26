@@ -7,6 +7,7 @@ Pierrick BERTHE
 mail : pierrick.berthe@gmx.fr
 Février 2026
 """
+
 # import custom librairies
 from pathlib import Path
 import shlex
@@ -52,13 +53,18 @@ def image_reductor(cfg: AppConfig, quality: int | None = None) -> bool:
 
     # ----------- LOOP THROUGH ALL FILES IN INPUT DIR -------------
     input_files = sorted(
-        (path for path in cfg.INPUT_DIR.rglob("*") if func_glob.is_processable_file(path)),
+        (
+            path
+            for path in cfg.INPUT_DIR.rglob("*")
+            if func_glob.is_processable_file(path)
+        ),
         key=lambda path: str(path.relative_to(cfg.INPUT_DIR)).lower(),
     )
 
     # Use tqdm to display a progress bar for the file processing
-    for input_file in progress(input_files, desc="Image_reductor", unit="fichier"):
-
+    for input_file in progress(
+        input_files, desc="Image_reductor", unit="fichier"
+    ):
         # create the output subdirectory structure based on the input file path
         is_empty_folder = False
         output_subdir = func_glob.build_output_subdir_from_input(
@@ -172,14 +178,20 @@ def image_withoutbg(cfg: AppConfig) -> bool:
     failed = 0
 
     # loop through all input files and process them with a progress bar
-    for input_file in progress(input_files, desc="Image_withoutbg", unit="image"):
+    for input_file in progress(
+        input_files, desc="Image_withoutbg", unit="image"
+    ):
         output_subdir = func_glob.build_output_subdir_from_input(
             input_file, cfg.INPUT_DIR, cfg.OUTPUT_DIR
         )
         withoutbg_suffix = (
-            "_WithoutBG" if cfg.IMAGE_WITHOUTBG_ADD_WITHOUTBG_IN_NAME_IN_OUTPUT else ""
+            "_WithoutBG"
+            if cfg.IMAGE_WITHOUTBG_ADD_WITHOUTBG_IN_NAME_IN_OUTPUT
+            else ""
         )
-        output_path = output_subdir / f"{input_file.stem}{withoutbg_suffix}.png"
+        output_path = (
+            output_subdir / f"{input_file.stem}{withoutbg_suffix}.png"
+        )
 
         # skip processing if the output file already exists
         if output_path.exists():
@@ -243,8 +255,7 @@ def image_defilor(cfg: AppConfig, extra_args: str | None = None) -> bool:
     height_is_explicit = _defilor_height_is_explicit(extra_args)
 
     # --------- LOOP THROUGH ALL FILES IN INPUT DIR ---------
-    for input_file in config["input_dir"].rglob('*'):
-
+    for input_file in config["input_dir"].rglob("*"):
         # -------- IGNORE UNSUPPORTED FILES ---------
         if not func_glob.is_processable_file(input_file):
             continue
@@ -256,9 +267,10 @@ def image_defilor(cfg: AppConfig, extra_args: str | None = None) -> bool:
 
         input_suffix = input_file.suffix.lower()
         if input_suffix in config["accepted_image_file"]:
-
             # ------------- FILENAME FOR OUTPUT VIDEO -------------
-            output_path = output_subdir / f"{input_file.stem}_scrolled{config['suffix']}"
+            output_path = (
+                output_subdir / f"{input_file.stem}_scrolled{config['suffix']}"
+            )
 
             # ------------- GENERATION OF SCROLLING VIDEO -------------
             _generate_defilor_video(
@@ -278,7 +290,9 @@ def image_defilor(cfg: AppConfig, extra_args: str | None = None) -> bool:
                 )
 
                 # Generate one video per page image, with a filename indicating the page number
-                for image_index, page_image in enumerate(extracted_images, start=1):
+                for image_index, page_image in enumerate(
+                    extracted_images, start=1
+                ):
                     output_path = (
                         output_subdir
                         / f"{input_file.stem}_image_{image_index:03d}_scrolled{config['suffix']}"
@@ -327,5 +341,3 @@ def _generate_defilor_video(
             input_file, "image_defilor", image_codec=params.codec
         ),
     )
-
-

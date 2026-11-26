@@ -1,6 +1,7 @@
 """
 Unit tests for pdf.main_pdf.
 """
+
 # Imports standard
 import sys
 from pathlib import Path
@@ -14,13 +15,17 @@ sys.path.append(str(Path(__file__).resolve().parents[2] / "toolbox_pb"))
 
 # Imports local
 from toolbox_pb.core.pdf.main_pdf import (
-    build_filigranor_text, pdf_assemblor, pdf_filigranor, pdf_page_alternator,
+    build_filigranor_text,
+    pdf_assemblor,
+    pdf_filigranor,
+    pdf_page_alternator,
 )
 
 
 # -----------------------------
 # Fixtures helpers
 # -----------------------------
+
 
 def build_fake_cfg(tmp_path):
     """
@@ -39,6 +44,7 @@ def build_fake_cfg(tmp_path):
 # -----------------------------
 # Main tests
 # -----------------------------
+
 
 def test_pdf_filigranor_processes_only_pdfs_and_skips_existing(tmp_path):
     """
@@ -62,11 +68,15 @@ def test_pdf_filigranor_processes_only_pdfs_and_skips_existing(tmp_path):
     out_1.touch()
 
     # Mock filesystem helper and watermark generation to avoid PDF side effects
-    with mock.patch(
-        "toolbox_pb.core.pdf.main_pdf.func_glob.build_output_subdir_from_input",
-        return_value=cfg.OUTPUT_DIR
-    ), mock.patch("toolbox_pb.core.pdf.main_pdf.func_pdf.add_text_watermark_to_pdf") as watermark_mock:
-
+    with (
+        mock.patch(
+            "toolbox_pb.core.pdf.main_pdf.func_glob.build_output_subdir_from_input",
+            return_value=cfg.OUTPUT_DIR,
+        ),
+        mock.patch(
+            "toolbox_pb.core.pdf.main_pdf.func_pdf.add_text_watermark_to_pdf"
+        ) as watermark_mock,
+    ):
         # Run the function under test
         is_empty = pdf_filigranor(cfg, watermark_text="CONFIDENTIEL")
 
@@ -76,7 +86,10 @@ def test_pdf_filigranor_processes_only_pdfs_and_skips_existing(tmp_path):
     # Ensure only the PDF without existing output was processed
     watermark_mock.assert_called_once()
     assert watermark_mock.call_args.kwargs["input_path"] == pdf_2
-    assert watermark_mock.call_args.kwargs["output_path"] == cfg.OUTPUT_DIR / "b_filigrane.pdf"
+    assert (
+        watermark_mock.call_args.kwargs["output_path"]
+        == cfg.OUTPUT_DIR / "b_filigrane.pdf"
+    )
 
     # Ensure the mandatory sentence is added before the user-provided text
     assert (
@@ -98,8 +111,9 @@ def test_pdf_filigranor_returns_true_when_no_pdf(tmp_path):
     (cfg.INPUT_DIR / "notes.txt").touch()
 
     # Mock watermark generation to ensure it is not called
-    with mock.patch("toolbox_pb.core.pdf.main_pdf.func_pdf.add_text_watermark_to_pdf") as watermark_mock:
-
+    with mock.patch(
+        "toolbox_pb.core.pdf.main_pdf.func_pdf.add_text_watermark_to_pdf"
+    ) as watermark_mock:
         # Run the function under test
         is_empty = pdf_filigranor(cfg, watermark_text="CONFIDENTIEL")
 
@@ -121,12 +135,18 @@ def test_pdf_assemblor_merges_pdf_files_in_relative_path_order(tmp_path):
     (nested_input_dir / "c.pdf").touch()
     (cfg.INPUT_DIR / "notes.txt").touch()
 
-    with mock.patch("toolbox_pb.core.pdf.main_pdf.func_pdf.merge_pdf_files") as merge_mock:
+    with mock.patch(
+        "toolbox_pb.core.pdf.main_pdf.func_pdf.merge_pdf_files"
+    ) as merge_mock:
         is_empty = pdf_assemblor(cfg)
 
     assert is_empty is False
     merge_mock.assert_called_once_with(
-        [cfg.INPUT_DIR / "a.pdf", cfg.INPUT_DIR / "b.pdf", nested_input_dir / "c.pdf"],
+        [
+            cfg.INPUT_DIR / "a.pdf",
+            cfg.INPUT_DIR / "b.pdf",
+            nested_input_dir / "c.pdf",
+        ],
         cfg.OUTPUT_DIR / "pdf_assemblage.pdf",
     )
 
@@ -137,7 +157,9 @@ def test_pdf_assemblor_returns_true_when_no_pdf(tmp_path):
     cfg.INPUT_DIR.mkdir(parents=True)
     (cfg.INPUT_DIR / "notes.txt").touch()
 
-    with mock.patch("toolbox_pb.core.pdf.main_pdf.func_pdf.merge_pdf_files") as merge_mock:
+    with mock.patch(
+        "toolbox_pb.core.pdf.main_pdf.func_pdf.merge_pdf_files"
+    ) as merge_mock:
         is_empty = pdf_assemblor(cfg)
 
     assert is_empty is True

@@ -17,6 +17,7 @@ Test Coverage:
     - Exit Handler: Tests that menu choice '15' properly exits the application
     - Main Flow: Tests that the application runs without errors through the menu system
 """
+
 # general imports
 from pathlib import Path
 import pytest
@@ -24,7 +25,7 @@ from unittest import mock
 import sys
 
 # Add the toolbox_pb directory to sys.path for imports
-sys.path.append(str(Path(__file__).resolve().parents[1] / 'toolbox_pb'))
+sys.path.append(str(Path(__file__).resolve().parents[1] / "toolbox_pb"))
 
 # local imports
 import toolbox_pb.ui.cli as main
@@ -34,20 +35,31 @@ from toolbox_pb.core.config_global import APP_CONFIG
 def test_main_video_encodor_called(monkeypatch):
     """Test that choosing option '1' calls video_encodor."""
     # Mock input for choice '1'
-    monkeypatch.setattr('builtins.input', lambda _: '1')
+    monkeypatch.setattr("builtins.input", lambda _: "1")
 
     # Mock others functions to avoid side effects except video_encodor
-    with mock.patch('toolbox_pb.ui.cli.video_encodor', autospec=True) as mock_video, \
-        mock.patch('toolbox_pb.ui.cli.find_files_by_extensions', return_value=[]), \
-        mock.patch('toolbox_pb.core.func_global.get_git_version', return_value="git123"), \
-        mock.patch('toolbox_pb.core.func_global.format_git_version', return_value="git123"), \
-        mock.patch('toolbox_pb.core.func_global.print_system_info'), \
-        mock.patch('toolbox_pb.core.func_global.print_config_flags'), \
-        mock.patch('toolbox_pb.core.func_global.summarize_files'):
-
+    with (
+        mock.patch(
+            "toolbox_pb.ui.cli.video_encodor", autospec=True
+        ) as mock_video,
+        mock.patch(
+            "toolbox_pb.ui.cli.find_files_by_extensions", return_value=[]
+        ),
+        mock.patch(
+            "toolbox_pb.core.func_global.get_git_version",
+            return_value="git123",
+        ),
+        mock.patch(
+            "toolbox_pb.core.func_global.format_git_version",
+            return_value="git123",
+        ),
+        mock.patch("toolbox_pb.core.func_global.print_system_info"),
+        mock.patch("toolbox_pb.core.func_global.print_config_flags"),
+        mock.patch("toolbox_pb.core.func_global.summarize_files"),
+    ):
         # Call main
         main.main(APP_CONFIG)
-        
+
         # Check that video_encodor was called once with APP_CONFIG
         mock_video.assert_called_once_with(APP_CONFIG)
 
@@ -55,65 +67,104 @@ def test_main_video_encodor_called(monkeypatch):
 def test_main_video_assemblor_called(monkeypatch):
     """Test that choosing option '2' calls video_assemblor."""
     # Mock input for choice '2'
-    monkeypatch.setattr('builtins.input', lambda _: '2')
+    monkeypatch.setattr("builtins.input", lambda _: "2")
 
     # Mock others functions to avoid side effects except video_assemblor
-    with mock.patch('toolbox_pb.ui.cli.video_assemblor', autospec=True) as mock_video, \
-        mock.patch('toolbox_pb.core.func_global.get_git_version', return_value="git123"), \
-        mock.patch('toolbox_pb.core.func_global.format_git_version', return_value="git123"), \
-        mock.patch('toolbox_pb.core.func_global.print_system_info'), \
-        mock.patch('toolbox_pb.core.func_global.print_config_flags'), \
-        mock.patch('toolbox_pb.core.func_global.summarize_files'):
-
+    with (
+        mock.patch(
+            "toolbox_pb.ui.cli.video_assemblor", autospec=True
+        ) as mock_video,
+        mock.patch(
+            "toolbox_pb.core.func_global.get_git_version",
+            return_value="git123",
+        ),
+        mock.patch(
+            "toolbox_pb.core.func_global.format_git_version",
+            return_value="git123",
+        ),
+        mock.patch("toolbox_pb.core.func_global.print_system_info"),
+        mock.patch("toolbox_pb.core.func_global.print_config_flags"),
+        mock.patch("toolbox_pb.core.func_global.summarize_files"),
+    ):
         # Call main
         main.main(APP_CONFIG)
-        
+
         # Check that video_encodor was called once with APP_CONFIG
         mock_video.assert_called_once_with(APP_CONFIG)
 
 
 def test_main_video_audio_decalator_called(monkeypatch):
     """Test that choosing option '3' calls video_audio_decalator."""
-    monkeypatch.setattr('builtins.input', lambda _: '3')
+    monkeypatch.setattr("builtins.input", lambda _: "3")
 
-    with mock.patch('toolbox_pb.ui.cli.run_video_audio_decalator_interactive', autospec=True) as mock_audio, \
-        mock.patch('toolbox_pb.core.func_global.get_git_version', return_value="git123"), \
-        mock.patch('toolbox_pb.core.func_global.format_git_version', return_value="git123"), \
-        mock.patch('toolbox_pb.core.func_global.print_system_info'), \
-        mock.patch('toolbox_pb.core.func_global.print_config_flags'), \
-        mock.patch('toolbox_pb.core.func_global.summarize_files'):
-
+    with (
+        mock.patch(
+            "toolbox_pb.ui.cli.run_video_audio_decalator_interactive",
+            autospec=True,
+        ) as mock_audio,
+        mock.patch(
+            "toolbox_pb.core.func_global.get_git_version",
+            return_value="git123",
+        ),
+        mock.patch(
+            "toolbox_pb.core.func_global.format_git_version",
+            return_value="git123",
+        ),
+        mock.patch("toolbox_pb.core.func_global.print_system_info"),
+        mock.patch("toolbox_pb.core.func_global.print_config_flags"),
+        mock.patch("toolbox_pb.core.func_global.summarize_files"),
+    ):
         main.main(APP_CONFIG)
         mock_audio.assert_called_once_with(APP_CONFIG)
 
 
 def test_main_video_volume_adjust_called(monkeypatch):
     """Test that choosing option '4' calls video_volume_adjust."""
-    monkeypatch.setattr('builtins.input', lambda _: '4')
+    monkeypatch.setattr("builtins.input", lambda _: "4")
 
-    with mock.patch('toolbox_pb.ui.cli.video_volume_adjust', autospec=True) as mock_volume, \
-        mock.patch('toolbox_pb.core.func_global.get_git_version', return_value="git123"), \
-        mock.patch('toolbox_pb.core.func_global.format_git_version', return_value="git123"), \
-        mock.patch('toolbox_pb.core.func_global.print_system_info'), \
-        mock.patch('toolbox_pb.core.func_global.print_config_flags'), \
-        mock.patch('toolbox_pb.core.func_global.summarize_files'):
-
+    with (
+        mock.patch(
+            "toolbox_pb.ui.cli.video_volume_adjust", autospec=True
+        ) as mock_volume,
+        mock.patch(
+            "toolbox_pb.core.func_global.get_git_version",
+            return_value="git123",
+        ),
+        mock.patch(
+            "toolbox_pb.core.func_global.format_git_version",
+            return_value="git123",
+        ),
+        mock.patch("toolbox_pb.core.func_global.print_system_info"),
+        mock.patch("toolbox_pb.core.func_global.print_config_flags"),
+        mock.patch("toolbox_pb.core.func_global.summarize_files"),
+    ):
         main.main(APP_CONFIG)
         mock_volume.assert_called_once_with(APP_CONFIG)
 
 
 def test_main_video_srt_extractor_called(monkeypatch):
     """Test that choosing option '5' calls video_srt_extractor."""
-    monkeypatch.setattr('builtins.input', lambda _: '5')
+    monkeypatch.setattr("builtins.input", lambda _: "5")
 
-    with mock.patch('toolbox_pb.ui.cli.video_srt_extractor', autospec=True) as mock_extractor, \
-        mock.patch('toolbox_pb.ui.cli.find_files_by_extensions', return_value=[]), \
-        mock.patch('toolbox_pb.core.func_global.get_git_version', return_value="git123"), \
-        mock.patch('toolbox_pb.core.func_global.format_git_version', return_value="git123"), \
-        mock.patch('toolbox_pb.core.func_global.print_system_info'), \
-        mock.patch('toolbox_pb.core.func_global.print_config_flags'), \
-        mock.patch('toolbox_pb.core.func_global.summarize_files'):
-
+    with (
+        mock.patch(
+            "toolbox_pb.ui.cli.video_srt_extractor", autospec=True
+        ) as mock_extractor,
+        mock.patch(
+            "toolbox_pb.ui.cli.find_files_by_extensions", return_value=[]
+        ),
+        mock.patch(
+            "toolbox_pb.core.func_global.get_git_version",
+            return_value="git123",
+        ),
+        mock.patch(
+            "toolbox_pb.core.func_global.format_git_version",
+            return_value="git123",
+        ),
+        mock.patch("toolbox_pb.core.func_global.print_system_info"),
+        mock.patch("toolbox_pb.core.func_global.print_config_flags"),
+        mock.patch("toolbox_pb.core.func_global.summarize_files"),
+    ):
         main.main(APP_CONFIG)
         mock_extractor.assert_called_once_with(APP_CONFIG)
 
@@ -133,21 +184,35 @@ def test_main_srt_extractor_offers_date_filtering(monkeypatch, tmp_path):
     cfg.OUTPUT_DIR = output_dir
     cfg.INPUT_ACCEPTED_VIDEO_FILES = [".mp4"]
     cfg.LOG_TO_FILE = False
-    monkeypatch.setattr('builtins.input', lambda _: '5')
+    monkeypatch.setattr("builtins.input", lambda _: "5")
 
-    with mock.patch('toolbox_pb.ui.cli.video_srt_extractor', return_value=False), \
-        mock.patch('toolbox_pb.ui.cli.find_files_by_extensions', return_value=[video_path]), \
+    with (
         mock.patch(
-            'toolbox_pb.ui.reductor_workflow._ask_to_run_complementary_reductor',
+            "toolbox_pb.ui.cli.video_srt_extractor", return_value=False
+        ),
+        mock.patch(
+            "toolbox_pb.ui.cli.find_files_by_extensions",
+            return_value=[video_path],
+        ),
+        mock.patch(
+            "toolbox_pb.ui.reductor_workflow._ask_to_run_complementary_reductor",
             return_value=True,
-        ) as mock_confirmation, \
-        mock.patch('toolbox_pb.ui.cli.video_srt_date_filtrator', return_value=False) as mock_filter, \
-        mock.patch('toolbox_pb.core.func_global.get_git_version', return_value="git123"), \
-        mock.patch('toolbox_pb.core.func_global.format_git_version', return_value="git123"), \
-        mock.patch('toolbox_pb.core.func_global.print_system_info'), \
-        mock.patch('toolbox_pb.core.func_global.print_config_flags'), \
-        mock.patch('toolbox_pb.core.func_global.summarize_files'):
-
+        ) as mock_confirmation,
+        mock.patch(
+            "toolbox_pb.ui.cli.video_srt_date_filtrator", return_value=False
+        ) as mock_filter,
+        mock.patch(
+            "toolbox_pb.core.func_global.get_git_version",
+            return_value="git123",
+        ),
+        mock.patch(
+            "toolbox_pb.core.func_global.format_git_version",
+            return_value="git123",
+        ),
+        mock.patch("toolbox_pb.core.func_global.print_system_info"),
+        mock.patch("toolbox_pb.core.func_global.print_config_flags"),
+        mock.patch("toolbox_pb.core.func_global.summarize_files"),
+    ):
         main.main(cfg)
 
     mock_confirmation.assert_called_once_with("Vidéo_srt_date_filtrator")
@@ -161,15 +226,24 @@ def test_main_srt_extractor_offers_date_filtering(monkeypatch, tmp_path):
 
 def test_main_image_diapo_video_creator_called(monkeypatch):
     """Test that choosing option '12' calls the image slideshow creator."""
-    monkeypatch.setattr('builtins.input', lambda _: '12')
+    monkeypatch.setattr("builtins.input", lambda _: "12")
 
-    with mock.patch('toolbox_pb.ui.cli.image_diapo_video_creator', return_value=False) as mock_diapo, \
-        mock.patch('toolbox_pb.core.func_global.get_git_version', return_value="git123"), \
-        mock.patch('toolbox_pb.core.func_global.format_git_version', return_value="git123"), \
-        mock.patch('toolbox_pb.core.func_global.print_system_info'), \
-        mock.patch('toolbox_pb.core.func_global.print_config_flags'), \
-        mock.patch('toolbox_pb.core.func_global.summarize_files'):
-
+    with (
+        mock.patch(
+            "toolbox_pb.ui.cli.image_diapo_video_creator", return_value=False
+        ) as mock_diapo,
+        mock.patch(
+            "toolbox_pb.core.func_global.get_git_version",
+            return_value="git123",
+        ),
+        mock.patch(
+            "toolbox_pb.core.func_global.format_git_version",
+            return_value="git123",
+        ),
+        mock.patch("toolbox_pb.core.func_global.print_system_info"),
+        mock.patch("toolbox_pb.core.func_global.print_config_flags"),
+        mock.patch("toolbox_pb.core.func_global.summarize_files"),
+    ):
         main.main(APP_CONFIG)
 
     mock_diapo.assert_called_once_with(APP_CONFIG)
@@ -179,13 +253,25 @@ def test_main_image_reductor_called(monkeypatch):
     """Test that choosing option '11' calls image_reductor."""
     monkeypatch.setattr("builtins.input", lambda _: "11")
 
-    with mock.patch("toolbox_pb.ui.cli.image_reductor", return_value=False) as mock_reductor, \
-        mock.patch("toolbox_pb.ui.cli.find_files_by_extensions", return_value=[]), \
-        mock.patch("toolbox_pb.core.func_global.get_git_version", return_value="git123"), \
-        mock.patch("toolbox_pb.core.func_global.format_git_version", return_value="git123"), \
-        mock.patch("toolbox_pb.core.func_global.print_system_info"), \
-        mock.patch("toolbox_pb.core.func_global.print_config_flags"), \
-        mock.patch("toolbox_pb.core.func_global.summarize_files"):
+    with (
+        mock.patch(
+            "toolbox_pb.ui.cli.image_reductor", return_value=False
+        ) as mock_reductor,
+        mock.patch(
+            "toolbox_pb.ui.cli.find_files_by_extensions", return_value=[]
+        ),
+        mock.patch(
+            "toolbox_pb.core.func_global.get_git_version",
+            return_value="git123",
+        ),
+        mock.patch(
+            "toolbox_pb.core.func_global.format_git_version",
+            return_value="git123",
+        ),
+        mock.patch("toolbox_pb.core.func_global.print_system_info"),
+        mock.patch("toolbox_pb.core.func_global.print_config_flags"),
+        mock.patch("toolbox_pb.core.func_global.summarize_files"),
+    ):
         main.main(APP_CONFIG)
 
     mock_reductor.assert_called_once_with(APP_CONFIG)
@@ -205,33 +291,65 @@ def test_main_offers_and_runs_complementary_reductor(
     answers = iter([choice, "o"])
     monkeypatch.setattr("builtins.input", lambda _: next(answers))
 
-    with mock.patch("toolbox_pb.ui.cli.video_encodor", return_value=False) as video_mock, \
-        mock.patch("toolbox_pb.ui.cli.image_reductor", return_value=False) as image_mock, \
-        mock.patch("toolbox_pb.ui.reductor_workflow._read_timed_confirmation", return_value="o"), \
-        mock.patch("toolbox_pb.ui.cli.find_files_by_extensions", return_value=[Path("input/file")]), \
-        mock.patch("toolbox_pb.core.func_global.get_git_version", return_value="git123"), \
-        mock.patch("toolbox_pb.core.func_global.format_git_version", return_value="git123"), \
-        mock.patch("toolbox_pb.core.func_global.print_system_info"), \
-        mock.patch("toolbox_pb.core.func_global.print_config_flags"), \
-        mock.patch("toolbox_pb.core.func_global.summarize_files"):
+    with (
+        mock.patch(
+            "toolbox_pb.ui.cli.video_encodor", return_value=False
+        ) as video_mock,
+        mock.patch(
+            "toolbox_pb.ui.cli.image_reductor", return_value=False
+        ) as image_mock,
+        mock.patch(
+            "toolbox_pb.ui.reductor_workflow._read_timed_confirmation",
+            return_value="o",
+        ),
+        mock.patch(
+            "toolbox_pb.ui.cli.find_files_by_extensions",
+            return_value=[Path("input/file")],
+        ),
+        mock.patch(
+            "toolbox_pb.core.func_global.get_git_version",
+            return_value="git123",
+        ),
+        mock.patch(
+            "toolbox_pb.core.func_global.format_git_version",
+            return_value="git123",
+        ),
+        mock.patch("toolbox_pb.core.func_global.print_system_info"),
+        mock.patch("toolbox_pb.core.func_global.print_config_flags"),
+        mock.patch("toolbox_pb.core.func_global.summarize_files"),
+    ):
         main.main(APP_CONFIG)
 
     expected_mock = video_mock if secondary == "video_encodor" else image_mock
     expected_mock.assert_called_once_with(APP_CONFIG)
 
 
-def test_main_does_not_offer_complementary_reductor_without_matching_files(monkeypatch):
+def test_main_does_not_offer_complementary_reductor_without_matching_files(
+    monkeypatch,
+):
     """No extra prompt should appear when the other file type is absent."""
     monkeypatch.setattr("builtins.input", lambda _: "11")
 
-    with mock.patch("toolbox_pb.ui.cli.image_reductor", return_value=False), \
-        mock.patch("toolbox_pb.ui.cli.video_encodor", return_value=False) as video_mock, \
-        mock.patch("toolbox_pb.ui.cli.find_files_by_extensions", return_value=[]), \
-        mock.patch("toolbox_pb.core.func_global.get_git_version", return_value="git123"), \
-        mock.patch("toolbox_pb.core.func_global.format_git_version", return_value="git123"), \
-        mock.patch("toolbox_pb.core.func_global.print_system_info"), \
-        mock.patch("toolbox_pb.core.func_global.print_config_flags"), \
-        mock.patch("toolbox_pb.core.func_global.summarize_files"):
+    with (
+        mock.patch("toolbox_pb.ui.cli.image_reductor", return_value=False),
+        mock.patch(
+            "toolbox_pb.ui.cli.video_encodor", return_value=False
+        ) as video_mock,
+        mock.patch(
+            "toolbox_pb.ui.cli.find_files_by_extensions", return_value=[]
+        ),
+        mock.patch(
+            "toolbox_pb.core.func_global.get_git_version",
+            return_value="git123",
+        ),
+        mock.patch(
+            "toolbox_pb.core.func_global.format_git_version",
+            return_value="git123",
+        ),
+        mock.patch("toolbox_pb.core.func_global.print_system_info"),
+        mock.patch("toolbox_pb.core.func_global.print_config_flags"),
+        mock.patch("toolbox_pb.core.func_global.summarize_files"),
+    ):
         main.main(APP_CONFIG)
 
     video_mock.assert_not_called()
@@ -241,12 +359,22 @@ def test_main_image_withoutbg_called(monkeypatch):
     """Test that choosing option '13' calls image_withoutbg."""
     monkeypatch.setattr("builtins.input", lambda _: "13")
 
-    with mock.patch("toolbox_pb.ui.cli.image_withoutbg", return_value=False) as mock_withoutbg, \
-        mock.patch("toolbox_pb.core.func_global.get_git_version", return_value="git123"), \
-        mock.patch("toolbox_pb.core.func_global.format_git_version", return_value="git123"), \
-        mock.patch("toolbox_pb.core.func_global.print_system_info"), \
-        mock.patch("toolbox_pb.core.func_global.print_config_flags"), \
-        mock.patch("toolbox_pb.core.func_global.summarize_files"):
+    with (
+        mock.patch(
+            "toolbox_pb.ui.cli.image_withoutbg", return_value=False
+        ) as mock_withoutbg,
+        mock.patch(
+            "toolbox_pb.core.func_global.get_git_version",
+            return_value="git123",
+        ),
+        mock.patch(
+            "toolbox_pb.core.func_global.format_git_version",
+            return_value="git123",
+        ),
+        mock.patch("toolbox_pb.core.func_global.print_system_info"),
+        mock.patch("toolbox_pb.core.func_global.print_config_flags"),
+        mock.patch("toolbox_pb.core.func_global.summarize_files"),
+    ):
         main.main(APP_CONFIG)
 
     mock_withoutbg.assert_called_once_with(APP_CONFIG)
@@ -254,44 +382,73 @@ def test_main_image_withoutbg_called(monkeypatch):
 
 def test_main_audio_compressor_called(monkeypatch):
     """Test that choosing option '14' calls audio_compressor."""
-    monkeypatch.setattr('builtins.input', lambda _: '14')
+    monkeypatch.setattr("builtins.input", lambda _: "14")
 
-    with mock.patch('toolbox_pb.ui.cli.audio_compressor', autospec=True) as mock_audio, \
-        mock.patch('toolbox_pb.core.func_global.get_git_version', return_value="git123"), \
-        mock.patch('toolbox_pb.core.func_global.format_git_version', return_value="git123"), \
-        mock.patch('toolbox_pb.core.func_global.print_system_info'), \
-        mock.patch('toolbox_pb.core.func_global.print_config_flags'), \
-        mock.patch('toolbox_pb.core.func_global.summarize_files'):
+    with (
+        mock.patch(
+            "toolbox_pb.ui.cli.audio_compressor", autospec=True
+        ) as mock_audio,
+        mock.patch(
+            "toolbox_pb.core.func_global.get_git_version",
+            return_value="git123",
+        ),
+        mock.patch(
+            "toolbox_pb.core.func_global.format_git_version",
+            return_value="git123",
+        ),
+        mock.patch("toolbox_pb.core.func_global.print_system_info"),
+        mock.patch("toolbox_pb.core.func_global.print_config_flags"),
+        mock.patch("toolbox_pb.core.func_global.summarize_files"),
+    ):
         main.main(APP_CONFIG)
         mock_audio.assert_called_once_with(APP_CONFIG)
 
 
 def test_main_pdf_filigranor_called(monkeypatch):
     """Test that choosing option '15' calls pdf_filigranor."""
-    answers = iter(['15', 'Destinataire'])
-    monkeypatch.setattr('builtins.input', lambda _: next(answers))
+    answers = iter(["15", "Destinataire"])
+    monkeypatch.setattr("builtins.input", lambda _: next(answers))
 
-    with mock.patch('toolbox_pb.ui.cli.pdf_filigranor', autospec=True) as mock_pdf, \
-        mock.patch('toolbox_pb.core.func_global.get_git_version', return_value="git123"), \
-        mock.patch('toolbox_pb.core.func_global.format_git_version', return_value="git123"), \
-        mock.patch('toolbox_pb.core.func_global.print_system_info'), \
-        mock.patch('toolbox_pb.core.func_global.print_config_flags'), \
-        mock.patch('toolbox_pb.core.func_global.summarize_files'):
-
+    with (
+        mock.patch(
+            "toolbox_pb.ui.cli.pdf_filigranor", autospec=True
+        ) as mock_pdf,
+        mock.patch(
+            "toolbox_pb.core.func_global.get_git_version",
+            return_value="git123",
+        ),
+        mock.patch(
+            "toolbox_pb.core.func_global.format_git_version",
+            return_value="git123",
+        ),
+        mock.patch("toolbox_pb.core.func_global.print_system_info"),
+        mock.patch("toolbox_pb.core.func_global.print_config_flags"),
+        mock.patch("toolbox_pb.core.func_global.summarize_files"),
+    ):
         main.main(APP_CONFIG)
-        mock_pdf.assert_called_once_with(APP_CONFIG, 'Destinataire')
+        mock_pdf.assert_called_once_with(APP_CONFIG, "Destinataire")
 
 
 def test_main_pdf_assemblor_called(monkeypatch):
     """Test that choosing option '16' calls pdf_assemblor."""
     monkeypatch.setattr("builtins.input", lambda _: "16")
 
-    with mock.patch("toolbox_pb.ui.cli.pdf_assemblor", return_value=False) as mock_pdf, \
-        mock.patch("toolbox_pb.core.func_global.get_git_version", return_value="git123"), \
-        mock.patch("toolbox_pb.core.func_global.format_git_version", return_value="git123"), \
-        mock.patch("toolbox_pb.core.func_global.print_system_info"), \
-        mock.patch("toolbox_pb.core.func_global.print_config_flags"), \
-        mock.patch("toolbox_pb.core.func_global.summarize_files"):
+    with (
+        mock.patch(
+            "toolbox_pb.ui.cli.pdf_assemblor", return_value=False
+        ) as mock_pdf,
+        mock.patch(
+            "toolbox_pb.core.func_global.get_git_version",
+            return_value="git123",
+        ),
+        mock.patch(
+            "toolbox_pb.core.func_global.format_git_version",
+            return_value="git123",
+        ),
+        mock.patch("toolbox_pb.core.func_global.print_system_info"),
+        mock.patch("toolbox_pb.core.func_global.print_config_flags"),
+        mock.patch("toolbox_pb.core.func_global.summarize_files"),
+    ):
         main.main(APP_CONFIG)
 
     mock_pdf.assert_called_once_with(APP_CONFIG)
@@ -301,12 +458,22 @@ def test_main_file_timeline_sorter_called(monkeypatch):
     """Test that choosing option '18' calls file_timeline_sorter."""
     monkeypatch.setattr("builtins.input", lambda _: "18")
 
-    with mock.patch("toolbox_pb.ui.cli.file_timeline_sorter", return_value=False) as mock_sorter, \
-        mock.patch("toolbox_pb.core.func_global.get_git_version", return_value="git123"), \
-        mock.patch("toolbox_pb.core.func_global.format_git_version", return_value="git123"), \
-        mock.patch("toolbox_pb.core.func_global.print_system_info"), \
-        mock.patch("toolbox_pb.core.func_global.print_config_flags"), \
-        mock.patch("toolbox_pb.core.func_global.summarize_files"):
+    with (
+        mock.patch(
+            "toolbox_pb.ui.cli.file_timeline_sorter", return_value=False
+        ) as mock_sorter,
+        mock.patch(
+            "toolbox_pb.core.func_global.get_git_version",
+            return_value="git123",
+        ),
+        mock.patch(
+            "toolbox_pb.core.func_global.format_git_version",
+            return_value="git123",
+        ),
+        mock.patch("toolbox_pb.core.func_global.print_system_info"),
+        mock.patch("toolbox_pb.core.func_global.print_config_flags"),
+        mock.patch("toolbox_pb.core.func_global.summarize_files"),
+    ):
         main.main(APP_CONFIG)
 
     mock_sorter.assert_called_once_with(APP_CONFIG)
@@ -317,12 +484,22 @@ def test_main_file_str_remover_called(monkeypatch):
     answers = iter(["19", "_compressed_90"])
     monkeypatch.setattr("builtins.input", lambda _: next(answers))
 
-    with mock.patch("toolbox_pb.ui.cli.file_str_remover", return_value=False) as mock_remover, \
-        mock.patch("toolbox_pb.core.func_global.get_git_version", return_value="git123"), \
-        mock.patch("toolbox_pb.core.func_global.format_git_version", return_value="git123"), \
-        mock.patch("toolbox_pb.core.func_global.print_system_info"), \
-        mock.patch("toolbox_pb.core.func_global.print_config_flags"), \
-        mock.patch("toolbox_pb.core.func_global.summarize_files"):
+    with (
+        mock.patch(
+            "toolbox_pb.ui.cli.file_str_remover", return_value=False
+        ) as mock_remover,
+        mock.patch(
+            "toolbox_pb.core.func_global.get_git_version",
+            return_value="git123",
+        ),
+        mock.patch(
+            "toolbox_pb.core.func_global.format_git_version",
+            return_value="git123",
+        ),
+        mock.patch("toolbox_pb.core.func_global.print_system_info"),
+        mock.patch("toolbox_pb.core.func_global.print_config_flags"),
+        mock.patch("toolbox_pb.core.func_global.summarize_files"),
+    ):
         main.main(APP_CONFIG)
 
     mock_remover.assert_called_once_with(APP_CONFIG, "_compressed_90")
@@ -332,40 +509,53 @@ def test_main_folder_date_renammer_called(monkeypatch):
     """Test that choosing option '20' calls folder_date_renammer."""
     monkeypatch.setattr("builtins.input", lambda _: "20")
 
-    with mock.patch("toolbox_pb.ui.cli.folder_date_renammer", return_value=False) as mock_renammer, \
-        mock.patch("toolbox_pb.core.func_global.get_git_version", return_value="git123"), \
-        mock.patch("toolbox_pb.core.func_global.format_git_version", return_value="git123"), \
-        mock.patch("toolbox_pb.core.func_global.print_system_info"), \
-        mock.patch("toolbox_pb.core.func_global.print_config_flags"), \
-        mock.patch("toolbox_pb.core.func_global.summarize_files"):
+    with (
+        mock.patch(
+            "toolbox_pb.ui.cli.folder_date_renammer", return_value=False
+        ) as mock_renammer,
+        mock.patch(
+            "toolbox_pb.core.func_global.get_git_version",
+            return_value="git123",
+        ),
+        mock.patch(
+            "toolbox_pb.core.func_global.format_git_version",
+            return_value="git123",
+        ),
+        mock.patch("toolbox_pb.core.func_global.print_system_info"),
+        mock.patch("toolbox_pb.core.func_global.print_config_flags"),
+        mock.patch("toolbox_pb.core.func_global.summarize_files"),
+    ):
         main.main(APP_CONFIG)
 
     mock_renammer.assert_called_once_with(APP_CONFIG)
 
 
 # Decorator to parametrize other valid choices
-@pytest.mark.parametrize("choice,msg", [
-    ("5", "video_srt_extractor"),
-    ("6", "Video_srt_integrator"),
-    ("7", "Vidéo_srt_date_filtrator"),
-    ("8", "Vidéo_ass_hard_integrator"),
-    ("9", "Vidéo_rotator"),
-    ("10", "Image_defilor"),
-    ("11", "Image_reductor"),
-    ("12", "Image_diapo_video_creator"),
-    ("13", "Image_withoutbg"),
-    ("14", "Audio_compressor"),
-    ("15", "PDF_filigranor"),
-    ("16", "PDF_assemblor"),
-    ("17", "PDF_page_alternator"),
-    ("18", "File_timeline_sorter"),
-    ("19", "File_str_remover"),
-    ("20", "Folder_date_renammer"),
-])
+@pytest.mark.parametrize(
+    "choice,msg",
+    [
+        ("5", "video_srt_extractor"),
+        ("6", "Video_srt_integrator"),
+        ("7", "Vidéo_srt_date_filtrator"),
+        ("8", "Vidéo_ass_hard_integrator"),
+        ("9", "Vidéo_rotator"),
+        ("10", "Image_defilor"),
+        ("11", "Image_reductor"),
+        ("12", "Image_diapo_video_creator"),
+        ("13", "Image_withoutbg"),
+        ("14", "Audio_compressor"),
+        ("15", "PDF_filigranor"),
+        ("16", "PDF_assemblor"),
+        ("17", "PDF_page_alternator"),
+        ("18", "File_timeline_sorter"),
+        ("19", "File_str_remover"),
+        ("20", "Folder_date_renammer"),
+    ],
+)
 def test_other_menu_choices(monkeypatch, capsys, choice, msg):
     """Test that other menu choices print the correct launch message."""
     # Mock input for the given choice
-    monkeypatch.setattr('builtins.input', lambda _: choice)
+    monkeypatch.setattr("builtins.input", lambda _: choice)
 
     # Mock others functions to avoid side effects
     cfg = APP_CONFIG
@@ -375,35 +565,58 @@ def test_other_menu_choices(monkeypatch, capsys, choice, msg):
         mock.Mock(return_value=False),
     )
 
-    with mock.patch('toolbox_pb.ui.cli.video_encodor', return_value=False), \
-        mock.patch('toolbox_pb.ui.cli.video_srt_extractor', return_value=False), \
-        mock.patch('toolbox_pb.ui.cli.video_srt_integrator', return_value=False), \
-        mock.patch('toolbox_pb.ui.cli.video_srt_date_filtrator', return_value=False), \
-        mock.patch('toolbox_pb.ui.cli.video_ass_hard_integrator', return_value=False), \
-        mock.patch('toolbox_pb.ui.cli.run_image_defilor_interactive'), \
-        mock.patch('toolbox_pb.ui.cli.image_reductor', return_value=False), \
-        mock.patch('toolbox_pb.ui.cli.image_withoutbg', return_value=False), \
-        mock.patch('toolbox_pb.ui.cli.find_files_by_extensions', return_value=[]), \
-        mock.patch('toolbox_pb.ui.cli.image_diapo_video_creator', return_value=False), \
-        mock.patch('toolbox_pb.ui.cli.audio_compressor', return_value=False), \
-        mock.patch('toolbox_pb.ui.cli.pdf_filigranor', return_value=False), \
+    with (
+        mock.patch("toolbox_pb.ui.cli.video_encodor", return_value=False),
+        mock.patch(
+            "toolbox_pb.ui.cli.video_srt_extractor", return_value=False
+        ),
+        mock.patch(
+            "toolbox_pb.ui.cli.video_srt_integrator", return_value=False
+        ),
+        mock.patch(
+            "toolbox_pb.ui.cli.video_srt_date_filtrator", return_value=False
+        ),
+        mock.patch(
+            "toolbox_pb.ui.cli.video_ass_hard_integrator", return_value=False
+        ),
+        mock.patch("toolbox_pb.ui.cli.run_image_defilor_interactive"),
+        mock.patch("toolbox_pb.ui.cli.image_reductor", return_value=False),
+        mock.patch("toolbox_pb.ui.cli.image_withoutbg", return_value=False),
+        mock.patch(
+            "toolbox_pb.ui.cli.find_files_by_extensions", return_value=[]
+        ),
+        mock.patch(
+            "toolbox_pb.ui.cli.image_diapo_video_creator", return_value=False
+        ),
+        mock.patch("toolbox_pb.ui.cli.audio_compressor", return_value=False),
+        mock.patch("toolbox_pb.ui.cli.pdf_filigranor", return_value=False),
         mock.patch.multiple(
-            'toolbox_pb.ui.cli',
+            "toolbox_pb.ui.cli",
             pdf_assemblor=mock.Mock(return_value=False),
-            pdf_page_alternator=mock.Mock(return_value=False)
-        ), \
-        mock.patch('toolbox_pb.ui.cli.file_timeline_sorter', return_value=False), \
-        mock.patch('toolbox_pb.ui.cli.file_str_remover', return_value=False), \
-        mock.patch('toolbox_pb.ui.cli.folder_date_renammer', return_value=False), \
-        mock.patch('toolbox_pb.core.func_global.print_system_info'), \
-        mock.patch('toolbox_pb.core.func_global.get_git_version', return_value="git123"), \
-        mock.patch('toolbox_pb.core.func_global.format_git_version', return_value="git123"), \
-        mock.patch('toolbox_pb.core.func_global.print_config_flags'), \
-        mock.patch('toolbox_pb.core.func_global.summarize_files'):
-
+            pdf_page_alternator=mock.Mock(return_value=False),
+        ),
+        mock.patch(
+            "toolbox_pb.ui.cli.file_timeline_sorter", return_value=False
+        ),
+        mock.patch("toolbox_pb.ui.cli.file_str_remover", return_value=False),
+        mock.patch(
+            "toolbox_pb.ui.cli.folder_date_renammer", return_value=False
+        ),
+        mock.patch("toolbox_pb.core.func_global.print_system_info"),
+        mock.patch(
+            "toolbox_pb.core.func_global.get_git_version",
+            return_value="git123",
+        ),
+        mock.patch(
+            "toolbox_pb.core.func_global.format_git_version",
+            return_value="git123",
+        ),
+        mock.patch("toolbox_pb.core.func_global.print_config_flags"),
+        mock.patch("toolbox_pb.core.func_global.summarize_files"),
+    ):
         # Call main
         main.main(cfg)
-        
+
         # Check correct launch message is printed
         captured = capsys.readouterr()
         assert msg in captured.out
@@ -419,21 +632,28 @@ def test_main_invalid_choice(monkeypatch, capsys, choice):
         choice: the invalid choice to test
     """
     # Mock input for invalid choice
-    monkeypatch.setattr('builtins.input', lambda _: choice)
+    monkeypatch.setattr("builtins.input", lambda _: choice)
 
     # Mock others functions to avoid side effects
-    with mock.patch('toolbox_pb.ui.cli.video_encodor'), \
-        mock.patch('toolbox_pb.core.func_global.print_system_info'), \
-        mock.patch('toolbox_pb.core.func_global.get_git_version', return_value="git123"), \
-        mock.patch('toolbox_pb.core.func_global.format_git_version', return_value="git123"), \
-        mock.patch('toolbox_pb.core.func_global.print_config_flags'):
-
+    with (
+        mock.patch("toolbox_pb.ui.cli.video_encodor"),
+        mock.patch("toolbox_pb.core.func_global.print_system_info"),
+        mock.patch(
+            "toolbox_pb.core.func_global.get_git_version",
+            return_value="git123",
+        ),
+        mock.patch(
+            "toolbox_pb.core.func_global.format_git_version",
+            return_value="git123",
+        ),
+        mock.patch("toolbox_pb.core.func_global.print_config_flags"),
+    ):
         # Call main
         main.main(APP_CONFIG)
-        
+
         # Check output for invalid choice message
         captured = capsys.readouterr()
-        
+
         # Verify that the invalid choice message is in output
         assert "Choix invalide" in captured.out
 
@@ -443,7 +663,7 @@ def test_main_cache_nettoyor(monkeypatch):
     monkeypatch.setattr("builtins.input", lambda _: "21")
     with (
         mock.patch("toolbox_pb.ui.cli.cache_nettoyor") as cleaner,
-        mock.patch("toolbox_pb.core.func_global.summarize_files") as summary
+        mock.patch("toolbox_pb.core.func_global.summarize_files") as summary,
     ):
         main.main(APP_CONFIG)
     cleaner.assert_called_once_with()
@@ -467,7 +687,7 @@ def test_main_youtube_downloader(monkeypatch):
 
 def test_main_quit(monkeypatch):
     """Test that choosing option '23' exits the program."""
-    monkeypatch.setattr('builtins.input', lambda _: '23')
+    monkeypatch.setattr("builtins.input", lambda _: "23")
 
     # Mock python sys.exit to raise SystemExit
     with pytest.raises(SystemExit):
@@ -480,66 +700,98 @@ def test_main_called(monkeypatch):
 
     # Mock others functions to avoid side effects
     with (
-        mock.patch("toolbox_pb.ui.cli.video_encodor"), \
-        mock.patch("toolbox_pb.core.func_global.get_git_version", return_value="git123"), \
-        mock.patch("toolbox_pb.core.func_global.format_git_version", return_value="git123"), \
-        mock.patch("toolbox_pb.core.func_global.print_system_info"), \
+        mock.patch("toolbox_pb.ui.cli.video_encodor"),
+        mock.patch(
+            "toolbox_pb.core.func_global.get_git_version",
+            return_value="git123",
+        ),
+        mock.patch(
+            "toolbox_pb.core.func_global.format_git_version",
+            return_value="git123",
+        ),
+        mock.patch("toolbox_pb.core.func_global.print_system_info"),
         mock.patch("toolbox_pb.core.func_global.print_config_flags"),
-        pytest.raises(SystemExit)
+        pytest.raises(SystemExit),
     ):
-
         # Call main
         main.main(APP_CONFIG)
 
-    # If no exception is raised, the test passes    
+    # If no exception is raised, the test passes
     assert True
 
 
-def test_pdf_page_alternator_missing_files_can_retry(monkeypatch, capsys, tmp_path):
+def test_pdf_page_alternator_missing_files_can_retry(
+    monkeypatch, capsys, tmp_path
+):
     """A missing input prompts a retry and succeeds once the files are present."""
     from types import SimpleNamespace
+
     cfg = SimpleNamespace(**vars(APP_CONFIG))
     cfg.INPUT_DIR = tmp_path
     answers = iter(["17", ""])
+
     def answer(prompt):
         value = next(answers)
         if not value:
             (tmp_path / "impaire.pdf").touch()
             (tmp_path / "paire.pdf").touch()
         return value
+
     monkeypatch.setattr("builtins.input", answer)
-    with mock.patch(
-        "toolbox_pb.ui.cli.pdf_page_alternator",
-        side_effect=[
-            FileNotFoundError(
-                "Placez impaire.pdf et paire.pdf dans le dossier d'entrée."
-            ),
-            False
-        ]
-    ) as run, \
-        mock.patch("toolbox_pb.core.func_global.get_git_version", return_value="git123"), \
-        mock.patch("toolbox_pb.core.func_global.format_git_version", return_value="git123"), \
-        mock.patch("toolbox_pb.core.func_global.print_system_info"), \
-        mock.patch("toolbox_pb.core.func_global.print_config_flags"), \
-        mock.patch("toolbox_pb.core.func_global.summarize_files"):
+    with (
+        mock.patch(
+            "toolbox_pb.ui.cli.pdf_page_alternator",
+            side_effect=[
+                FileNotFoundError(
+                    "Placez impaire.pdf et paire.pdf dans le dossier d'entrée."
+                ),
+                False,
+            ],
+        ) as run,
+        mock.patch(
+            "toolbox_pb.core.func_global.get_git_version",
+            return_value="git123",
+        ),
+        mock.patch(
+            "toolbox_pb.core.func_global.format_git_version",
+            return_value="git123",
+        ),
+        mock.patch("toolbox_pb.core.func_global.print_system_info"),
+        mock.patch("toolbox_pb.core.func_global.print_config_flags"),
+        mock.patch("toolbox_pb.core.func_global.summarize_files"),
+    ):
         main.main(cfg)
     assert run.call_count == 2
     assert "Placez impaire.pdf et paire.pdf" in capsys.readouterr().out
 
 
-def test_pdf_page_alternator_missing_files_can_quit(monkeypatch, capsys, tmp_path):
+def test_pdf_page_alternator_missing_files_can_quit(
+    monkeypatch, capsys, tmp_path
+):
     """The user can abandon the retry without a traceback or success message."""
     from types import SimpleNamespace
+
     cfg = SimpleNamespace(**vars(APP_CONFIG))
     cfg.INPUT_DIR = tmp_path
     answers = iter(["17", "q"])
     monkeypatch.setattr("builtins.input", lambda _: next(answers))
-    with mock.patch("toolbox_pb.ui.cli.pdf_page_alternator", side_effect=FileNotFoundError("Fichiers manquants")) as run, \
-        mock.patch("toolbox_pb.core.func_global.get_git_version", return_value="git123"), \
-        mock.patch("toolbox_pb.core.func_global.format_git_version", return_value="git123"), \
-        mock.patch("toolbox_pb.core.func_global.print_system_info"), \
-        mock.patch("toolbox_pb.core.func_global.print_config_flags"), \
-        mock.patch("toolbox_pb.core.func_global.summarize_files") as summary:
+    with (
+        mock.patch(
+            "toolbox_pb.ui.cli.pdf_page_alternator",
+            side_effect=FileNotFoundError("Fichiers manquants"),
+        ) as run,
+        mock.patch(
+            "toolbox_pb.core.func_global.get_git_version",
+            return_value="git123",
+        ),
+        mock.patch(
+            "toolbox_pb.core.func_global.format_git_version",
+            return_value="git123",
+        ),
+        mock.patch("toolbox_pb.core.func_global.print_system_info"),
+        mock.patch("toolbox_pb.core.func_global.print_config_flags"),
+        mock.patch("toolbox_pb.core.func_global.summarize_files") as summary,
+    ):
         main.main(cfg)
     run.assert_called_once()
     summary.assert_not_called()

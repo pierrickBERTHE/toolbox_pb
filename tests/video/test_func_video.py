@@ -77,7 +77,6 @@ from toolbox_pb.core.video.func_video import (
     write_video_assemblor_date_srt,
     parse_srt_cues,
     write_video_assemblor_input_subtitles_srt,
-
     # Additional video utilities
     get_video_stream_frame_rates,
     prepare_video_for_assembly,
@@ -106,10 +105,12 @@ from toolbox_pb.core.func_global import Logger
 
 class DummyFFmpegProcess:
     def __init__(self):
-        self.stdout = iter([
-            "out_time_ms=1000000\n",
-            "out_time_ms=2000000\n",
-        ])
+        self.stdout = iter(
+            [
+                "out_time_ms=1000000\n",
+                "out_time_ms=2000000\n",
+            ]
+        )
         self.returncode = 0
 
     def wait(self):
@@ -152,19 +153,23 @@ def test_encode_full_video_builds_minimal_ffmpeg_command():
     proc.returncode = 0
     proc.wait.return_value = 0
 
-    with mock.patch(
-        "toolbox_pb.core.video.func_video.count_cpu_threads",
-        return_value=8,
-    ), mock.patch(
-        "toolbox_pb.core.video.func_video.get_all_metadata",
-        return_value=fake_meta,
-    ), mock.patch(
-        "toolbox_pb.core.video.func_video.consume_ffmpeg_progress"
-    ) as m_progress, mock.patch(
-        "toolbox_pb.core.video.func_video.subprocess.Popen",
-        return_value=proc,
-    ) as m_popen:
-
+    with (
+        mock.patch(
+            "toolbox_pb.core.video.func_video.count_cpu_threads",
+            return_value=8,
+        ),
+        mock.patch(
+            "toolbox_pb.core.video.func_video.get_all_metadata",
+            return_value=fake_meta,
+        ),
+        mock.patch(
+            "toolbox_pb.core.video.func_video.consume_ffmpeg_progress"
+        ) as m_progress,
+        mock.patch(
+            "toolbox_pb.core.video.func_video.subprocess.Popen",
+            return_value=proc,
+        ) as m_popen,
+    ):
         encode_full_video(
             "in.mp4",
             "out.mp4",
@@ -224,19 +229,21 @@ def test_encode_full_video_adds_optional_video_audio_flags():
     proc.returncode = 0
     proc.wait.return_value = 0
 
-    with mock.patch(
-        "toolbox_pb.core.video.func_video.count_cpu_threads",
-        return_value=4,
-    ), mock.patch(
-        "toolbox_pb.core.video.func_video.get_all_metadata",
-        return_value=fake_meta,
-    ), mock.patch(
-        "toolbox_pb.core.video.func_video.consume_ffmpeg_progress"
-    ), mock.patch(
-        "toolbox_pb.core.video.func_video.subprocess.Popen",
-        return_value=proc,
-    ) as m_popen:
-
+    with (
+        mock.patch(
+            "toolbox_pb.core.video.func_video.count_cpu_threads",
+            return_value=4,
+        ),
+        mock.patch(
+            "toolbox_pb.core.video.func_video.get_all_metadata",
+            return_value=fake_meta,
+        ),
+        mock.patch("toolbox_pb.core.video.func_video.consume_ffmpeg_progress"),
+        mock.patch(
+            "toolbox_pb.core.video.func_video.subprocess.Popen",
+            return_value=proc,
+        ) as m_popen,
+    ):
         encode_full_video(
             "input.mp4",
             "output.mp4",
@@ -291,19 +298,21 @@ def test_encode_full_video_adjusts_unsupported_aac_sample_rate(capsys):
     proc.returncode = 0
     proc.wait.return_value = 0
 
-    with mock.patch(
-        "toolbox_pb.core.video.func_video.count_cpu_threads",
-        return_value=4,
-    ), mock.patch(
-        "toolbox_pb.core.video.func_video.get_all_metadata",
-        return_value=fake_meta,
-    ), mock.patch(
-        "toolbox_pb.core.video.func_video.consume_ffmpeg_progress"
-    ), mock.patch(
-        "toolbox_pb.core.video.func_video.subprocess.Popen",
-        return_value=proc,
-    ) as m_popen:
-
+    with (
+        mock.patch(
+            "toolbox_pb.core.video.func_video.count_cpu_threads",
+            return_value=4,
+        ),
+        mock.patch(
+            "toolbox_pb.core.video.func_video.get_all_metadata",
+            return_value=fake_meta,
+        ),
+        mock.patch("toolbox_pb.core.video.func_video.consume_ffmpeg_progress"),
+        mock.patch(
+            "toolbox_pb.core.video.func_video.subprocess.Popen",
+            return_value=proc,
+        ) as m_popen,
+    ):
         encode_full_video(
             "input.avi",
             "output.mp4",
@@ -327,22 +336,24 @@ def test_encode_full_video_raises_when_ffmpeg_returns_non_zero():
     proc.returncode = 1
     proc.wait.return_value = 0
 
-    with mock.patch(
-        "toolbox_pb.core.video.func_video.count_cpu_threads",
-        return_value=2,
-    ), mock.patch(
-        "toolbox_pb.core.video.func_video.get_all_metadata",
-        return_value={
-            "format": {"duration": "1"},
-            "streams": [],
-        },
-    ), mock.patch(
-        "toolbox_pb.core.video.func_video.consume_ffmpeg_progress"
-    ), mock.patch(
-        "toolbox_pb.core.video.func_video.subprocess.Popen",
-        return_value=proc,
+    with (
+        mock.patch(
+            "toolbox_pb.core.video.func_video.count_cpu_threads",
+            return_value=2,
+        ),
+        mock.patch(
+            "toolbox_pb.core.video.func_video.get_all_metadata",
+            return_value={
+                "format": {"duration": "1"},
+                "streams": [],
+            },
+        ),
+        mock.patch("toolbox_pb.core.video.func_video.consume_ffmpeg_progress"),
+        mock.patch(
+            "toolbox_pb.core.video.func_video.subprocess.Popen",
+            return_value=proc,
+        ),
     ):
-
         with pytest.raises(subprocess.CalledProcessError):
             encode_full_video(
                 "bad_in.mp4",
@@ -817,9 +828,7 @@ def test_load_segments_csv_ok(tmp_path):
     csv_file = tmp_path / "segments.csv"
 
     csv_file.write_text(
-        "filename,start,end\n"
-        "a.mp4,00:00:00,00:00:10\n"
-        "b.mp4,00:00:05,\n",
+        "filename,start,end\na.mp4,00:00:00,00:00:10\nb.mp4,00:00:05,\n",
         encoding="utf-8",
     )
 
@@ -844,9 +853,7 @@ def test_load_segments_csv_invalid_columns(tmp_path):
 
     csv_file = tmp_path / "segments.csv"
 
-    csv_file.write_text(
-        "file,start,end\nx.mp4,0,1\n"
-    )
+    csv_file.write_text("file,start,end\nx.mp4,0,1\n")
 
     with pytest.raises(ValueError):
         load_segments_csv(csv_file)
@@ -857,10 +864,7 @@ def test_load_segments_csv_end_before_start(tmp_path):
 
     csv_file = tmp_path / "segments.csv"
 
-    csv_file.write_text(
-        "filename,start,end\n"
-        "x.mp4,00:00:10,00:00:05\n"
-    )
+    csv_file.write_text("filename,start,end\nx.mp4,00:00:10,00:00:05\n")
 
     with pytest.raises(ValueError):
         load_segments_csv(csv_file)
@@ -998,6 +1002,7 @@ def test_write_image_diapo_srt_records_each_image_timing(tmp_path):
         "00:00:02,500 --> 00:00:05,000\n"
         "nested/second\n"
     )
+
 
 # ===========================================================================
 # VIDEO ASSEMBLOR DATE SRT
@@ -1194,19 +1199,14 @@ def test_write_video_assemblor_date_srt_display_duration_longer_than_clip(
 def test_extract_date_from_filename(filename, expected):
     """Video filename dates are validated then displayed in French order."""
 
-    assert extract_date_from_filename(
-        Path(filename)
-    ) == expected
+    assert extract_date_from_filename(Path(filename)) == expected
 
 
 def test_parse_srt_cues_keeps_multiline_text_and_dot_separator():
     """Input subtitle content is normalised without losing text."""
 
     assert parse_srt_cues(
-        "1\n"
-        "00:00:01.250 --> 00:00:03,500\n"
-        "Bonjour\n"
-        "sur deux lignes\n"
+        "1\n00:00:01.250 --> 00:00:03,500\nBonjour\nsur deux lignes\n"
     ) == [
         (
             1250,
@@ -1258,16 +1258,17 @@ def test_input_subtitles_are_clipped_and_shifted_for_assembly(
     temporary_dir = tmp_path / "temporary"
     temporary_dir.mkdir()
 
-    assert write_video_assemblor_input_subtitles_srt(
-        sequence,
-        clips,
-        output_path,
-        temporary_dir,
-    ) is True
+    assert (
+        write_video_assemblor_input_subtitles_srt(
+            sequence,
+            clips,
+            output_path,
+            temporary_dir,
+        )
+        is True
+    )
 
-    assert output_path.read_text(
-        encoding="utf-8"
-    ) == (
+    assert output_path.read_text(encoding="utf-8") == (
         "1\n"
         "00:00:00,000 --> 00:00:02,000\n"
         "premier\n\n"
@@ -1283,15 +1284,15 @@ def test_build_image_subtitle_keeps_only_the_first_valid_year(tmp_path):
     input_dir = tmp_path / "input"
     input_dir.mkdir()
 
-    image = (
-        input_dir
-        / "1986-08-30- (27)-Marie-Lise  - Philippe.JPG"
-    )
+    image = input_dir / "1986-08-30- (27)-Marie-Lise  - Philippe.JPG"
 
-    assert build_image_subtitle(
-        image,
-        input_dir,
-    ) == "1986 (27) Marie-Lise Philippe"
+    assert (
+        build_image_subtitle(
+            image,
+            input_dir,
+        )
+        == "1986 (27) Marie-Lise Philippe"
+    )
 
 
 def test_build_image_subtitle_removes_month_from_partial_date_only(tmp_path):
@@ -1300,15 +1301,15 @@ def test_build_image_subtitle_removes_month_from_partial_date_only(tmp_path):
     input_dir = tmp_path / "input"
     input_dir.mkdir()
 
-    image = (
-        input_dir
-        / "2022-02 anniv 60 ans Pierre.jpg"
-    )
+    image = input_dir / "2022-02 anniv 60 ans Pierre.jpg"
 
-    assert build_image_subtitle(
-        image,
-        input_dir,
-    ) == "2022 anniv 60 ans Pierre"
+    assert (
+        build_image_subtitle(
+            image,
+            input_dir,
+        )
+        == "2022 anniv 60 ans Pierre"
+    )
 
 
 def test_build_image_subtitle_preserves_numbers_that_are_not_a_valid_date(
@@ -1319,15 +1320,15 @@ def test_build_image_subtitle_preserves_numbers_that_are_not_a_valid_date(
     input_dir = tmp_path / "input"
     input_dir.mkdir()
 
-    image = (
-        input_dir
-        / "0000-12-31 - photo 42.png"
-    )
+    image = input_dir / "0000-12-31 - photo 42.png"
 
-    assert build_image_subtitle(
-        image,
-        input_dir,
-    ) == "0000-12-31 photo 42"
+    assert (
+        build_image_subtitle(
+            image,
+            input_dir,
+        )
+        == "0000-12-31 photo 42"
+    )
 
 
 def test_build_image_subtitle_preserves_an_age(tmp_path):
@@ -1338,10 +1339,13 @@ def test_build_image_subtitle_preserves_an_age(tmp_path):
 
     image = input_dir / "anniv 60 ans Pierre.jpg"
 
-    assert build_image_subtitle(
-        image,
-        input_dir,
-    ) == "anniv 60 ans Pierre"
+    assert (
+        build_image_subtitle(
+            image,
+            input_dir,
+        )
+        == "anniv 60 ans Pierre"
+    )
 
 
 # ============================================================================
@@ -1354,11 +1358,7 @@ def test_get_inputs_metadata_ok():
 
     seq = [{"path": Path("a.mp4")}]
 
-    fn = lambda p: {
-        "format": {
-            "filename": str(p)
-        }
-    }
+    fn = lambda p: {"format": {"filename": str(p)}}
 
     metas = get_inputs_metadata(
         seq,
@@ -1434,11 +1434,7 @@ def test_compute_size_reduction_from_inputs_ok():
         {"format": {"size": 300}},
     ]
 
-    after = {
-        "format": {
-            "size": 200
-        }
-    }
+    after = {"format": {"size": 200}}
 
     stats = compute_size_reduction_from_inputs(
         before,
@@ -1649,15 +1645,11 @@ def test_load_boost_csv_ok(tmp_path):
     csv_file = tmp_path / "boosts.csv"
 
     csv_file.write_text(
-        "start,end,gain_db\n"
-        "00:00:01,00:00:03,6\n"
-        "00:00:10,00:00:12,-3\n",
+        "start,end,gain_db\n00:00:01,00:00:03,6\n00:00:10,00:00:12,-3\n",
         encoding="utf-8",
     )
 
-    boosts = load_boost_csv(
-        str(csv_file)
-    )
+    boosts = load_boost_csv(str(csv_file))
 
     assert len(boosts) == 2
 
@@ -1680,8 +1672,7 @@ def test_load_boost_csv_rejects_too_high_gain(tmp_path):
     csv_file = tmp_path / "boosts.csv"
 
     csv_file.write_text(
-        "start,end,gain_db\n"
-        "00:00:01,00:00:03,25\n",
+        "start,end,gain_db\n00:00:01,00:00:03,25\n",
         encoding="utf-8",
     )
 
@@ -1716,9 +1707,7 @@ def test_apply_audio_boosts_ffmpeg_builds_command(
         csv_path="boosts.csv",
     )
 
-    mock_load_boost_csv.assert_called_once_with(
-        "boosts.csv"
-    )
+    mock_load_boost_csv.assert_called_once_with("boosts.csv")
 
     mock_run.assert_called_once()
 
@@ -1835,12 +1824,12 @@ def test_apply_video_srt_ffmpeg_raises_on_ffmpeg_error(mock_run):
             output_video="output.mp4",
             srt_path="subs.srt",
         )
-        
 
 
 # ============================================================================
 # VIDEO SRT EXTRACTION
 # ===========================================================================
+
 
 def test_extract_video_srt_ffmpeg_success(tmp_path, monkeypatch, capsys):
     # A subtitle stream is detected and extracted in a single FFmpeg pass.
@@ -1925,9 +1914,9 @@ def test_extract_video_srt_ffmpeg_success(tmp_path, monkeypatch, capsys):
 
 
 def test_extract_video_srt_ffmpeg_no_subtitle_stream(
-tmp_path,
-monkeypatch,
-capsys,
+    tmp_path,
+    monkeypatch,
+    capsys,
 ):
     # Videos without subtitle streams must remain untouched.
     input_video = tmp_path / "input.mp4"
@@ -2005,13 +1994,17 @@ def test_get_video_stream_frame_rates(tmp_path, monkeypatch):
     fake_result = subprocess.CompletedProcess(
         args=["ffprobe"],
         returncode=0,
-        stdout=json.dumps({
-            "streams": [{
-                "codec_type": "video",
-                "r_frame_rate": "30000/1001",
-                "avg_frame_rate": "25/1",
-            }]
-        }),
+        stdout=json.dumps(
+            {
+                "streams": [
+                    {
+                        "codec_type": "video",
+                        "r_frame_rate": "30000/1001",
+                        "avg_frame_rate": "25/1",
+                    }
+                ]
+            }
+        ),
         stderr="",
     )
 
@@ -2020,9 +2013,7 @@ def test_get_video_stream_frame_rates(tmp_path, monkeypatch):
         lambda *args, **kwargs: fake_result,
     )
 
-    declared, declared_fps, average = (
-        get_video_stream_frame_rates(video)
-    )
+    declared, declared_fps, average = get_video_stream_frame_rates(video)
 
     assert declared == "30000/1001"
     assert declared_fps == pytest.approx(30000 / 1001)
@@ -2041,11 +2032,15 @@ def test_get_video_stream_frame_rates_without_video_stream(
     result = subprocess.CompletedProcess(
         args=["ffprobe"],
         returncode=0,
-        stdout=json.dumps({
-            "streams": [{
-                "codec_type": "audio",
-            }]
-        }),
+        stdout=json.dumps(
+            {
+                "streams": [
+                    {
+                        "codec_type": "audio",
+                    }
+                ]
+            }
+        ),
         stderr="",
     )
 
@@ -2054,9 +2049,7 @@ def test_get_video_stream_frame_rates_without_video_stream(
         lambda *args, **kwargs: result,
     )
 
-    declared, declared_fps, average = (
-        get_video_stream_frame_rates(video)
-    )
+    declared, declared_fps, average = get_video_stream_frame_rates(video)
 
     assert declared is None
     assert declared_fps is None
@@ -2192,9 +2185,7 @@ def test_get_video_subtitle_cues_without_subtitles(
         lambda *args, **kwargs: subprocess.CompletedProcess(
             args=["ffprobe"],
             returncode=0,
-            stdout=json.dumps({
-                "streams": []
-            }),
+            stdout=json.dumps({"streams": []}),
             stderr="",
         ),
     )
@@ -2219,12 +2210,16 @@ def test_get_video_subtitle_cues_with_subtitle_stream(
     ffprobe_result = subprocess.CompletedProcess(
         args=["ffprobe"],
         returncode=0,
-        stdout=json.dumps({
-            "streams": [{
-                "index": 2,
-                "codec_type": "subtitle",
-            }]
-        }),
+        stdout=json.dumps(
+            {
+                "streams": [
+                    {
+                        "index": 2,
+                        "codec_type": "subtitle",
+                    }
+                ]
+            }
+        ),
         stderr="",
     )
 
@@ -2235,9 +2230,7 @@ def test_get_video_subtitle_cues_with_subtitle_stream(
         output = Path(command[-1])
 
         output.write_text(
-            "1\n"
-            "00:00:01,000 --> 00:00:02,000\n"
-            "Bonjour\n",
+            "1\n00:00:01,000 --> 00:00:02,000\nBonjour\n",
             encoding="utf-8",
         )
 
@@ -2274,10 +2267,12 @@ def test_run_ffmpeg_with_progress_success(monkeypatch):
 
     process = MagicMock()
 
-    process.stdout = iter([
-        "out_time_ms=1000000\n",
-        "out_time_ms=2000000\n",
-    ])
+    process.stdout = iter(
+        [
+            "out_time_ms=1000000\n",
+            "out_time_ms=2000000\n",
+        ]
+    )
 
     process.wait.return_value = 0
     process.returncode = 0
@@ -2358,9 +2353,7 @@ def test_run_ffmpeg_silently_success(monkeypatch):
         ),
     )
 
-    _run_ffmpeg_silently(
-        ["ffmpeg", "-version"]
-    )
+    _run_ffmpeg_silently(["ffmpeg", "-version"])
 
 
 def test_run_ffmpeg_silently_failure(monkeypatch):
@@ -2378,9 +2371,7 @@ def test_run_ffmpeg_silently_failure(monkeypatch):
     )
 
     with pytest.raises(subprocess.CalledProcessError):
-        _run_ffmpeg_silently(
-            ["ffmpeg", "bad"]
-        )
+        _run_ffmpeg_silently(["ffmpeg", "bad"])
 
 
 # ============================================================================
@@ -2399,13 +2390,17 @@ def test_probe_video_dimensions(tmp_path, monkeypatch):
         lambda *args, **kwargs: subprocess.CompletedProcess(
             args=args[0],
             returncode=0,
-            stdout=json.dumps({
-                "streams": [{
-                    "codec_type": "video",
-                    "width": 1920,
-                    "height": 1080,
-                }]
-            }),
+            stdout=json.dumps(
+                {
+                    "streams": [
+                        {
+                            "codec_type": "video",
+                            "width": 1920,
+                            "height": 1080,
+                        }
+                    ]
+                }
+            ),
             stderr="",
         ),
     )
@@ -2535,8 +2530,6 @@ def test_probe_video_rotation_from_legacy_tag(monkeypatch):
     assert result == pytest.approx(270.0)
 
 
-
-
 def test_probe_video_display_dimensions_rotated(
     tmp_path,
     monkeypatch,
@@ -2614,9 +2607,7 @@ def test_get_video_frame_size_from_paths(
         lambda path: values[path],
     )
 
-    width, height = get_video_frame_size_from_paths(
-        [first, second]
-    )
+    width, height = get_video_frame_size_from_paths([first, second])
 
     assert height == 1080
     assert width == 1920
@@ -2652,9 +2643,9 @@ def test_get_video_output_fps_from_paths(
         lambda path: values[path],
     )
 
-    assert get_video_output_fps_from_paths(
-        [first, second]
-    ) == pytest.approx(29.97)
+    assert get_video_output_fps_from_paths([first, second]) == pytest.approx(
+        29.97
+    )
 
 
 # ============================================================================
@@ -2689,11 +2680,14 @@ def test_compute_trim_duration(
         lambda _: duration,
     )
 
-    assert compute_trim_duration(
-        video,
-        start,
-        end,
-    ) == expected
+    assert (
+        compute_trim_duration(
+            video,
+            start,
+            end,
+        )
+        == expected
+    )
 
 
 def test_probe_stream_durations(monkeypatch):
@@ -2734,9 +2728,7 @@ def test_compute_audio_drift_correction_no_correction(monkeypatch):
         lambda path: (10.0, 10.0),
     )
 
-    result = compute_audio_drift_correction(
-        Path("video.mp4")
-    )
+    result = compute_audio_drift_correction(Path("video.mp4"))
 
     assert result is None
 
@@ -2748,9 +2740,7 @@ def test_compute_audio_drift_correction_valid_ratio(monkeypatch):
         lambda path: (10.0, 10.2),
     )
 
-    result = compute_audio_drift_correction(
-        Path("video.mp4")
-    )
+    result = compute_audio_drift_correction(Path("video.mp4"))
 
     assert result == pytest.approx(10.2 / 10.0)
 
@@ -2762,9 +2752,7 @@ def test_compute_audio_drift_correction_invalid_ratio(monkeypatch):
         lambda path: (0.0, 10.0),
     )
 
-    result = compute_audio_drift_correction(
-        Path("video.mp4")
-    )
+    result = compute_audio_drift_correction(Path("video.mp4"))
 
     assert result is None
 
@@ -2909,15 +2897,9 @@ def test_concat_normalized_clips_without_subtitles(
 
     assert run_ffmpeg.call_count >= 1
 
-    commands = [
-        call.args[0]
-        for call in run_ffmpeg.call_args_list
-    ]
+    commands = [call.args[0] for call in run_ffmpeg.call_args_list]
 
-    assert any(
-        "concat" in " ".join(command)
-        for command in commands
-    )
+    assert any("concat" in " ".join(command) for command in commands)
     assert all("-display_rotation:v:0" not in command for command in commands)
 
 
@@ -2934,9 +2916,7 @@ def test_concat_normalized_clips_with_subtitles(
     first.touch()
 
     subtitle.write_text(
-        "1\n"
-        "00:00:00,000 --> 00:00:01,000\n"
-        "Bonjour\n",
+        "1\n00:00:00,000 --> 00:00:01,000\nBonjour\n",
         encoding="utf-8",
     )
 
@@ -2956,9 +2936,7 @@ def test_concat_normalized_clips_with_subtitles(
 
     assert run_ffmpeg.called
 
-    command_text = " ".join(
-        run_ffmpeg.call_args.args[0]
-    )
+    command_text = " ".join(run_ffmpeg.call_args.args[0])
 
     assert "mov_text" in command_text
 

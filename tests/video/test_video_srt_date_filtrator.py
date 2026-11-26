@@ -39,7 +39,9 @@ def fake_config(tmp_path):
     )
 
 
-def test_filters_later_duplicate_dates_and_prints_statistics(fake_config, capsys):
+def test_filters_later_duplicate_dates_and_prints_statistics(
+    fake_config, capsys
+):
     source = fake_config.INPUT_DIR / "subtitles.txt"
     source.write_text(
         "1\n00:00:00,000 --> 00:00:01,000\n01/02/2020\n\n"
@@ -51,7 +53,9 @@ def test_filters_later_duplicate_dates_and_prints_statistics(fake_config, capsys
 
     assert video_srt_date_filtrator(fake_config) is False
 
-    output = (fake_config.OUTPUT_DIR / "subtitles.txt").read_text(encoding="utf-8")
+    output = (fake_config.OUTPUT_DIR / "subtitles.txt").read_text(
+        encoding="utf-8"
+    )
     assert "01/02/2020" in output
     assert "Texte sans date" in output
     assert "2020-02-01" not in output
@@ -60,10 +64,16 @@ def test_filters_later_duplicate_dates_and_prints_statistics(fake_config, capsys
     assert "3\n00:00:06,000" in output
 
     captured = capsys.readouterr().out
-    assert "Avant filtrage : 2 date(s) différente(s), 3 occurrence(s) de date, 4 sous-titre(s) détecté(s)." in captured
+    assert (
+        "Avant filtrage : 2 date(s) différente(s), 3 occurrence(s) de date, 4 sous-titre(s) détecté(s)."
+        in captured
+    )
     assert "Dates en doublon détectées :" in captured
     assert "- 01/02/2020 : 2 occurrence(s)" in captured
-    assert "\nAprès filtrage : 2 date(s) différente(s), 2 occurrence(s) de date, 3 sous-titre(s) détecté(s)." in captured
+    assert (
+        "\nAprès filtrage : 2 date(s) différente(s), 2 occurrence(s) de date, 3 sous-titre(s) détecté(s)."
+        in captured
+    )
     assert "Aucune date en doublon détectée." in captured
 
 
@@ -80,7 +90,9 @@ def test_filters_standard_srt_files(fake_config):
     )
 
     assert video_srt_date_filtrator(fake_config) is False
-    output = (fake_config.OUTPUT_DIR / "subtitles.srt").read_text(encoding="utf-8")
+    output = (fake_config.OUTPUT_DIR / "subtitles.srt").read_text(
+        encoding="utf-8"
+    )
     assert output.count("01/02/2020") == 1
 
 
@@ -93,11 +105,14 @@ def test_filters_extracted_srt_in_place(fake_config):
         encoding="utf-8",
     )
 
-    assert video_srt_date_filtrator(
-        fake_config,
-        source_files=[extracted_srt],
-        output_dir=fake_config.OUTPUT_DIR,
-        overwrite=True,
-    ) is False
+    assert (
+        video_srt_date_filtrator(
+            fake_config,
+            source_files=[extracted_srt],
+            output_dir=fake_config.OUTPUT_DIR,
+            overwrite=True,
+        )
+        is False
+    )
 
     assert extracted_srt.read_text(encoding="utf-8").count("01/02/2020") == 1

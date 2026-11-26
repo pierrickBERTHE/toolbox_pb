@@ -2,7 +2,12 @@
 
 import logging
 
-from toolbox_pb.core.events import configure_file_logging, emit, ui_only, use_message_sink
+from toolbox_pb.core.events import (
+    configure_file_logging,
+    emit,
+    ui_only,
+    use_message_sink,
+)
 
 
 def test_emit_writes_to_the_active_ui_and_process_log(tmp_path):

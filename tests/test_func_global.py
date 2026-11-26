@@ -12,6 +12,7 @@ Test Coverage:
     - Timing Utilities: Tests for duration conversion and execution time measurement
     - Output Formatting: Tests for step display, JSON output, and toolbox exit handling
 """
+
 # Imports standard
 import sys
 import os
@@ -22,14 +23,16 @@ import pytest
 from unittest import mock
 
 # Add the toolbox_pb directory to sys.path for imports
-sys.path.append(str(Path(__file__).resolve().parents[1] / 'toolbox_pb'))
+sys.path.append(str(Path(__file__).resolve().parents[1] / "toolbox_pb"))
 
 # Import the module to test
 import toolbox_pb.core.func_global as func_global
 from toolbox_pb.core.progress import use_progress_factory
 
 
-def test_preserve_file_modification_time_copies_only_the_source_mtime(tmp_path):
+def test_preserve_file_modification_time_copies_only_the_source_mtime(
+    tmp_path,
+):
     """Generated files retain the source's last modification timestamp."""
     source = tmp_path / "source.bin"
     output = tmp_path / "output.bin"
@@ -61,7 +64,9 @@ def test_is_processable_file_excludes_gitkeep(tmp_path):
     assert func_global.is_processable_file(ordinary_file) is True
 
 
-def test_summarize_files_excludes_gitkeep_from_output_summary(tmp_path, capsys):
+def test_summarize_files_excludes_gitkeep_from_output_summary(
+    tmp_path, capsys
+):
     """Output summaries must not count the Git placeholder as a real file."""
     (tmp_path / ".gitkeep").touch()
 
@@ -70,7 +75,9 @@ def test_summarize_files_excludes_gitkeep_from_output_summary(tmp_path, capsys):
     assert "Total files : 0" in capsys.readouterr().out
 
 
-@pytest.mark.parametrize("codec", ["libx264", "libx265", "h264_amf", "hevc_amf"])
+@pytest.mark.parametrize(
+    "codec", ["libx264", "libx265", "h264_amf", "hevc_amf"]
+)
 def test_mobile_video_output_options_force_sdr_compatibility(codec):
     """Every supported encoder must explicitly target mobile-safe SDR output."""
     options = func_global.get_mobile_video_output_options(codec)
@@ -85,9 +92,10 @@ def test_mobile_video_output_options_force_sdr_compatibility(codec):
 # Tests Logger
 # ==========================================================
 
+
 def test_logger_write(tmp_path, capsys):
     """Test the Logger class to ensure it writes to both stdout and a file."""
-    
+
     # Create a temporary log file
     log_file = tmp_path / "test.log"
     logger = func_global.Logger(log_file)
@@ -110,13 +118,11 @@ def test_logger_write(tmp_path, capsys):
 # Tests Git version
 # ==========================================================
 
+
 def test_get_git_version_ok():
     """Test get_git_version when git command works correctly."""
     # Mock subprocess.check_output to return a known git version
-    with mock.patch(
-        "subprocess.check_output",
-        return_value=b"v1.2.3"
-    ):
+    with mock.patch("subprocess.check_output", return_value=b"v1.2.3"):
         # Call the function and verify the result
         version = func_global.get_git_version()
         assert version == "v1.2.3"
@@ -126,8 +132,7 @@ def test_get_git_version_exception():
     """Test get_git_version when git command fails."""
     # Mock subprocess.check_output to raise an exception
     with mock.patch(
-        "subprocess.check_output",
-        side_effect=Exception("git error")
+        "subprocess.check_output", side_effect=Exception("git error")
     ):
         # Call the function and verify the result
         version = func_global.get_git_version()
@@ -157,6 +162,7 @@ def test_format_git_version_fallback():
 # Tests print_system_info
 # ==========================================================
 
+
 def test_print_system_info(monkeypatch, capsys):
     """Test print_system_info with ffmpeg available."""
 
@@ -178,11 +184,11 @@ def test_print_system_info(monkeypatch, capsys):
 
 def test_print_system_info_ffmpeg_missing(monkeypatch, capsys):
     """Test print_system_info when ffmpeg is not available."""
-    
+
     # Mock subprocess.check_output to raise an exception
     monkeypatch.setattr(
         "subprocess.check_output",
-        lambda *a, **k: (_ for _ in ()).throw(Exception())
+        lambda *a, **k: (_ for _ in ()).throw(Exception()),
     )
 
     # Call the function and capture output
@@ -197,15 +203,17 @@ def test_print_system_info_ffmpeg_missing(monkeypatch, capsys):
 # Tests print_config_flags
 # ==========================================================
 
+
 class DummyConfig:
     """Dummy configuration class for testing."""
+
     FLAG_A = True
     FLAG_B = False
 
 
 def test_print_config_flags(capsys):
     """Test print_config_flags with dummy config."""
-    
+
     # Create a dummy config object
     cfg = DummyConfig()
     func_global.print_config_flags(cfg, ["FLAG_A", "FLAG_B", "FLAG_C"])
@@ -221,6 +229,7 @@ def test_print_config_flags(capsys):
 # Tests durée / timing
 # ==========================================================
 
+
 def test_transform_sec_duration_in_min_sec():
     """Test transform_sec_duration_in_min_sec function."""
     minutes, seconds = func_global.transform_sec_duration_in_min_sec(0, 125)
@@ -230,7 +239,7 @@ def test_transform_sec_duration_in_min_sec():
 
 def test_measure_time_decorator(capsys):
     """Test measure_time decorator."""
-    
+
     # Define a dummy function to decorate
     @func_global.measure_time
     def dummy():
@@ -249,9 +258,10 @@ def test_measure_time_decorator(capsys):
 # Tests affichage étapes
 # ==========================================================
 
+
 def test_print_step(capsys):
     """Test print_step function."""
-    
+
     # Call the function to print a step
     func_global.print_step(1, "Test step")
     captured = capsys.readouterr()
@@ -276,9 +286,10 @@ def test_print_section(capsys):
 # Tests print_json
 # ==========================================================
 
+
 def test_print_json(capsys):
     """Test print_json function."""
-    
+
     # Create a sample object to print as JSON
     data = {"a": 1, "b": "test"}
     func_global.print_json(data, title="DATA")
@@ -293,6 +304,7 @@ def test_print_json(capsys):
 # Tests exit_toolbox
 # ==========================================================
 
+
 def test_exit_toolbox():
     """Test exit_toolbox function."""
     with pytest.raises(SystemExit):
@@ -302,6 +314,7 @@ def test_exit_toolbox():
 # ==========================================================
 # Tests consume_ffmpeg_progress
 # ==========================================================
+
 
 class _FakeStdout:
     """Minimal stdout stub exposing `readline`."""
@@ -372,7 +385,10 @@ def test_consume_ffmpeg_progress_returns_empty_when_no_stdout():
     """Test that the function returns an empty list when stdout is None."""
     proc = mock.Mock()
     proc.stdout = None
-    assert func_global.consume_ffmpeg_progress(proc, duration=10.0, desc="x") == []
+    assert (
+        func_global.consume_ffmpeg_progress(proc, duration=10.0, desc="x")
+        == []
+    )
 
 
 def test_build_processing_comment_increments_existing_count():
@@ -401,6 +417,7 @@ def test_build_processing_comment_increments_existing_count():
 # ==========================================================
 # Tests convert_hhmmss_to_seconds
 # ==========================================================
+
 
 @pytest.mark.parametrize(
     "value, expected",

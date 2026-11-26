@@ -1,18 +1,10 @@
 @echo off
 
-REM === Detect Windows user ===
-set USERNAME=%USERNAME%
+REM === Start from the directory containing this launcher ===
+cd /d "%~dp0"
 
-REM === Choose the path according to the user ===
-if /I "%USERNAME%"=="pierr" (
-    cd /d C:\Users\pierr\VSC_Projects\toolbox_pb
-) else (
-    echo Utilisateur non reconnu : %USERNAME%
-    pause
-    exit /b
-)
-
-REM === Launch the Streamlit application with the Poetry environment ===
-poetry run streamlit run toolbox_pb/ui/streamlit_app.py
+REM === Launch the stable NiceGUI application ===
+REM Interface available at http://localhost:8080
+poetry run python -m toolbox_pb.ui.nicegui_app
 
 pause

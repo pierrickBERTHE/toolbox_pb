@@ -16,6 +16,7 @@ import toolbox_pb.core.func_global as func_glob
 from toolbox_pb.core.config_global import WATERMARK_PREFIX
 from toolbox_pb.core.events import emit
 
+
 def build_filigranor_text(destination_text: str) -> str:
     """
     Build the final watermark sentence from the user-provided destination.
@@ -59,9 +60,11 @@ def pdf_filigranor(cfg: AppConfig, watermark_text: str | None = None) -> bool:
     # ------------- LOOP THROUGH ALL FILES IN INPUT DIR -------------
     is_empty_folder = True
     for input_file in config["input_dir"].rglob("*"):
-
         # ------- IGNORE NON-PDF FILES AND DIRECTORIES -------
-        if not func_glob.is_processable_file(input_file) or input_file.suffix.lower() not in config["accepted_file"]:
+        if (
+            not func_glob.is_processable_file(input_file)
+            or input_file.suffix.lower() not in config["accepted_file"]
+        ):
             continue
 
         # --- CREATE OUTPUT SUBDIR STRUCTURE BASED ON INPUT FILE PATH ---
@@ -125,12 +128,12 @@ def pdf_page_alternator(cfg: AppConfig) -> bool:
     # Check that both files exist in the input directory
     odd_path = cfg.INPUT_DIR / "impaire.pdf"
     even_path = cfg.INPUT_DIR / "paire.pdf"
-    
+
     # Check for missing files and raise an error if any are not found
     missing = [
         path.name for path in (odd_path, even_path) if not path.is_file()
     ]
-    
+
     # If any files are missing, raise a FileNotFoundError with a message
     if missing:
         raise FileNotFoundError(
@@ -142,6 +145,6 @@ def pdf_page_alternator(cfg: AppConfig) -> bool:
     func_pdf.alternate_pdf_pages(
         odd_path,
         even_path,
-        cfg.OUTPUT_DIR / f"pdf_pages_alternees{cfg.SUFFIX_OUTPUT_PDF}"
+        cfg.OUTPUT_DIR / f"pdf_pages_alternees{cfg.SUFFIX_OUTPUT_PDF}",
     )
     return False

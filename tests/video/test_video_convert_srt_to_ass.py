@@ -14,7 +14,7 @@ from toolbox_pb.core.video.main_video import video_convert_srt_to_ass
 
 @pytest.fixture
 def fake_config(tmp_path):
-    """ create a fake config for testing video_convert_srt_to_ass"""
+    """create a fake config for testing video_convert_srt_to_ass"""
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
     segment_dir = tmp_path / "segment"
@@ -34,11 +34,19 @@ def fake_config(tmp_path):
         INPUT_ACCEPTED_VIDEO_FILES=[".mp4"],
         INPUT_ACCEPTED_IMAGE_FILES=[".jpg"],
         INPUT_ACCEPTED_PDF_FILES=[".pdf"],
-        CODEC_VIDEO_LIST=["libx265"], CODEC_VIDEO="libx265", CODEC_AUDIO="aac",
-        SUFFIX_OUTPUT=[".mp4", ".jpg", ".pdf"], SUFFIX_OUTPUT_VIDEO=".mp4",
-        SUFFIX_OUTPUT_IMAGE=".jpg", SUFFIX_OUTPUT_PDF=".pdf", ROOT=tmp_path,
-        LOG_DIR=tmp_path / "log", INPUT_DIR=input_dir, OUTPUT_DIR=output_dir,
-        SEGMENT_DIR=segment_dir, LOG_TO_FILE=False,
+        CODEC_VIDEO_LIST=["libx265"],
+        CODEC_VIDEO="libx265",
+        CODEC_AUDIO="aac",
+        SUFFIX_OUTPUT=[".mp4", ".jpg", ".pdf"],
+        SUFFIX_OUTPUT_VIDEO=".mp4",
+        SUFFIX_OUTPUT_IMAGE=".jpg",
+        SUFFIX_OUTPUT_PDF=".pdf",
+        ROOT=tmp_path,
+        LOG_DIR=tmp_path / "log",
+        INPUT_DIR=input_dir,
+        OUTPUT_DIR=output_dir,
+        SEGMENT_DIR=segment_dir,
+        LOG_TO_FILE=False,
     )
 
 
@@ -51,21 +59,30 @@ def fake_config(tmp_path):
         "26/12/2024-1er bain de Lino",
     ],
 )
-def test_converts_dated_title_with_any_spacing_around_dash(fake_config, subtitle_text):
+def test_converts_dated_title_with_any_spacing_around_dash(
+    fake_config, subtitle_text
+):
     """Verify date-and-title conversion with every dash spacing variant."""
     (fake_config.INPUT_DIR / "captions.srt").write_text(
-        "1\n00:00:23,200 --> 00:00:33,200\n"
-        f"{subtitle_text}\n",
+        f"1\n00:00:23,200 --> 00:00:33,200\n{subtitle_text}\n",
         encoding="utf-8",
     )
 
     assert video_convert_srt_to_ass(fake_config) is False
 
-    output = (fake_config.OUTPUT_DIR / "captions.ass").read_text(encoding="utf-8")
+    output = (fake_config.OUTPUT_DIR / "captions.ass").read_text(
+        encoding="utf-8"
+    )
     assert "Title: Test" in output
     assert "Template text" not in output
-    assert "Dialogue: 0,0:00:24.00,0:00:29.00,TITRE,,0,0,0,,{\\fad(1000,1000)}1er bain de Lino" in output
-    assert "Dialogue: 0,0:00:24.00,0:00:34.00,sous-titre,,0,0,0,,{\\fad(500,500)}26/12/2024" in output
+    assert (
+        "Dialogue: 0,0:00:24.00,0:00:29.00,TITRE,,0,0,0,,{\\fad(1000,1000)}1er bain de Lino"
+        in output
+    )
+    assert (
+        "Dialogue: 0,0:00:24.00,0:00:34.00,sous-titre,,0,0,0,,{\\fad(500,500)}26/12/2024"
+        in output
+    )
 
 
 def test_returns_true_when_no_srt_file_exists(fake_config):
@@ -83,8 +100,7 @@ def test_uses_configured_ass_durations_and_fades(fake_config):
         ASS_SUBTITLE_FADE_DURATION_MS=750,
     )
     (config.INPUT_DIR / "captions.srt").write_text(
-        "1\n00:00:23,200 --> 00:00:24,000\n"
-        "26/12/2024-1er bain de Lino\n",
+        "1\n00:00:23,200 --> 00:00:24,000\n26/12/2024-1er bain de Lino\n",
         encoding="utf-8",
     )
 
@@ -92,7 +108,9 @@ def test_uses_configured_ass_durations_and_fades(fake_config):
 
     output = (config.OUTPUT_DIR / "captions.ass").read_text(encoding="utf-8")
     assert "0:00:24.00,0:00:27.00,TITRE,,0,0,0,,{\\fad(250,250)}" in output
-    assert "0:00:24.00,0:00:31.00,sous-titre,,0,0,0,,{\\fad(750,750)}" in output
+    assert (
+        "0:00:24.00,0:00:31.00,sous-titre,,0,0,0,,{\\fad(750,750)}" in output
+    )
 
 
 def test_converts_undated_text_to_a_centered_title(fake_config):
@@ -104,12 +122,19 @@ def test_converts_undated_text_to_a_centered_title(fake_config):
 
     assert video_convert_srt_to_ass(fake_config) is False
 
-    output = (fake_config.OUTPUT_DIR / "captions.ass").read_text(encoding="utf-8")
-    assert "Dialogue: 0,0:00:24.00,0:00:29.00,TITRE,,0,0,0,,{\\fad(1000,1000)}Un beau souvenir" in output
+    output = (fake_config.OUTPUT_DIR / "captions.ass").read_text(
+        encoding="utf-8"
+    )
+    assert (
+        "Dialogue: 0,0:00:24.00,0:00:29.00,TITRE,,0,0,0,,{\\fad(1000,1000)}Un beau souvenir"
+        in output
+    )
     assert "sous-titre,,0,0,0" not in output
 
 
-def test_leading_marker_converts_undated_text_to_black_bottom_subtitle(fake_config):
+def test_leading_marker_converts_undated_text_to_black_bottom_subtitle(
+    fake_config,
+):
     """Verify that the ``>`` prefix keeps a subtitle at the bottom."""
     (fake_config.INPUT_DIR / "captions.srt").write_text(
         "1\n00:00:23,200 --> 00:00:33,200\n> Une legende en bas\n",
@@ -118,7 +143,12 @@ def test_leading_marker_converts_undated_text_to_black_bottom_subtitle(fake_conf
 
     assert video_convert_srt_to_ass(fake_config) is False
 
-    output = (fake_config.OUTPUT_DIR / "captions.ass").read_text(encoding="utf-8")
+    output = (fake_config.OUTPUT_DIR / "captions.ass").read_text(
+        encoding="utf-8"
+    )
     assert "SOUS_TITRE_NOIR" not in output
-    assert "Dialogue: 0,0:00:24.00,0:00:34.00,sous-titre,,0,0,0,,{\\fad(500,500)}Une legende en bas" in output
+    assert (
+        "Dialogue: 0,0:00:24.00,0:00:34.00,sous-titre,,0,0,0,,{\\fad(500,500)}Une legende en bas"
+        in output
+    )
     assert "> Une legende" not in output

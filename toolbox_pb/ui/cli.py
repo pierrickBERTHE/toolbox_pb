@@ -6,6 +6,7 @@ Pierrick BERTHE
 mail : pierrick.berthe@gmx.fr
 Décembre 2025
 """
+
 # Imports standard
 import sys
 import datetime
@@ -28,10 +29,15 @@ from toolbox_pb.core.image.main_image import (
     image_withoutbg,
 )
 from toolbox_pb.core.pdf.main_pdf import (
-    pdf_assemblor, pdf_filigranor, pdf_page_alternator
+    pdf_assemblor,
+    pdf_filigranor,
+    pdf_page_alternator,
 )
 from toolbox_pb.core.file.main_file import (
-    cache_nettoyor, file_str_remover, file_timeline_sorter, folder_date_renammer
+    cache_nettoyor,
+    file_str_remover,
+    file_timeline_sorter,
+    folder_date_renammer,
 )
 from toolbox_pb.core.audio.main_audio import audio_compressor
 from toolbox_pb.core.config_global import APP_CONFIG, AppConfig
@@ -47,18 +53,17 @@ from toolbox_pb.ui.cli_helpers import (
 from toolbox_pb.ui import reductor_workflow
 
 
-def main(cfg : AppConfig):
-    """ 
+def main(cfg: AppConfig):
+    """
     Point d'entrée principal de la toolbox_pb
     """
-    
+
     # Core messages are recorded by ``emit`` and still sent to this CLI.
     configure_file_logging(
         cfg.LOG_DIR,
         enabled=cfg.LOG_TO_FILE,
         level=cfg.LOG_LEVEL,
     )
-
 
     # Print startup message
     print("""
@@ -71,27 +76,29 @@ def main(cfg : AppConfig):
         *          P        BBBBB               *
         *                                       *
         *****************************************
-        """
-    )
+        """)
     # print the git version
     git_version = func.get_git_version()
     print(func.format_git_version(git_version))
-    
+
     # Print python and library versions
     func.print_system_info()
 
     # Print all flags
-    func.print_config_flags(cfg, flag_names=[
-        "LOG_TO_FILE",
-        "ADD_CODEC_NAME_IN_OUTPUT",
-        "IMAGE_WITHOUTBG_ADD_WITHOUTBG_IN_NAME_IN_OUTPUT",
-        "IMAGE_REDUCTOR_ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT",
-        "AUDIO_COMPRESSOR_MP3_BITRATE_KBPS",
-        "AUDIO_COMPRESSOR_COPY_JPEG_FILES",
-        "VIDEO_ASSEMBLOR_ADD_DATE_SUBTITLES",
-        "VIDEO_ASSEMBLOR_EXTRACT_AND_FILTER_DATES",
-        "VIDEO_ENCODOR_PRINT_ALL_KEYS_IN_METADATA_SUMMARY"
-    ])
+    func.print_config_flags(
+        cfg,
+        flag_names=[
+            "LOG_TO_FILE",
+            "ADD_CODEC_NAME_IN_OUTPUT",
+            "IMAGE_WITHOUTBG_ADD_WITHOUTBG_IN_NAME_IN_OUTPUT",
+            "IMAGE_REDUCTOR_ADD_COMPRESS_TO_IMAGE_NAME_IN_OUTPUT",
+            "AUDIO_COMPRESSOR_MP3_BITRATE_KBPS",
+            "AUDIO_COMPRESSOR_COPY_JPEG_FILES",
+            "VIDEO_ASSEMBLOR_ADD_DATE_SUBTITLES",
+            "VIDEO_ASSEMBLOR_EXTRACT_AND_FILTER_DATES",
+            "VIDEO_ENCODOR_PRINT_ALL_KEYS_IN_METADATA_SUMMARY",
+        ],
+    )
 
     # Print time
     now = datetime.datetime.now().isoformat()
@@ -141,8 +148,14 @@ def main(cfg : AppConfig):
         case "1":
             print("\nLancement du Vidéo_encodor...")
             is_empty_folder = video_encodor(cfg)
-            complementary_is_empty = reductor_workflow._run_complementary_reductor(
-                cfg, "video", find_files_by_extensions, video_encodor, image_reductor
+            complementary_is_empty = (
+                reductor_workflow._run_complementary_reductor(
+                    cfg,
+                    "video",
+                    find_files_by_extensions,
+                    video_encodor,
+                    image_reductor,
+                )
             )
             if complementary_is_empty is not None:
                 is_empty_folder = is_empty_folder and complementary_is_empty
@@ -211,8 +224,14 @@ def main(cfg : AppConfig):
         case "11":
             print("\nLancement du Image_reductor...")
             is_empty_folder = image_reductor(cfg)
-            complementary_is_empty = reductor_workflow._run_complementary_reductor(
-                cfg, "image", find_files_by_extensions, video_encodor, image_reductor
+            complementary_is_empty = (
+                reductor_workflow._run_complementary_reductor(
+                    cfg,
+                    "image",
+                    find_files_by_extensions,
+                    video_encodor,
+                    image_reductor,
+                )
             )
             if complementary_is_empty is not None:
                 is_empty_folder = is_empty_folder and complementary_is_empty
@@ -247,10 +266,15 @@ def main(cfg : AppConfig):
                     is_empty_folder = pdf_page_alternator(cfg)
                     break
                 except FileNotFoundError as exc:
-                    if all((cfg.INPUT_DIR / name).is_file() for name in ("impaire.pdf", "paire.pdf")):
+                    if all(
+                        (cfg.INPUT_DIR / name).is_file()
+                        for name in ("impaire.pdf", "paire.pdf")
+                    ):
                         raise
                     print(f"\n{exc}")
-                    answer = input("Appuyez sur Entrée pour réessayer, ou tapez q pour quitter : ")
+                    answer = input(
+                        "Appuyez sur Entrée pour réessayer, ou tapez q pour quitter : "
+                    )
                     if answer.strip().lower() == "q":
                         return
 
@@ -293,17 +317,23 @@ def main(cfg : AppConfig):
 
     # Check if no video was found in the input directory
     if is_empty_folder is True:
-        print("\n⚠️ Aucun fichier compatible trouvé dans le dossier d'entrée.\n")
+        print(
+            "\n⚠️ Aucun fichier compatible trouvé dans le dossier d'entrée.\n"
+        )
         sys.exit()
 
     # Print the summarize of files before and after
     func.summarize_files(cfg.INPUT_DIR, label="INPUT")
     func.summarize_files(cfg.OUTPUT_DIR, label="OUTPUT")
-    
+
     # Print final message
     print("\n✅ Tous les fichiers ont été traités.\n")
 
+
 # Main entry point
 if __name__ == "__main__":
-    with use_progress_factory(tqdm), use_message_sink(lambda message: print(message, end="")):
+    with (
+        use_progress_factory(tqdm),
+        use_message_sink(lambda message: print(message, end="")),
+    ):
         main(APP_CONFIG)

@@ -6,6 +6,7 @@ Pierrick BERTHE
 mail : pierrick.berthe@gmx.fr
 Décembre 2025
 """
+
 # Imports standard
 from functools import wraps
 import os
@@ -34,7 +35,9 @@ from toolbox_pb.core.events import emit, ui_only
 from toolbox_pb.core.cancellation import raise_if_cancelled
 
 
-def preserve_file_modification_time(source_path: Path, output_path: Path) -> None:
+def preserve_file_modification_time(
+    source_path: Path, output_path: Path
+) -> None:
     """Set ``output_path``'s modification time to that of ``source_path``.
 
     The source creation time is intentionally left untouched: it is not
@@ -51,8 +54,8 @@ def extract_valid_dates(text: str) -> list[date]:
     for pattern, order in DATE_PATTERNS:
         for match in re.finditer(pattern, text):
             values = [int(value) for value in match.groups()]
-            year, month, day = values if order == "ymd" else (
-                values[2], values[1], values[0]
+            year, month, day = (
+                values if order == "ymd" else (values[2], values[1], values[0])
             )
             try:
                 dates.append(date(year, month, day))
@@ -84,10 +87,14 @@ def get_git_version():
     """
     try:
         # Get the current git version
-        version = subprocess.check_output(
-            ["git", "describe", "--tags", "--always"],
-            stderr=subprocess.STDOUT
-        ).decode().strip()
+        version = (
+            subprocess.check_output(
+                ["git", "describe", "--tags", "--always"],
+                stderr=subprocess.STDOUT,
+            )
+            .decode()
+            .strip()
+        )
         return version
     except Exception:
         return "version inconnue"
@@ -98,16 +105,12 @@ def format_git_version(version_str):
     Format the git version string.
     """
     # split the version string
-    parts = version_str.split('-')
+    parts = version_str.split("-")
 
     # Check the number of parts
     if len(parts) == 1:
         return f"Version : {parts[0]}"
-    if (
-        len(parts) == 3
-        and parts[1].isdigit()
-        and parts[2].startswith('g')
-    ):
+    if len(parts) == 3 and parts[1].isdigit() and parts[2].startswith("g"):
         tag, commits, commit_hash = parts
         return (
             f"Version : {tag} ({commits} commits après le tag,"
@@ -169,7 +172,7 @@ def print_config_flags(config, flag_names: list[str]):
 
 def transform_sec_duration_in_min_sec(start, end):
     """
-    This function calculates the duration between two time points in 
+    This function calculates the duration between two time points in
     minutes and seconds.
     """
     min, sec = divmod(end - start, 60)
@@ -180,6 +183,7 @@ def measure_time(func):
     """
     decorator to measure the execution time of a function.
     """
+
     @wraps((func))
     def wrapper(*args, **kwargs):
         start = time.perf_counter()
@@ -188,8 +192,10 @@ def measure_time(func):
         min, sec = transform_sec_duration_in_min_sec(0, duration_sec)
         emit(
             f"\n⏱️ Temps d'exécution de {func.__name__} : "
-            f"{min} min et {sec} sec.")
+            f"{min} min et {sec} sec."
+        )
         return result
+
     return wrapper
 
 
@@ -230,7 +236,7 @@ def print_json(obj, title=None):
 
 
 def format_bytes(size_bytes: int) -> str:
-    """ 
+    """
     Format bytes into human-readable string with units.
     """
     if size_bytes >= 1_000_000_000:
@@ -288,14 +294,27 @@ def build_processing_comment(
 def _read_video_comment(video_path: Path) -> str | None:
     """Read the standard FFmpeg comment tag from a video file."""
     command = [
-        "ffprobe", "-v", "error", "-show_entries", "format_tags=comment",
-        "-of", "json", str(video_path),
+        "ffprobe",
+        "-v",
+        "error",
+        "-show_entries",
+        "format_tags=comment",
+        "-of",
+        "json",
+        str(video_path),
     ]
     try:
-        result = subprocess.run(command, capture_output=True, text=True, check=True)
+        result = subprocess.run(
+            command, capture_output=True, text=True, check=True
+        )
     except (FileNotFoundError, subprocess.CalledProcessError):
         return None
-    return json.loads(result.stdout).get("format", {}).get("tags", {}).get("comment")
+    return (
+        json.loads(result.stdout)
+        .get("format", {})
+        .get("tags", {})
+        .get("comment")
+    )
 
 
 def build_video_processing_comment(
@@ -305,7 +324,9 @@ def build_video_processing_comment(
     audio_codec: str | None = None,
 ) -> str:
     """Build the next video comment before the output file is created."""
-    previous_comment = _read_video_comment(source_path) if source_path else None
+    previous_comment = (
+        _read_video_comment(source_path) if source_path else None
+    )
     return build_processing_comment(
         previous_comment, feature, video_codec, audio_codec
     )
@@ -323,9 +344,7 @@ def make_unique_path(path: Path) -> Path:
 
     # Collect all existing filenames (without directory) recursively
     existing_names = {
-        p.name
-        for p in parent.rglob("*")
-        if is_processable_file(p)
+        p.name for p in parent.rglob("*") if is_processable_file(p)
     }
 
     # If the filename is not used anywhere, return it directly
@@ -366,9 +385,7 @@ def build_output_path(
 
 
 def build_output_subdir_from_input(
-    input_file: Path,
-    input_dir: Path,
-    output_dir: Path
+    input_file: Path, input_dir: Path, output_dir: Path
 ) -> Path:
     """
     Build and create the output subdirectory that mirrors input_dir structure.
@@ -405,7 +422,6 @@ def summarize_files(dir_path: Path, label: str) -> None:
 
     # Iterate over files to compute size and extension stats
     for f in files:
-
         # Add file size in bytes
         total_size += f.stat().st_size
 
@@ -464,7 +480,7 @@ def consume_ffmpeg_progress(
             if not line:
                 break
 
-            # FFmpeg progress lines look like "out_time_ms=12345678" 
+            # FFmpeg progress lines look like "out_time_ms=12345678"
             # or "out_time_us=12345678"
             match = re.search(r"out_time_(?:ms|us)=(\d+)", line)
             if match:
@@ -476,9 +492,12 @@ def consume_ffmpeg_progress(
                     pbar.update(applied_delta)
                     if progress_bar is not None:
                         global_remaining = max(
-                            float(progress_bar.total or 0) - progress_bar.n, 0.0
+                            float(progress_bar.total or 0) - progress_bar.n,
+                            0.0,
                         )
-                        progress_bar.update(min(applied_delta, global_remaining))
+                        progress_bar.update(
+                            min(applied_delta, global_remaining)
+                        )
                     last_time = current_time
             elif "error" in line.lower():
                 error_lines.append(line.strip())
@@ -497,12 +516,18 @@ def get_mobile_video_output_options(codec_video: str) -> list[str]:
     options = ["-pix_fmt", "yuv420p"]
     if codec_video.lower() in {"libx265", "hevc_amf"}:
         options.extend(["-profile:v", "main"])
-    options.extend([
-        "-color_range", "tv",
-        "-colorspace", "bt709",
-        "-color_primaries", "bt709",
-        "-color_trc", "bt709",
-    ])
+    options.extend(
+        [
+            "-color_range",
+            "tv",
+            "-colorspace",
+            "bt709",
+            "-color_primaries",
+            "bt709",
+            "-color_trc",
+            "bt709",
+        ]
+    )
     return options
 
 

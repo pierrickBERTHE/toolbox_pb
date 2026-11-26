@@ -31,8 +31,12 @@ def file_timeline_sorter(cfg: AppConfig) -> bool:
         output_subdir = cfg.OUTPUT_DIR / relative_path.parent
         filename = input_path.name
         if not func_file.is_timeline_filename(filename):
-            modification_time = func_file.get_file_modification_time(input_path)
-            filename = func_file.build_timeline_filename(input_path, modification_time)
+            modification_time = func_file.get_file_modification_time(
+                input_path
+            )
+            filename = func_file.build_timeline_filename(
+                input_path, modification_time
+            )
         output_path = output_subdir / filename
 
         if func_file.copy_file_for_timeline(input_path, output_path):
@@ -103,17 +107,24 @@ def folder_date_renammer(cfg: AppConfig) -> bool:
     # Process each folder and copy it to the output directory with a date prefix
     copied_folders = 0
     for folder_path in input_folders:
-        new_name = func_file.build_dated_folder_name(folder_path.name) or folder_path.name
+        new_name = (
+            func_file.build_dated_folder_name(folder_path.name)
+            or folder_path.name
+        )
         output_path = cfg.OUTPUT_DIR / new_name
 
         if func_file.copy_folder(folder_path, output_path):
             if new_name == folder_path.name:
                 emit(f"Dossier copié sans modification : {folder_path.name}")
             else:
-                emit(f"Dossier copié et renommé : {folder_path.name} -> {new_name}")
+                emit(
+                    f"Dossier copié et renommé : {folder_path.name} -> {new_name}"
+                )
             copied_folders += 1
         else:
-            emit(f"Dossier ignoré (destination existante) : {folder_path.name}")
+            emit(
+                f"Dossier ignoré (destination existante) : {folder_path.name}"
+            )
 
     emit(f"{copied_folders} dossier(s) copié(s).")
     return False
@@ -126,9 +137,9 @@ def cache_nettoyor() -> None:
     """
     # Get the list of cache folders and CLI caches, ensuring uniqueness
     cli_caches = func_file.get_cli_caches()
-    paths = list(dict.fromkeys(
-        [*CACHE_FOLDERS, *(path for _, path, _ in cli_caches)]
-    ))
+    paths = list(
+        dict.fromkeys([*CACHE_FOLDERS, *(path for _, path, _ in cli_caches)])
+    )
 
     # Print the sizes of each cache folder before cleaning
     emit("\n----- AVANT NETTOYAGE -----")
@@ -140,9 +151,7 @@ def cache_nettoyor() -> None:
     emit(f"TOTAL : {func_file.format_size(total_before)}")
 
     # Clean the cache folders and CLI caches, summing the total freed space
-    total_freed = sum(
-        func_file.clean_contents(path) for path in CACHE_FOLDERS
-    )
+    total_freed = sum(func_file.clean_contents(path) for path in CACHE_FOLDERS)
     total_freed += func_file.run_cli_cleaners(cli_caches)
 
     # Print the sizes of each cache folder after cleaning
@@ -154,8 +163,7 @@ def cache_nettoyor() -> None:
         emit(f"{path} : {func_file.format_size(remaining)}")
     emit(f"TOTAL restant : {func_file.format_size(total_remaining)}")
     emit(f"\n===> Espace nettoyé : {func_file.format_size(total_freed)} <===")
-    emit("\nPensez à nettoyer les fichiers temporaires dans : "
+    emit(
+        "\nPensez à nettoyer les fichiers temporaires dans : "
         "Paramètres > Système > Stockage > Fichiers temporaires."
-        )
-
-
+    )

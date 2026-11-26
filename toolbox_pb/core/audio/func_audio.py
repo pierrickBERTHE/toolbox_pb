@@ -27,7 +27,8 @@ def find_audio_files(input_dir: Path, extensions: list[str]) -> list[Path]:
     accepted_extensions = {extension.lower() for extension in extensions}
     return sorted(
         (
-            path for path in input_dir.rglob("*")
+            path
+            for path in input_dir.rglob("*")
             if is_processable_file(path)
             and path.suffix.lower() in accepted_extensions
         ),
@@ -38,9 +39,14 @@ def find_audio_files(input_dir: Path, extensions: list[str]) -> list[Path]:
 def read_audio_comment(audio_path: Path) -> str | None:
     """Return the existing media comment, without failing the batch on probe errors."""
     command = [
-        "ffprobe", "-v", "error",
-        "-show_entries", "format_tags=comment:stream_tags=comment",
-        "-of", "json", str(audio_path),
+        "ffprobe",
+        "-v",
+        "error",
+        "-show_entries",
+        "format_tags=comment:stream_tags=comment",
+        "-of",
+        "json",
+        str(audio_path),
     ]
     try:
         result = subprocess.run(
@@ -71,17 +77,28 @@ def build_audio_processing_comment(input_path: Path, bitrate_kbps: int) -> str:
 def probe_audio_bitrate_kbps(input_path: Path) -> float | None:
     """Return the source average bitrate in kb/s, or None when unavailable."""
     command = [
-        "ffprobe", "-v", "error", "-show_entries", "format=bit_rate",
-        "-of", "json", str(input_path),
+        "ffprobe",
+        "-v",
+        "error",
+        "-show_entries",
+        "format=bit_rate",
+        "-of",
+        "json",
+        str(input_path),
     ]
     try:
         result = subprocess.run(
             command, capture_output=True, text=True, check=True
         )
-        bitrate_bps = json.loads(result.stdout).get("format", {}).get("bit_rate")
+        bitrate_bps = (
+            json.loads(result.stdout).get("format", {}).get("bit_rate")
+        )
         return float(bitrate_bps) / 1_000 if bitrate_bps else None
     except (
-        FileNotFoundError, subprocess.CalledProcessError, TypeError, ValueError,
+        FileNotFoundError,
+        subprocess.CalledProcessError,
+        TypeError,
+        ValueError,
         json.JSONDecodeError,
     ):
         return None
@@ -100,12 +117,17 @@ def copy_star_rating(input_path: Path, output_path: Path) -> None:
         output_audio = MP3(output_path)
     except Exception:
         return
-    if input_audio is None or input_audio.tags is None or output_audio.tags is None:
+    if (
+        input_audio is None
+        or input_audio.tags is None
+        or output_audio.tags is None
+    ):
         return
 
     # Copy all POPM frames from the input to the output, preserving the email, rating and count.
     ratings = [
-        frame for key, frame in input_audio.tags.items()
+        frame
+        for key, frame in input_audio.tags.items()
         if key.startswith("POPM")
     ]
     if not ratings:
@@ -153,13 +175,30 @@ def _build_mp3_command(
 ) -> list[str]:
     """Build an MP3 command that copies tags, artwork and the new comment."""
     return [
-        "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
-        "-i", str(input_path),
-        "-map", "0:a:0", "-map", "0:v?", "-map_metadata", "0",
+        "ffmpeg",
+        "-y",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-i",
+        str(input_path),
+        "-map",
+        "0:a:0",
+        "-map",
+        "0:v?",
+        "-map_metadata",
+        "0",
         *audio_options,
-        "-c:v", "copy", "-disposition:v:0", "attached_pic",
-        "-id3v2_version", "3", "-write_id3v1", "1",
-        "-metadata", f"comment={processing_comment}",
+        "-c:v",
+        "copy",
+        "-disposition:v:0",
+        "attached_pic",
+        "-id3v2_version",
+        "3",
+        "-write_id3v1",
+        "1",
+        "-metadata",
+        f"comment={processing_comment}",
         str(output_path),
     ]
 
@@ -172,11 +211,15 @@ def compress_audio_to_mp3(
 ) -> None:
     """Encode one source directly to MP3 at the requested bitrate."""
     if bitrate_kbps <= 0:
-        raise ValueError("AUDIO_COMPRESSOR_MP3_BITRATE_KBPS doit être positif.")
+        raise ValueError(
+            "AUDIO_COMPRESSOR_MP3_BITRATE_KBPS doit être positif."
+        )
     output_path.parent.mkdir(parents=True, exist_ok=True)
     subprocess.run(
         _build_mp3_command(
-            input_path, output_path, processing_comment,
+            input_path,
+            output_path,
+            processing_comment,
             ["-c:a", "libmp3lame", "-b:a", f"{bitrate_kbps}k"],
         ),
         check=True,
